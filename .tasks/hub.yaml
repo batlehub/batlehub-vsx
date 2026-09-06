@@ -1,0 +1,85 @@
+version: "3"
+
+# A BatleHub to develop against, in this workspace: the server binary of a
+# release, run in the tools container against the Postgres sidecar
+# (localhost:5432, see devfile.yaml), with dev/hub/config.toml — two static
+# tokens, a `vscode-marketplace` registry named `vsx` in local mode that
+# signs what it hosts. Nothing here is a secret; nothing here is exposed
+# beyond the workspace gateway.
+#
+# The heavy suite (`task heavy:view`) starts its own server on 8124 and does
+# not need this one; this is for a human at the console or an editor pointed
+# at http://127.0.0.1:8080/proxy/vsx.
+vars:
+  HUB_VERSION: '{{.HUB_VERSION | default "latest"}}'
+  HUB_BIN_DIR: "{{.HOME}}/.cache/batlehub-vsx/bin"
+  HUB_LOG: "{{.ROOT_DIR}}/dev/hub/server.log"
+  HUB_PID: "{{.ROOT_DIR}}/dev/hub/server.pid"
+
+tasks:
+  install:
+    desc: "Fetch the BatleHub server and CLI binaries of a release into ~/.cache/batlehub-vsx/bin (HUB_VERSION=latest|vX.Y.Z)"
+    cmds:
+      - mkdir -p "{{.HUB_BIN_DIR}}"
+      - |
+        set -eu
+        if [ "{{.HUB_VERSION}}" = "latest" ]; then base="https://github.com/batleforc/batlehub/releases/latest/download"
+        else base="https://github.com/batleforc/batlehub/releases/download/{{.HUB_VERSION}}"; fi
+        curl -fsSL --proto '=https' -o "{{.HUB_BIN_DIR}}/batlehub" "$base/batlehub"
+        chmod +x "{{.HUB_BIN_DIR}}/batlehub"
+        curl -fsSL --proto '=https' "$base/batlehub-cli-linux-amd64.tar.gz" | tar -xz -C "{{.HUB_BIN_DIR}}"
+        chmod +x "{{.HUB_BIN_DIR}}/batlehub-cli"
+        "{{.HUB_BIN_DIR}}/batlehub" --version
+        "{{.HUB_BIN_DIR}}/batlehub-cli" --version
+
+  up:
+    desc: "Start the dev BatleHub on 0.0.0.0:8080 (log: dev/hub/server.log); needs the Postgres sidecar"
+    preconditions:
+      - sh: '[ -x "{{.HUB_BIN_DIR}}/batlehub" ] || [ -n "${BATLEHUB_BIN:-}" ]'
+        msg: "no server binary: run 'task hub:install' or export BATLEHUB_BIN=/path/to/batlehub"
+      - sh: "(exec 3<>/dev/tcp/127.0.0.1/5432) 2>/dev/null"
+        msg: "Postgres does not answer on 127.0.0.1:5432 — is the sidecar of devfile.yaml running?"
+    cmds:
+      - |
+        set -eu
+        bin="${BATLEHUB_BIN:-{{.HUB_BIN_DIR}}/batlehub}"
+        if [ -f "{{.HUB_PID}}" ] && kill -0 "$(cat "{{.HUB_PID}}")" 2>/dev/null; then
+          echo "already running (pid $(cat "{{.HUB_PID}}"))"; exit 0
+        fi
+        mkdir -p dev/hub/storage
+        setsid nohup "$bin" --config dev/hub/config.toml >"{{.HUB_LOG}}" 2>&1 &
+        echo $! >"{{.HUB_PID}}"
+        for i in $(seq 1 60); do
+          curl -sf http://127.0.0.1:8080/healthz >/dev/null && { echo "BatleHub up on 8080 (pid $(cat "{{.HUB_PID}}"))"; exit 0; }
+          kill -0 "$(cat "{{.HUB_PID}}")" 2>/dev/null || { tail -20 "{{.HUB_LOG}}"; echo "the server exited"; exit 1; }
+          sleep 1
+        done
+        echo "the server did not become healthy"; tail -20 "{{.HUB_LOG}}"; exit 1
+
+  down:
+    desc: "Stop the dev BatleHub"
+    cmds:
+      - |
+        [ -f "{{.HUB_PID}}" ] || { echo "not running"; exit 0; }
+        kill -- -"$(cat "{{.HUB_PID}}")" 2>/dev/null || kill "$(cat "{{.HUB_PID}}")" 2>/dev/null || true
+        rm -f "{{.HUB_PID}}"; echo stopped
+
+  logs:
+    desc: "Tail the dev BatleHub's log"
+    cmds:
+      - tail -n 50 -f "{{.HUB_LOG}}"
+
+  seed:
+    desc: "Publish the fixture extension (weebo-bridge-notify) into the dev registry so the views have something to list"
+    vars:
+      WEEBO_VERSION: '{{.WEEBO_VERSION | default "0.5.0"}}'
+      FIXTURE: "{{.HOME}}/.cache/batlehub-heavy/weebo-bridge-notify-{{.WEEBO_VERSION}}.vsix"
+    cmds:
+      - |
+        set -eu
+        mkdir -p "$(dirname "{{.FIXTURE}}")"
+        [ -s "{{.FIXTURE}}" ] || curl -fsSL --proto '=https' --proto-redir '=https' -o "{{.FIXTURE}}" \
+          "https://github.com/batleforc/weebo-che-notify/releases/download/v{{.WEEBO_VERSION}}/weebo-bridge-notify-{{.WEEBO_VERSION}}.vsix"
+        curl -fsS -X PUT -H "Authorization: Bearer dev-admin-token" -H "Content-Type: application/octet-stream" \
+          --data-binary @"{{.FIXTURE}}" "http://127.0.0.1:8080/proxy/vsx/batleforc.weebo-bridge-notify/{{.WEEBO_VERSION}}/vsix"
+        echo; echo "published batleforc.weebo-bridge-notify {{.WEEBO_VERSION}} into http://127.0.0.1:8080/proxy/vsx"

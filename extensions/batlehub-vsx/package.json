@@ -1,0 +1,329 @@
+{
+  "name": "batlehub-vsx",
+  "displayName": "BatleHub",
+  "description": "Sign in to a BatleHub extension registry from the editor, keep its credential fresh, and browse and install its extensions where the editor's own gallery cannot be repointed.",
+  "version": "0.1.0",
+  "publisher": "batlehub",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/batleforc/batlehub-vsx"
+  },
+  "homepage": "https://github.com/batleforc/batlehub-vsx",
+  "icon": "media/batlehub.png",
+  "engines": {
+    "vscode": "^1.96.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "keywords": [
+    "batlehub",
+    "registry",
+    "marketplace",
+    "open-vsx",
+    "authentication"
+  ],
+  "extensionKind": [
+    "workspace",
+    "ui"
+  ],
+  "main": "./dist/extension.js",
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": true
+    },
+    "virtualWorkspaces": true
+  },
+  "contributes": {
+    "authentication": [
+      {
+        "id": "batlehub",
+        "label": "BatleHub"
+      }
+    ],
+    "configuration": {
+      "title": "BatleHub",
+      "properties": {
+        "batlehub.registry": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "The VS Code extension registry on your BatleHub instance, e.g. `https://hub.example.dev/proxy/vsx`. Its origin is the key the credential contract file is looked up under.",
+          "scope": "machine"
+        },
+        "batlehub.mode": {
+          "type": "string",
+          "enum": [
+            "auto",
+            "broker",
+            "marketplace"
+          ],
+          "enumDescriptions": [
+            "Broker mode when the editor's gallery already reaches the registry (a patched build, or a gallery served by the local proxy); otherwise the BatleHub marketplace view.",
+            "Keep the credential contract file fresh for the editor's own gallery; no marketplace view.",
+            "Show the BatleHub marketplace view and install from it, whatever the editor's gallery is."
+          ],
+          "default": "auto",
+          "markdownDescription": "How this extension reaches the registry. `auto` follows RFC 0011 §4.2: broker when the editor advertises `vsxRegistryAuthSupport`, marketplace otherwise.",
+          "scope": "machine"
+        },
+        "batlehub.cliPath": {
+          "type": "string",
+          "default": "batlehub-cli",
+          "markdownDescription": "The BatleHub CLI, used to obtain and refresh a credential when one is installed (`batlehub-cli auth token --output json`).",
+          "scope": "machine"
+        },
+        "batlehub.contractFile": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "The credential contract file. Empty means `$BATLEHUB_HOME/state/vsx-token.json`, `BATLEHUB_HOME` defaulting to `~/.batlehub`.",
+          "scope": "machine"
+        },
+        "batlehub.verifySignatures": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Before installing from the marketplace view, verify the registry's Ed25519 signature over the package (RFC 0020) when the entry carries one. A package whose signature does not verify is not installed.",
+          "scope": "machine"
+        },
+        "batlehub.pageSize": {
+          "type": "number",
+          "default": 50,
+          "minimum": 1,
+          "maximum": 200,
+          "description": "How many entries a marketplace search asks the registry for.",
+          "scope": "machine"
+        }
+      }
+    },
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "batlehub",
+          "title": "BatleHub",
+          "icon": "media/batlehub.svg"
+        }
+      ]
+    },
+    "views": {
+      "batlehub": [
+        {
+          "id": "batlehub.marketplace",
+          "name": "Extensions",
+          "icon": "media/batlehub.svg",
+          "contextualTitle": "BatleHub extensions",
+          "when": "batlehub.mode == marketplace"
+        },
+        {
+          "id": "batlehub.account",
+          "name": "Account",
+          "icon": "media/batlehub.svg",
+          "contextualTitle": "BatleHub account",
+          "when": "batlehub.mode == broker"
+        }
+      ]
+    },
+    "viewsWelcome": [
+      {
+        "view": "batlehub.marketplace",
+        "contents": "No registry is configured.\n[Set the registry URL](command:batlehub.openSettings)\nThe URL is your BatleHub's VS Code registry, e.g. `https://hub.example.dev/proxy/vsx`.",
+        "when": "!batlehub.configured"
+      },
+      {
+        "view": "batlehub.marketplace",
+        "contents": "The registry needs a credential this editor does not hold yet.\n[Sign in to BatleHub](command:batlehub.signIn)",
+        "when": "batlehub.configured && !batlehub.signedIn"
+      },
+      {
+        "view": "batlehub.account",
+        "contents": "The editor's gallery reaches BatleHub through the credential this extension keeps fresh.\n[Sign in to BatleHub](command:batlehub.signIn)",
+        "when": "batlehub.configured && !batlehub.signedIn"
+      },
+      {
+        "view": "batlehub.account",
+        "contents": "No registry is configured.\n[Set the registry URL](command:batlehub.openSettings)",
+        "when": "!batlehub.configured"
+      }
+    ],
+    "commands": [
+      {
+        "command": "batlehub.signIn",
+        "title": "Sign in",
+        "category": "BatleHub",
+        "icon": "$(sign-in)"
+      },
+      {
+        "command": "batlehub.signOut",
+        "title": "Sign out",
+        "category": "BatleHub",
+        "icon": "$(sign-out)"
+      },
+      {
+        "command": "batlehub.status",
+        "title": "Show credential status",
+        "category": "BatleHub",
+        "icon": "$(info)"
+      },
+      {
+        "command": "batlehub.refreshCredential",
+        "title": "Refresh the credential now",
+        "category": "BatleHub"
+      },
+      {
+        "command": "batlehub.showLog",
+        "title": "Show log",
+        "category": "BatleHub",
+        "icon": "$(output)"
+      },
+      {
+        "command": "batlehub.openSettings",
+        "title": "Open settings",
+        "category": "BatleHub",
+        "icon": "$(gear)"
+      },
+      {
+        "command": "batlehub.search",
+        "title": "Search extensions",
+        "category": "BatleHub",
+        "icon": "$(search)"
+      },
+      {
+        "command": "batlehub.refreshView",
+        "title": "Refresh",
+        "category": "BatleHub",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "batlehub.checkUpdates",
+        "title": "Check for updates",
+        "category": "BatleHub",
+        "icon": "$(cloud-download)"
+      },
+      {
+        "command": "batlehub.install",
+        "title": "Install",
+        "category": "BatleHub",
+        "icon": "$(cloud-download)"
+      },
+      {
+        "command": "batlehub.update",
+        "title": "Update",
+        "category": "BatleHub",
+        "icon": "$(arrow-up)"
+      },
+      {
+        "command": "batlehub.uninstall",
+        "title": "Uninstall",
+        "category": "BatleHub",
+        "icon": "$(trash)"
+      },
+      {
+        "command": "batlehub.showExtension",
+        "title": "Show details",
+        "category": "BatleHub",
+        "icon": "$(book)"
+      },
+      {
+        "command": "batlehub.installById",
+        "title": "Install extension by id…",
+        "category": "BatleHub"
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "batlehub.search",
+          "when": "view == batlehub.marketplace",
+          "group": "navigation@1"
+        },
+        {
+          "command": "batlehub.refreshView",
+          "when": "view == batlehub.marketplace",
+          "group": "navigation@2"
+        },
+        {
+          "command": "batlehub.checkUpdates",
+          "when": "view == batlehub.marketplace",
+          "group": "navigation@3"
+        },
+        {
+          "command": "batlehub.signIn",
+          "when": "view =~ /^batlehub\\./ && !batlehub.signedIn",
+          "group": "navigation@4"
+        },
+        {
+          "command": "batlehub.signOut",
+          "when": "view =~ /^batlehub\\./ && batlehub.signedIn",
+          "group": "navigation@4"
+        },
+        {
+          "command": "batlehub.status",
+          "when": "view =~ /^batlehub\\./",
+          "group": "navigation@5"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "batlehub.install",
+          "when": "view == batlehub.marketplace && viewItem == available",
+          "group": "inline@1"
+        },
+        {
+          "command": "batlehub.update",
+          "when": "view == batlehub.marketplace && viewItem == update",
+          "group": "inline@1"
+        },
+        {
+          "command": "batlehub.uninstall",
+          "when": "view == batlehub.marketplace && viewItem =~ /installed|update/",
+          "group": "inline@2"
+        },
+        {
+          "command": "batlehub.showExtension",
+          "when": "view == batlehub.marketplace",
+          "group": "inline@3"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "batlehub.install",
+          "when": "false"
+        },
+        {
+          "command": "batlehub.update",
+          "when": "false"
+        },
+        {
+          "command": "batlehub.uninstall",
+          "when": "false"
+        },
+        {
+          "command": "batlehub.showExtension",
+          "when": "false"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "build": "node esbuild.mjs",
+    "watch": "node esbuild.mjs --watch",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "lint": "oxlint src test && prettier --check \"src/**/*.ts\" \"test/**/*.ts\" esbuild.mjs",
+    "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\" esbuild.mjs",
+    "test": "vitest run",
+    "package": "node esbuild.mjs && vsce package --no-dependencies --skip-license -o batlehub-vsx.vsix"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "@types/vscode": "^1.96.0",
+    "@vscode/vsce": "^3.6.0",
+    "esbuild": "^0.25.0",
+    "oxlint": "^1.0.0",
+    "prettier": "^3.6.0",
+    "puppeteer-core": "^25.9.0",
+    "typescript": "^5.9.0",
+    "vitest": "^3.2.0"
+  }
+}

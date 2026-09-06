@@ -1,0 +1,44 @@
+# The BatleHub of tests/heavy/view.sh: a `vscode-marketplace` registry that
+# requires a credential to read (`anonymous` holds no verb), signing what it
+# hosts. The registry name carries the run id so two runs never share
+# state; the port is the suite's (RFC 0011 plan: 8124).
+
+[server]
+host = "127.0.0.1"
+port = 8124
+
+[database]
+type = "postgresql"
+url = "${DATABASE_URL}"
+max_connections = 5
+
+[[auth]]
+type = "token"
+
+[[auth.tokens]]
+value = "heavy-admin-token"
+role = "admin"
+user_id = "ci-admin"
+
+[[auth.tokens]]
+value = "heavy-user-token"
+role = "user"
+user_id = "ci-user"
+
+[storage]
+type = "filesystem"
+path = "${HEAVY_STORAGE}"
+
+[[registries]]
+type = "vscode-marketplace"
+name = "vsx-${HEAVY_RUN}"
+mode = "local"
+
+[registries.vsx_signing]
+seed_hex = "9d61b19deffd5a60ba844af492ec2cc44449c5697b326919703bac031cae7f60"
+key_id = "heavy"
+
+[registries.rbac]
+anonymous = []
+user = ["releases:read", "releases:list", "source:read"]
+admin = ["*"]

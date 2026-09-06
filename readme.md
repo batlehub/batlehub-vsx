@@ -1,26 +1,27 @@
-# Weebo base project
+# batlehub-vsx
 
-This repository is meant to be a template used to bootstrap future projects.
+The BatleHub VS Code extensions. Today: one, `batlehub.batlehub-vsx` — the
+extension [RFC 0011](https://batleforc.git.batleforc.fr/batlehub/rfc/0011-openvsx-login)
+moved out of the [BatleHub](https://github.com/batleforc/batlehub) repository
+(its §6.5, §12 phases 7 and 8).
 
-## Eclipse Che
+- **Broker mode** — on an editor whose gallery already reaches BatleHub (a
+  patched build, or the local gallery proxy): keep the credential contract
+  file fresh, show the state in the status bar, re-query the gallery after a
+  sign-in.
+- **Marketplace mode** — on a stock VS Code, whose gallery URL cannot be
+  repointed: a BatleHub view that lists what the registry shows you and
+  installs it through the editor's own command, dependencies and packs
+  resolved, the registry's signature verified (RFC 0020), the supply-chain
+  verdict honoured (RFC 0018).
 
-Those future projects are built around my way of viewing Eclipse Che and how i work with it. It's not, at least now, how it's commonly viewed.
+Documentation: `docs/` (VitePress, `task docs:dev`).
 
-My view of Eclipse Che includes the usage of [mise](https://mise.jdx.dev/) to describe the packages needed in pair with [Weebo DotFile Che](https://github.com/batleforc/weebo-dotfiles-che) which is the base of all my workspaces.
-
-My custom image can be found [here](https://github.com/batleforc/WeeboDevImage)
-
-## Updating a project bootstrapped from this template
-
-Projects created before a template change catch up with `task template:sync`. It clones this repository into `.task/template`, overwrites the files the template owns, and prints a diff for the files every project customises so you merge those by hand. `task template:diff` shows the same comparison without writing anything.
-
-The list of owned versus reviewed files lives at the top of `.tasks/template.yaml`.
-
-A project that predates the task itself needs the file once:
-
-```bash
-mkdir -p .tasks
-curl -fsSL https://raw.githubusercontent.com/batleforc/weebo-base/main/.tasks/template.yaml -o .tasks/template.yaml
-# then add "template: ./.tasks/template.yaml" under includes: in Taskfile.yaml
-task template:sync
+```sh
+task init          # tools, hooks, dependencies
+task ext:test      # unit tests
+task ext:package   # extensions/batlehub-vsx/batlehub-vsx.vsix
+task heavy:view    # the proof in a real VS Code, in this workspace's devfile
 ```
+
+Bootstrapped from the [weebo-base](https://github.com/batleforc/weebo-base) template.

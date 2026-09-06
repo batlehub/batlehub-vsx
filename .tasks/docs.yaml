@@ -1,0 +1,23 @@
+version: "3"
+
+# The documentation: a VitePress site under docs/, its own pnpm project in
+# the workspace. Published by the pages workflow; `task docs:dev` serves it
+# on 5173 so a workspace's `docs` endpoint reaches it.
+tasks:
+  dev:
+    desc: "Serve the docs on 0.0.0.0:5173 with live reload"
+    dir: docs
+    cmds:
+      - pnpm run dev
+
+  build:
+    desc: "Build the static site into docs/.vitepress/dist"
+    dir: docs
+    cmds:
+      - pnpm run build
+
+  preview:
+    desc: "Serve the built site on 0.0.0.0:5173"
+    dir: docs
+    cmds:
+      - pnpm run preview

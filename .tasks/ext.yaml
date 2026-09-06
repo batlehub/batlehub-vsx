@@ -1,0 +1,41 @@
+version: "3"
+
+# The extensions under extensions/*, driven through pnpm's workspace filter
+# so a second extension joins these tasks by existing.
+tasks:
+  build:
+    desc: "Bundle every extension into its dist/extension.js"
+    cmds:
+      - pnpm -r --filter './extensions/*' run build
+
+  watch:
+    desc: "Rebuild batlehub-vsx on every change"
+    dir: extensions/batlehub-vsx
+    cmds:
+      - pnpm run watch
+
+  lint:
+    desc: "Type-check, oxlint and prettier --check every extension"
+    cmds:
+      - pnpm -r --filter './extensions/*' run typecheck
+      - pnpm -r --filter './extensions/*' run lint
+
+  fix:
+    desc: "Format every extension's sources"
+    cmds:
+      - pnpm -r --filter './extensions/*' run format
+
+  test:
+    desc: "Unit tests (vitest) of every extension"
+    cmds:
+      - pnpm -r --filter './extensions/*' run test
+
+  coverage:
+    desc: "Unit tests with coverage, HTML report under extensions/<name>/coverage/"
+    cmds:
+      - pnpm -r --filter './extensions/*' exec vitest run --coverage
+
+  package:
+    desc: "Build and package every extension as a .vsix (extensions/<name>/<name>.vsix)"
+    cmds:
+      - pnpm -r --filter './extensions/*' run package

@@ -1,0 +1,17 @@
+packages:
+  - extensions/*
+  - docs
+
+# pnpm 10+ denies install-time scripts by default. Each decision names why.
+allowBuilds:
+  esbuild: true # downloads the bundler binary for this platform; nothing builds without it
+  "@vscode/vsce-sign": true # vsce's signing helper fetches its platform binary; needed to package
+  keytar: false # vsce's optional keychain helper, a native build this repository never calls
+
+# Transitive pins. VitePress 1.x resolves vite 6.4.1, which carries
+# GHSA-fx2h-pf6j-xcff and two moderate advisories; 6.4.3 is within its peer
+# range. The pin goes here, not in package.json: since pnpm 10 the `pnpm`
+# field of package.json is not read.
+overrides:
+  vite: ">=6.4.3"
+  esbuild: ">=0.25.0"

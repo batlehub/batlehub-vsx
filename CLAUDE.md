@@ -240,3 +240,32 @@ Rules:
 - If graphify-out/wiki/index.md exists, use it for broad navigation instead of raw source browsing.
 - Read graphify-out/GRAPH_REPORT.md only for broad architecture review or when query/path/explain do not surface enough context.
 - After modifying code, run `graphify update .` to keep the graph current (AST-only, no API cost).
+
+<!-- batlehub-vsx Dedicated instruction --->
+
+# batlehub-vsx — this repository
+
+The BatleHub VS Code extensions (RFC 0011 §6.5, §12 phases 7–8 of the
+BatleHub repository). One pnpm workspace: `extensions/<name>/` per
+extension (`batlehub-vsx` today), `docs/` a VitePress site, `tests/heavy/`
+the real-editor suite, `.tasks/<domain>.yaml` the tasks (`task ext:*`,
+`docs:*`, `heavy:*`, `hub:*`, `browser:*`).
+
+- The modules that hold the rules — `contract.ts`, `credentials.ts`,
+  `api.ts`, `vsix.ts`, `cli.ts`, `mode.ts` — import nothing from `vscode`,
+  so they are tested as plain Node (`task ext:test`). Keep it that way: a
+  rule that needs the editor to be tested is a rule in the wrong module.
+- The credential contract file is RFC 0011 §4.1 and its JSON Schema
+  (`cli/schema/vsx-token.schema.json` in the BatleHub repository). Write
+  only what it allows; preserve what you do not know.
+- A credential never reaches the log: `log.ts` redacts, and the status
+  screen's row type has no field able to hold one.
+- **An item is done when a real client has been through it.**
+  `task heavy:view` runs the extension in VS Code's web build, driven in the
+  browser sidecar the parent devfile provides; the editor listens on
+  loopback and is never exposed outside the pod. The suite needs
+  `DATABASE_URL` (the Postgres sidecar), `task browser:start`, and a
+  BatleHub (`BATLEHUB_SRC` checkout, or `task hub:install` binaries).
+- No `commands:` in `devfile.yaml`; the parent is `che-browser`.
+
+<!-- /batlehub-vsx Dedicated instruction --->

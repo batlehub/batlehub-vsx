@@ -1,0 +1,37 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: Lint, test, package, docs
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Type-check, lint, format
+        run: pnpm run typecheck && pnpm run lint
+      - name: Unit tests
+        run: pnpm run test
+      - name: Package
+        run: pnpm run package
+      - name: Docs
+        run: pnpm -C docs run build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: batlehub-vsx.vsix
+          path: extensions/batlehub-vsx/batlehub-vsx.vsix
+          if-no-files-found: error
+      - name: Audit
+        run: pnpm audit --audit-level high

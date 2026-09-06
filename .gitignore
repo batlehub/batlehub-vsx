@@ -12,3 +12,13 @@ dist/
 # Local env files
 .env
 .env.local
+
+# Extension build output and packages
+extensions/*/dist/
+extensions/*/*.vsix
+coverage/
+
+# The heavy suite's working directories (editor data dirs, screenshots, logs)
+tests/heavy/work/
+docs/.vitepress/cache/
+docs/.vitepress/dist/

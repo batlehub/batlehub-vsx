@@ -1,0 +1,47 @@
+# The dev BatleHub of this workspace (`task hub:up`). Two static tokens —
+# nothing here is a secret, and the server is reachable only through the
+# workspace gateway — and one `vscode-marketplace` registry, `vsx`, in local
+# mode, signing what it hosts (RFC 0020) so an editor's Extensions view
+# enables Install on it. Postgres is the sidecar of devfile.yaml.
+
+[server]
+host = "0.0.0.0"
+port = 8080
+
+[database]
+type = "postgresql"
+url = "postgresql://batlehub:changeme@127.0.0.1:5432/batlehub"
+max_connections = 5
+
+[[auth]]
+type = "token"
+
+[[auth.tokens]]
+value = "dev-admin-token"
+role = "admin"
+user_id = "dev-admin"
+
+[[auth.tokens]]
+value = "dev-user-token"
+role = "user"
+user_id = "dev-user"
+
+[storage]
+type = "filesystem"
+path = "./dev/hub/storage"
+
+[[registries]]
+type = "vscode-marketplace"
+name = "vsx"
+mode = "local"
+
+# A fixed seed: a development key, not a secret. `batlehub-cli vsx keygen`
+# prints a fresh one for anything that is not this workspace.
+[registries.vsx_signing]
+seed_hex = "9d61b19deffd5a60ba844af492ec2cc44449c5697b326919703bac031cae7f60"
+key_id = "dev"
+
+[registries.rbac]
+anonymous = []
+user = ["releases:read", "releases:list", "source:read"]
+admin = ["*"]

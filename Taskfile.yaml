@@ -1,17 +1,33 @@
 version: "3"
 
+# `Taskfile.yaml` is the includes and the tasks every project of this
+# template has; the domain tasks live in `.tasks/<domain>.yaml` and keep
+# their prefix (`task ext:build`, `task docs:dev`, `task heavy:view`).
 includes:
   mise: ./.tasks/mise.yaml
   claude: ./.tasks/claude.yaml
   template: ./.tasks/template.yaml
+  ext: ./.tasks/ext.yaml
+  docs: ./.tasks/docs.yaml
+  heavy: ./.tasks/heavy.yaml
+  hub: ./.tasks/hub.yaml
+  browser: ./.tasks/browser.yaml
+
+vars:
+  # The kubectl hop into the browser sidecar (see .tasks/browser.yaml). Both
+  # env vars are exported into every Che workspace container; the `:+` guard
+  # keeps the expression valid outside one.
+  BROWSER_EXEC: kubectl exec ${DEVWORKSPACE_NAMESPACE:+-n ${DEVWORKSPACE_NAMESPACE}} ${HOSTNAME} -c browser --
+  BROWSER_LOGS: kubectl logs ${DEVWORKSPACE_NAMESPACE:+-n ${DEVWORKSPACE_NAMESPACE}} ${HOSTNAME} -c browser
 
 tasks:
   init:
-    desc: "Init folder"
+    desc: "Init folder: tools, the Claude skills, the git hooks, the JS dependencies"
     cmds:
       - task mise:install
       - task claude:install
       - cog install-hook -a -o
+      - pnpm install --frozen-lockfile
 
   init-repo:
     desc: "Adapt the template to its new repo name (usage: task init-repo [NAME=my-project] [OWNER=batleforc], NAME defaults to the folder name)"
@@ -25,24 +41,32 @@ tasks:
       - "sed -i 's/^  name: weebo-base$/  name: {{.NAME}}/' devfile.yaml"
       - sed -i 's/^repository = "weebo-base"$/repository = "{{.NAME}}"/' cog.toml
       - sed -i 's/^owner = ".*"$/owner = "{{.OWNER}}"/' cog.toml
-      - |
-        cat > readme.md <<'EOF'
-        # {{.NAME}}
-
-        Project bootstrapped from the [weebo-base](https://github.com/batleforc/weebo-base) template.
-        EOF
       - echo "Repo adapted to '{{.NAME}}' (owner '{{.OWNER}}'), review the changes then commit them"
+
   recu:
-    desc: "Recuring job like regenerating Swagger spec"
+    desc: "Recurring job: build every extension so dist/ is what the tests and the package see"
     cmds:
-      - echo "Your future spec generating cmd"
+      - task ext:build
 
   lint:
-    desc: "Linting your project to apply good practice"
+    desc: "Type-check, lint and format-check every extension"
     cmds:
-      - echo "Something like cargo fmt && cargo clippy"
+      - task ext:lint
+
+  test:
+    desc: "Unit tests of every extension"
+    cmds:
+      - task ext:test
 
   audit:
-    desc: "Check dependencies and Containerfile for CVE"
+    desc: "Check the JS dependencies for known vulnerabilities"
     cmds:
-      - echo "Something like cargo audit, pnpm audit or trivy fs ."
+      - pnpm audit --audit-level high
+
+  check:
+    desc: "Everything CI runs: lint, unit tests, build, package, docs build"
+    cmds:
+      - task lint
+      - task test
+      - task ext:package
+      - task docs:build

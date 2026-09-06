@@ -1,0 +1,26 @@
+version: "3"
+
+# The proof with a real editor (tests/heavy/view.sh): VS Code's web build,
+# the extension installed from its .vsix, a BatleHub of this workspace, the
+# workbench driven in the browser sidecar over CDP. What the views show is
+# read off the DOM. See docs/contributing/testing.md.
+tasks:
+  view:
+    desc: "Run the heavy suite: both modes of the extension in a real VS Code web build against a real BatleHub (needs DATABASE_URL, the browser sidecar, and BATLEHUB_SRC or BATLEHUB_BIN)"
+    cmds:
+      - bash tests/heavy/view.sh
+
+  view:marketplace:
+    desc: "Only the marketplace-mode half of the heavy suite"
+    cmds:
+      - HEAVY_ONLY=marketplace bash tests/heavy/view.sh
+
+  view:broker:
+    desc: "Only the broker-mode half of the heavy suite"
+    cmds:
+      - HEAVY_ONLY=broker bash tests/heavy/view.sh
+
+  shots:
+    desc: "List the screenshots of the last heavy run"
+    cmds:
+      - ls -1 tests/heavy/work/last/shots 2>/dev/null || echo "no run yet"

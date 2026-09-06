@@ -1,0 +1,55 @@
+version: "3"
+
+# The browser sidecar of the parent devfile (che-browser): headed Chrome
+# behind Xvfb. CDP (9222), chromedriver (9515) and noVNC (6080) are plain
+# localhost ports because the pod shares one network namespace; only what
+# lives *inside* the sidecar needs the kubectl exec hop, which is what
+# BROWSER_EXEC (Taskfile.yaml) is. Chrome is parked at boot (NO_START=true
+# in the parent): `task browser:start` launches it before a heavy run.
+tasks:
+  check:
+    desc: Verify the browser sidecar is up, and print its CDP version
+    cmds:
+      - curl -sf http://localhost:9222/json/version
+
+  status:
+    desc: Report whether Chrome is running, parked or starting
+    cmds:
+      - "{{.BROWSER_EXEC}} sidecar-app status"
+
+  start:
+    desc: Launch Chrome in the sidecar and wait for CDP to answer
+    cmds:
+      - "{{.BROWSER_EXEC}} sidecar-app start"
+      - |
+        for _ in $(seq 1 30); do
+          curl -sf http://localhost:9222/json/version >/dev/null && exit 0
+          sleep 1
+        done
+        echo "CDP did not come up within 30s — check 'task browser:logs'" >&2
+        exit 1
+
+  stop:
+    desc: Park Chrome (frees its memory; noVNC and chromedriver stay up)
+    cmds:
+      - "{{.BROWSER_EXEC}} sidecar-app stop"
+
+  logs:
+    desc: The sidecar's logs
+    cmds:
+      - "{{.BROWSER_LOGS}} --tail=100"
+
+  tabs:
+    desc: List the browser's open tabs (id, type, title, url)
+    cmds:
+      - |
+        curl -s http://localhost:9222/json | python3 -c '
+        import json, sys
+        for t in json.load(sys.stdin):
+            print("%-34s %-10s %-40s %s" % (t["id"], t["type"], t["title"][:40], t["url"]))
+        '
+
+  vnc:
+    desc: Print the noVNC password, to watch the Chrome the heavy suite drives
+    cmds:
+      - cat /projects/.sidecar/vnc-password-browser.txt
