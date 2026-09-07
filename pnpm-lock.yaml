@@ -54,6 +54,33 @@ importers:
         specifier: ^3.2.0
         version: 3.2.7(@types/node@24.13.3)(supports-color@7.2.0)
 
+  extensions/che-remote-ssh:
+    devDependencies:
+      '@types/node':
+        specifier: ^24.0.0
+        version: 24.13.3
+      '@types/vscode':
+        specifier: ^1.96.0
+        version: 1.136.0
+      '@vscode/vsce':
+        specifier: ^3.6.0
+        version: 3.9.2(supports-color@7.2.0)
+      esbuild:
+        specifier: '>=0.25.0'
+        version: 0.28.2
+      oxlint:
+        specifier: ^1.0.0
+        version: 1.81.0
+      prettier:
+        specifier: ^3.6.0
+        version: 3.9.6
+      typescript:
+        specifier: ^5.9.0
+        version: 5.9.3
+      vitest:
+        specifier: ^3.2.0
+        version: 3.2.7(@types/node@24.13.3)(supports-color@7.2.0)
+
 packages:
 
   '@algolia/abtesting@1.23.0':

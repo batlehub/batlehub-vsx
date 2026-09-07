@@ -1,0 +1,306 @@
+{
+  "name": "che-remote-ssh",
+  "displayName": "Che Remote SSH",
+  "description": "Connect this editor over SSH to an Eclipse Che workspace running on plain Kubernetes, with a kubeconfig this extension owns and never shares with ~/.kube/config.",
+  "version": "0.1.0",
+  "publisher": "batlehub",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/batleforc/batlehub-vsx"
+  },
+  "homepage": "https://github.com/batleforc/batlehub-vsx",
+  "engines": {
+    "vscode": "^1.96.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "keywords": [
+    "eclipse-che",
+    "devworkspace",
+    "kubernetes",
+    "remote",
+    "ssh"
+  ],
+  "extensionKind": [
+    "ui"
+  ],
+  "main": "./dist/extension.js",
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": true
+    },
+    "virtualWorkspaces": true
+  },
+  "contributes": {
+    "configuration": {
+      "title": "Che Remote SSH",
+      "properties": {
+        "cheRemoteSsh.url": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "Your Eclipse Che instance, e.g. `https://che.example.dev`. Everything else is discovered from it.",
+          "scope": "machine"
+        },
+        "cheRemoteSsh.apiServer": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "The Kubernetes API server. Empty means: probe the Che host on port 6443 and confirm it answers as an apiserver.",
+          "scope": "machine"
+        },
+        "cheRemoteSsh.insecureSkipTlsVerify": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "Skip verification of the API server certificate. Needed when the cluster CA is not served in the chain and none is configured below.",
+          "scope": "machine"
+        },
+        "cheRemoteSsh.certificateAuthority": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "Path to the cluster CA bundle in PEM form. Preferred over skipping verification.",
+          "scope": "machine"
+        },
+        "cheRemoteSsh.kubectlPath": {
+          "type": "string",
+          "default": "kubectl",
+          "markdownDescription": "The `kubectl` binary. It is always invoked with `--kubeconfig` pointing at this extension's own file.",
+          "scope": "machine"
+        },
+        "cheRemoteSsh.kubeconfig": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "An existing kubeconfig to use as it is, e.g. `~/.kube/clusters/lab.yaml`. Any credential it holds works: client certificates, a service account token, an exec plugin. Empty means this extension signs in with OIDC and writes its own kubeconfig. Your default kubeconfig is never picked up unless you name it here.",
+          "scope": "machine"
+        },
+        "cheRemoteSsh.context": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "The context to select inside `#cheRemoteSsh.kubeconfig#`. Ignored when this extension writes its own kubeconfig, which holds a single context.",
+          "scope": "machine"
+        },
+        "cheRemoteSsh.namespace": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "Look for DevWorkspaces in this namespace only. Empty means: ask Che which namespaces are yours when signing in with OIDC, or list the cluster when using your own kubeconfig.",
+          "scope": "machine"
+        },
+        "cheRemoteSsh.instances": {
+          "type": "object",
+          "default": {},
+          "markdownDescription": "Per-instance settings, keyed by host. Each entry may set `kubeconfig`, `context`, `apiServer`, `namespace`, `certificateAuthority`, `insecureSkipTlsVerify` or `kubectlPath`; what it leaves out falls back to the settings above, and a host absent from the table uses them entirely. \"Use an existing kubeconfig\" writes here when you tell it which Che the file is for. A dashboard link names its instance, so pasting one selects the right credential on its own.",
+          "scope": "machine",
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "kubeconfig": {
+                "type": "string"
+              },
+              "context": {
+                "type": "string"
+              },
+              "apiServer": {
+                "type": "string"
+              },
+              "namespace": {
+                "type": "string"
+              },
+              "certificateAuthority": {
+                "type": "string"
+              },
+              "insecureSkipTlsVerify": {
+                "type": "boolean"
+              },
+              "kubectlPath": {
+                "type": "string"
+              }
+            },
+            "additionalProperties": false
+          }
+        }
+      }
+    },
+    "commands": [
+      {
+        "command": "cheRemoteSsh.connect",
+        "title": "Connect to a workspace",
+        "category": "Che Remote SSH",
+        "icon": "$(remote)"
+      },
+      {
+        "command": "cheRemoteSsh.refresh",
+        "title": "Refresh",
+        "category": "Che Remote SSH",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "cheRemoteSsh.connectFromLink",
+        "title": "Connect from a dashboard link\u2026",
+        "category": "Che Remote SSH",
+        "icon": "$(link)"
+      },
+      {
+        "command": "cheRemoteSsh.inspectLink",
+        "title": "Show what a dashboard link says\u2026",
+        "category": "Che Remote SSH",
+        "icon": "$(info)"
+      },
+      {
+        "command": "cheRemoteSsh.disconnect",
+        "title": "Close every tunnel",
+        "category": "Che Remote SSH",
+        "icon": "$(debug-disconnect)"
+      },
+      {
+        "command": "cheRemoteSsh.signIn",
+        "title": "Sign in",
+        "category": "Che Remote SSH",
+        "icon": "$(sign-in)"
+      },
+      {
+        "command": "cheRemoteSsh.signOut",
+        "title": "Sign out and forget the kubeconfig",
+        "category": "Che Remote SSH",
+        "icon": "$(sign-out)"
+      },
+      {
+        "command": "cheRemoteSsh.configure",
+        "title": "Check the connection",
+        "category": "Che Remote SSH",
+        "icon": "$(check)"
+      },
+      {
+        "command": "cheRemoteSsh.showLog",
+        "title": "Show log",
+        "category": "Che Remote SSH",
+        "icon": "$(output)"
+      },
+      {
+        "command": "cheRemoteSsh.useKubeconfig",
+        "title": "Use an existing kubeconfig\u2026",
+        "category": "Che Remote SSH",
+        "icon": "$(file-symlink-file)"
+      },
+      {
+        "command": "cheRemoteSsh.openSettings",
+        "title": "Open settings",
+        "category": "Che Remote SSH",
+        "icon": "$(gear)"
+      },
+      {
+        "command": "cheRemoteSsh.switchInstance",
+        "title": "Work against another Che\u2026",
+        "category": "Che Remote SSH",
+        "icon": "$(arrow-swap)"
+      }
+    ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "cheRemoteSsh",
+          "title": "Che Remote SSH",
+          "icon": "media/che.svg"
+        }
+      ]
+    },
+    "views": {
+      "cheRemoteSsh": [
+        {
+          "id": "cheRemoteSsh.workspaces",
+          "name": "Workspaces",
+          "icon": "media/che.svg",
+          "contextualTitle": "Che workspaces"
+        }
+      ]
+    },
+    "viewsWelcome": [
+      {
+        "view": "cheRemoteSsh.workspaces",
+        "contents": "This extension needs a way to reach the cluster your Che runs on.\n\nIf you already have a kubeconfig, point it at that file. Any credential in it works, and nothing is signed in to.\n[Use an existing kubeconfig](command:cheRemoteSsh.useKubeconfig)\n\nOtherwise it can sign in to Che itself and write its own kubeconfig. It will ask for the OIDC client secret, the one thing it cannot discover.\n[Sign in to Che](command:cheRemoteSsh.signIn)\n\nAlready have a link from the Che dashboard? It names the pod, the account and the key.\n[Connect from a dashboard link](command:cheRemoteSsh.connectFromLink)\n\n[Open settings](command:cheRemoteSsh.openSettings)"
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "cheRemoteSsh.refresh",
+          "when": "view == cheRemoteSsh.workspaces",
+          "group": "navigation@1"
+        },
+        {
+          "command": "cheRemoteSsh.signIn",
+          "when": "view == cheRemoteSsh.workspaces",
+          "group": "navigation@2"
+        },
+        {
+          "command": "cheRemoteSsh.showLog",
+          "when": "view == cheRemoteSsh.workspaces",
+          "group": "navigation@3"
+        },
+        {
+          "command": "cheRemoteSsh.signOut",
+          "when": "view == cheRemoteSsh.workspaces",
+          "group": "1_account"
+        },
+        {
+          "command": "cheRemoteSsh.configure",
+          "when": "view == cheRemoteSsh.workspaces",
+          "group": "1_account"
+        },
+        {
+          "command": "cheRemoteSsh.disconnect",
+          "when": "view == cheRemoteSsh.workspaces",
+          "group": "1_account"
+        },
+        {
+          "command": "cheRemoteSsh.connectFromLink",
+          "when": "view == cheRemoteSsh.workspaces",
+          "group": "navigation@4"
+        },
+        {
+          "command": "cheRemoteSsh.useKubeconfig",
+          "when": "view == cheRemoteSsh.workspaces",
+          "group": "1_account"
+        },
+        {
+          "command": "cheRemoteSsh.openSettings",
+          "when": "view == cheRemoteSsh.workspaces",
+          "group": "9_settings"
+        },
+        {
+          "command": "cheRemoteSsh.switchInstance",
+          "when": "view == cheRemoteSsh.workspaces",
+          "group": "navigation@5"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "cheRemoteSsh.connect",
+          "when": "view == cheRemoteSsh.workspaces && viewItem == running",
+          "group": "inline@1"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "build": "node esbuild.mjs",
+    "watch": "node esbuild.mjs --watch",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "lint": "oxlint src test && prettier --check \"src/**/*.ts\" \"test/**/*.ts\" esbuild.mjs",
+    "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\" esbuild.mjs",
+    "test": "vitest run",
+    "package": "node esbuild.mjs && vsce package --no-dependencies --skip-license -o che-remote-ssh.vsix"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "@types/vscode": "^1.96.0",
+    "@vscode/vsce": "^3.6.0",
+    "esbuild": "^0.25.0",
+    "oxlint": "^1.0.0",
+    "prettier": "^3.6.0",
+    "typescript": "^5.9.0",
+    "vitest": "^3.2.0"
+  }
+}
