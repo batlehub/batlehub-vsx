@@ -1,13 +1,15 @@
 # Install
 
-The extension is a `.vsix`: `batlehub-vsx.vsix` on a
-[release](https://github.com/batleforc/batlehub-vsx/releases), or the output
-of `task ext:package` in a checkout. Any of the usual routes installs it:
+The extension is a `.vsix`: `batlehub-vsx-<version>.vsix` on a
+[release](https://github.com/batleforc/batlehub-vsx/releases), which carries a
+`.sha256` beside it, or `batlehub-vsx.vsix`, the output of `task ext:package`
+in a checkout. Any of the usual routes installs it:
 
 ```sh
-code --install-extension batlehub-vsx.vsix
+sha256sum --check batlehub-vsx-0.1.0.vsix.sha256
+code --install-extension batlehub-vsx-0.1.0.vsix
 # a web build
-bin/code-server --install-extension batlehub-vsx.vsix
+bin/code-server --install-extension batlehub-vsx-0.1.0.vsix
 ```
 
 A BatleHub registry that hosts the extension lists it too; installing it from

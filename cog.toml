@@ -10,7 +10,14 @@ post_bump_hooks = []
 post_package_bump_hooks = []
 tag_prefix = "v"
 
-pre_bump_hooks = []
+# The tag is the release, and the number inside the VSIX has to be the number
+# on the tag: the release workflow refuses a mismatch. Cog stages whatever its
+# pre-bump hooks touch, so the bump commit carries the new package.json.
+# `pkg set`, not `pnpm version`: cog writes CHANGELOG.md before it runs these,
+# so the tree is never clean and `pnpm version` refuses to run on it.
+pre_bump_hooks = [
+  "pnpm -C extensions/batlehub-vsx pkg set version={{version}}",
+]
 
 
 [git_hooks]

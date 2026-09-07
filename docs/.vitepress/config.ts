@@ -27,6 +27,7 @@ export default defineConfig({
         items: [
           { text: "Layout and tasks", link: "/contributing/layout" },
           { text: "Testing", link: "/contributing/testing" },
+          { text: "Releasing", link: "/contributing/releasing" },
         ],
       },
     ],

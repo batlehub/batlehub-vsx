@@ -1,0 +1,135 @@
+name: Release
+
+# A tag is the release. `cog bump` writes the version into the extension's
+# package.json and tags it `vX.Y.Z`; pushing that tag builds the VSIX from
+# the tagged tree, attaches it to a GitHub release, and — where the tokens
+# exist — publishes it to Open VSX and the VS Code Marketplace.
+on:
+  push:
+    tags:
+      - "v*"
+  # A dry run: builds and uploads the VSIX as a workflow artifact. Every
+  # releasing step below is gated on `github.event_name == 'push'`, so a
+  # dispatch publishes nothing even when its ref is a tag.
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# One release at a time per tag: the release step is a retry, and two runs
+# racing on the same tag would fight over the same assets.
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Package and publish
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # create the release and upload the VSIX
+    # A step-level `env:` is not visible to that step's own `if:`, so the
+    # "skip when unset" test lives here — but only as a boolean. The tokens
+    # themselves stay on their publish step, out of reach of `pnpm install`
+    # and everything else that runs third-party code in this job.
+    env:
+      HAS_OVSX: ${{ secrets.OVSX_PAT != '' }}
+      HAS_VSCE: ${{ secrets.VSCE_PAT != '' }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      # The tag is the source of truth for the version, and package.json is
+      # what ends up inside the VSIX. A mismatch means the bump commit was
+      # not the one tagged, and every later step would ship the wrong number.
+      - name: Check the tag matches the extension version
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          set -euo pipefail
+          tag="${GITHUB_REF_NAME#v}"
+          pkg=$(node -p "require('./extensions/batlehub-vsx/package.json').version")
+          echo "tag=$tag package.json=$pkg"
+          if [ "$tag" != "$pkg" ]; then
+            echo "::error::tag $GITHUB_REF_NAME does not match package.json version $pkg" >&2
+            exit 1
+          fi
+
+      - name: Type-check, lint, format
+        run: pnpm run typecheck && pnpm run lint
+
+      - name: Unit tests
+        run: pnpm run test
+
+      - name: Audit
+        run: pnpm audit --audit-level high
+
+      - name: Package
+        run: pnpm run package
+
+      - name: Name the artifact after its version
+        id: vsix
+        run: |
+          set -euo pipefail
+          version=$(node -p "require('./extensions/batlehub-vsx/package.json').version")
+          src=extensions/batlehub-vsx/batlehub-vsx.vsix
+          out="batlehub-vsx-${version}.vsix"
+          cp "$src" "$out"
+          sha256sum "$out" > "$out.sha256"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "path=$out" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: batlehub-vsx-${{ steps.vsix.outputs.version }}
+          path: |
+            ${{ steps.vsix.outputs.path }}
+            ${{ steps.vsix.outputs.path }}.sha256
+          if-no-files-found: error
+
+      # `gh` is on the runner, so the release needs no third-party action:
+      # one less thing in this repo's supply chain to keep an eye on. Creating
+      # it is not idempotent, so a re-run after a failed publish uploads over
+      # the release the first attempt left behind instead of dying on it.
+      - name: GitHub release
+        if: github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" --clobber \
+              "${{ steps.vsix.outputs.path }}" \
+              "${{ steps.vsix.outputs.path }}.sha256"
+          else
+            gh release create "$GITHUB_REF_NAME" \
+              --title "$GITHUB_REF_NAME" \
+              --generate-notes \
+              "${{ steps.vsix.outputs.path }}" \
+              "${{ steps.vsix.outputs.path }}.sha256"
+          fi
+
+      # Both publishes are opt-in by secret: a fork, or this repo before the
+      # tokens exist, still gets the release above and simply skips these.
+      # Both CLIs are pinned devDependencies, resolved from the lockfile —
+      # nothing is fetched from a registry while a token is in scope.
+      - name: Publish to Open VSX
+        if: github.event_name == 'push' && env.HAS_OVSX == 'true'
+        working-directory: extensions/batlehub-vsx
+        env:
+          OVSX_PAT: ${{ secrets.OVSX_PAT }}
+        run: pnpm exec ovsx publish "$GITHUB_WORKSPACE/${{ steps.vsix.outputs.path }}" --pat "$OVSX_PAT"
+
+      - name: Publish to the VS Code Marketplace
+        if: github.event_name == 'push' && env.HAS_VSCE == 'true'
+        working-directory: extensions/batlehub-vsx
+        env:
+          VSCE_PAT: ${{ secrets.VSCE_PAT }}
+        run: pnpm exec vsce publish --packagePath "$GITHUB_WORKSPACE/${{ steps.vsix.outputs.path }}" --pat "$VSCE_PAT"
