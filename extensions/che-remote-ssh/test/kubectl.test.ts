@@ -1,3 +1,5 @@
+import { execFile } from "node:child_process";
+import { createServer } from "node:net";
 import { describe, expect, it } from "vitest";
 import {
   DEVWORKSPACE_NAME_LABEL,
@@ -5,6 +7,8 @@ import {
   contextsArgs,
   devWorkspacesAllArgs,
   devWorkspacesArgs,
+  ensureSshdArgs,
+  ensureSshdScript,
   parseContexts,
   parseDevWorkspaces,
   parsePods,
@@ -208,5 +212,71 @@ describe("containerOrder", () => {
 
   it("copes with nothing to order", () => {
     expect(containerOrder([])).toEqual([]);
+  });
+});
+
+/** The script as the pod would run it, against this machine's own sockets. */
+function runScript(port: number): Promise<{ code: number; out: string }> {
+  return new Promise((resolve) => {
+    execFile("/bin/sh", ["-c", ensureSshdScript(port)], { timeout: 30_000 }, (err, stdout) => {
+      const code = err ? (err as NodeJS.ErrnoException & { code?: number | string }).code : 0;
+      resolve({ code: typeof code === "number" ? code : 1, out: String(stdout).trim() });
+    });
+  });
+}
+
+describe("the sshd check", () => {
+  it("names the container and carries the script", () => {
+    const args = ensureSshdArgs(ctx, "dev-ws-max", "workspace-abc", "tools");
+    expect(args.slice(0, 8)).toEqual([
+      "--kubeconfig",
+      "/store/kubeconfig.json",
+      "exec",
+      "-n",
+      "dev-ws-max",
+      "pod/workspace-abc",
+      "-c",
+      "tools",
+    ]);
+    // setsid is the whole point: without it sshd dies with the exec.
+    expect(args.at(-1)).toContain("setsid nohup /sshd/sshd.start");
+  });
+
+  it("omits the container when none is named", () => {
+    // The `-c` left in the vector is sh's own, not a container.
+    expect(ensureSshdArgs(ctx, "ns", "pod-1").slice(2, 7)).toEqual([
+      "exec",
+      "-n",
+      "ns",
+      "pod/pod-1",
+      "--",
+    ]);
+  });
+
+  it("sees a real listener on the port", async () => {
+    const server = createServer();
+    const port = await new Promise<number>((resolve) => {
+      server.listen(0, "127.0.0.1", () => {
+        resolve((server.address() as { port: number }).port);
+      });
+    });
+    try {
+      expect(await runScript(port)).toEqual({ code: 0, out: "up" });
+    } finally {
+      server.close();
+    }
+  });
+
+  it("says so when nothing listens and there is no sshd to start", async () => {
+    const server = createServer();
+    const port = await new Promise<number>((resolve) => {
+      server.listen(0, "127.0.0.1", () => {
+        resolve((server.address() as { port: number }).port);
+      });
+    });
+    await new Promise((done) => server.close(done));
+    const ran = await runScript(port);
+    expect(ran.code).toBe(1);
+    expect(ran.out).toContain("no /sshd/sshd.start");
   });
 });

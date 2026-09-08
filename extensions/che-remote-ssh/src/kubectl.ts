@@ -234,3 +234,54 @@ export function parseContexts(stdout: string): string[] {
     .map((line) => line.trim())
     .filter((line) => line.length > 0);
 }
+
+/**
+ * Is sshd listening in the pod, and start it when it is not.
+ *
+ * The operator starts sshd from a postStart hook that backgrounds it with a
+ * bare `&`. The runtime kills the process group of the hook when the hook
+ * returns, so sshd goes with it, and the workspace is left with the key
+ * mounted, the port declared, and nothing listening. That is why this runs
+ * `setsid`: sshd gets a session of its own, and the exec that started it can
+ * end without taking it along. Without that, this command would leave exactly
+ * the corpse it was written to replace.
+ *
+ * The listener is read from `/proc/net/tcp`, matching a socket in LISTEN on
+ * the port, rather than with `ss` or `netstat`: neither is in every workspace
+ * image, `/proc` is.
+ */
+export function ensureSshdArgs(
+  ctx: KubectlContext,
+  namespace: string,
+  pod: string,
+  container?: string,
+  remotePort = 2022,
+): string[] {
+  const args = [...base(ctx), "exec", "-n", namespace, `pod/${pod}`];
+  if (container) args.push("-c", container);
+  return [...args, "--", "/bin/sh", "-c", ensureSshdScript(remotePort)];
+}
+
+/** The script `ensureSshdArgs` runs, alone so a test can run it as it is. */
+export function ensureSshdScript(remotePort = 2022): string {
+  const port = String(Math.trunc(remotePort));
+  return `
+pat=$(printf ':%04X [0-9A-F]*:0000 0A' ${port})
+listening() { grep -qE "$pat" /proc/net/tcp /proc/net/tcp6 2>/dev/null; }
+listening && { echo up; exit 0; }
+[ -x /sshd/sshd.start ] || { echo "no /sshd/sshd.start in this container"; exit 1; }
+if command -v setsid >/dev/null 2>&1; then
+  setsid nohup /sshd/sshd.start >/tmp/sshd.start.log 2>&1 </dev/null &
+else
+  nohup /sshd/sshd.start >/tmp/sshd.start.log 2>&1 </dev/null &
+fi
+i=0
+while [ $i -lt 20 ]; do
+  listening && { echo started; exit 0; }
+  sleep 1
+  i=$((i + 1))
+done
+echo "sshd did not come up on ${port}; see /tmp/sshd.start.log in the pod"
+exit 1
+`;
+}

@@ -139,13 +139,22 @@ export class PortForward {
     }
     if (this.restarts >= (this.deps.maxRestarts ?? 3)) {
       this.state = "failed";
-      this.deps.log?.(`port-forward ${this.key} gave up after ${this.restarts} restarts`);
+      this.deps.log?.(
+        `port-forward ${this.key} gave up after ${this.restarts} restarts` +
+          (this.deps.diagnosticsPath ? ` (see ${this.deps.diagnosticsPath})` : ""),
+      );
       return;
     }
     this.restarts += 1;
     this.deps.log?.(
       `port-forward ${this.key} exited (${code ?? "signal"}), restart ${this.restarts}` +
-        (this.lastStderr ? `: ${this.lastStderr}` : ""),
+        // A detached forward writes to the file, not to a pipe: its stderr is
+        // null here, so the reason for the exit is only ever in there.
+        (this.lastStderr
+          ? `: ${this.lastStderr}`
+          : this.deps.diagnosticsPath
+            ? ` (see ${this.deps.diagnosticsPath})`
+            : ""),
     );
     void this.spawnOnce().catch((err: unknown) => {
       this.state = "failed";

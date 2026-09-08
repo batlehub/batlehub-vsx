@@ -12,6 +12,7 @@ import {
   containerOrder,
   devWorkspacesAllArgs,
   devWorkspacesArgs,
+  ensureSshdArgs,
   parseDevWorkspaces,
   parsePods,
   podsArgs,
@@ -165,6 +166,32 @@ async function resolve(session: Session, workspace: DevWorkspace): Promise<Resol
 }
 
 /**
+ * Make sure sshd answers in the pod before a forward is pointed at it.
+ *
+ * A forward onto a dead port is the worst failure this extension has: it
+ * binds, the connection is handed to Remote SSH, and only then does kubectl
+ * die, so what the user is shown is a refused connection to a port that
+ * existed a second ago. Asking the pod first turns that into one sentence.
+ *
+ * Only on the path that already ran an exec to read the key. The link path
+ * deliberately runs none, and is left alone.
+ */
+async function ensureSshd(
+  session: Session,
+  namespace: string,
+  pod: string,
+  container: string,
+): Promise<void> {
+  const ctx = session.kubectl();
+  const result = await session.run(ctx.bin, ensureSshdArgs(ctx, namespace, pod, container), 60_000);
+  const said = result.stdout.trim() || result.stderr.trim();
+  if (result.code !== 0) {
+    throw new Error(`sshd is not answering in ${pod}: ${said || `kubectl exited ${result.code}`}`);
+  }
+  log(said === "up" ? `sshd is listening in ${pod}` : `started sshd in ${pod}`);
+}
+
+/**
  * Open the tunnel for this workspace, or reuse the one already open.
  *
  * A forward outlives the window that started it, so one may already be up:
@@ -234,6 +261,9 @@ export async function connect(
     async (progress) => {
       progress.report({ message: "finding the running pod" });
       const r = await resolve(session, workspace);
+
+      progress.report({ message: "checking sshd in the workspace" });
+      await ensureSshd(session, workspace.namespace, r.pod, r.container);
 
       progress.report({ message: "opening the port-forward" });
       const port = await openTunnel(
