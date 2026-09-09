@@ -1,17 +1,27 @@
 name: Release
 
-# A tag is the release. `cog bump` writes the version into the extension's
-# package.json and tags it `vX.Y.Z`; pushing that tag builds the VSIX from
-# the tagged tree, attaches it to a GitHub release, and — where the tokens
-# exist — publishes it to Open VSX and the VS Code Marketplace.
+# A tag is the release, and the tag says which extension it releases. `cog bump`
+# writes the version into that extension's package.json and tags it
+# `<name>-vX.Y.Z`; pushing that tag builds its VSIX from the tagged tree,
+# attaches it to a GitHub release, and — where the tokens exist — publishes it
+# to Open VSX and the VS Code Marketplace.
+#
+# The filter needs the literal `-v`, so the repo-wide `vX.Y.Z` tag `cog bump`
+# adds on top of the package tags starts no run at all: releasing is per
+# extension, and a global tag names none of them.
 on:
   push:
     tags:
-      - "v*"
+      - "*-v*"
   # A dry run: builds and uploads the VSIX as a workflow artifact. Every
   # releasing step below is gated on `github.event_name == 'push'`, so a
   # dispatch publishes nothing even when its ref is a tag.
   workflow_dispatch:
+    inputs:
+      extension:
+        description: "Directory name under extensions/ to build, e.g. batlehub-vsx"
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -47,21 +57,53 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
-      # The tag is the source of truth for the version, and package.json is
-      # what ends up inside the VSIX. A mismatch means the bump commit was
-      # not the one tagged, and every later step would ship the wrong number.
-      - name: Check the tag matches the extension version
-        if: startsWith(github.ref, 'refs/tags/v')
+      # Which extension, and at which number. On a tag both come out of the tag
+      # itself and package.json has to agree: a mismatch means the bump commit
+      # was not the one tagged, and every later step would ship the wrong
+      # number. On a dispatch there is no version to check, so package.json is
+      # simply read. Either way the directory has to exist, which is what
+      # catches a tag whose prefix is not an extension.
+      - name: Resolve the release target
+        id: target
+        env:
+          # Through `env:`, not interpolated into the script: a tag name and a
+          # dispatch input are both attacker-shaped strings, and `${{ }}` pastes
+          # them in before the shell ever sees a quote.
+          INPUT_EXTENSION: ${{ inputs.extension }}
         run: |
           set -euo pipefail
-          tag="${GITHUB_REF_NAME#v}"
-          pkg=$(node -p "require('./extensions/batlehub-vsx/package.json').version")
-          echo "tag=$tag package.json=$pkg"
-          if [ "$tag" != "$pkg" ]; then
-            echo "::error::tag $GITHUB_REF_NAME does not match package.json version $pkg" >&2
+          if [ "$GITHUB_EVENT_NAME" = "push" ]; then
+            tag="$GITHUB_REF_NAME"
+            if [[ ! "$tag" =~ ^(.+)-v([0-9].*)$ ]]; then
+              echo "::error::tag $tag is not <extension>-vX.Y.Z" >&2
+              exit 1
+            fi
+            name="${BASH_REMATCH[1]}"
+            tagged="${BASH_REMATCH[2]}"
+          else
+            name="$INPUT_EXTENSION"
+            tagged=""
+          fi
+
+          manifest="extensions/$name/package.json"
+          if [ ! -f "$manifest" ]; then
+            echo "::error::no extension named $name (looked for $manifest)" >&2
             exit 1
           fi
 
+          version=$(node -p "require('./$manifest').version")
+          echo "extension=$name tag=${tagged:-none} package.json=$version"
+          if [ -n "$tagged" ] && [ "$tagged" != "$version" ]; then
+            echo "::error::tag $GITHUB_REF_NAME does not match package.json version $version" >&2
+            exit 1
+          fi
+
+          echo "name=$name" >> "$GITHUB_OUTPUT"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      # Repo-wide, not just the extension being released: these are the same
+      # gates as CI, re-run on the tagged tree rather than trusted from the
+      # branch, and a tag is a bad moment to learn the other extension broke.
       - name: Type-check, lint, format
         run: pnpm run typecheck && pnpm run lint
 
@@ -72,23 +114,28 @@ jobs:
         run: pnpm audit --audit-level high
 
       - name: Package
-        run: pnpm run package
+        env:
+          NAME: ${{ steps.target.outputs.name }}
+        run: pnpm -C "extensions/$NAME" run package
 
       - name: Name the artifact after its version
         id: vsix
+        env:
+          NAME: ${{ steps.target.outputs.name }}
+          VERSION: ${{ steps.target.outputs.version }}
         run: |
           set -euo pipefail
-          version=$(node -p "require('./extensions/batlehub-vsx/package.json').version")
-          src=extensions/batlehub-vsx/batlehub-vsx.vsix
-          out="batlehub-vsx-${version}.vsix"
+          name="$NAME"
+          version="$VERSION"
+          src="extensions/$name/$name.vsix"
+          out="$name-$version.vsix"
           cp "$src" "$out"
           sha256sum "$out" > "$out.sha256"
-          echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "path=$out" >> "$GITHUB_OUTPUT"
 
       - uses: actions/upload-artifact@v4
         with:
-          name: batlehub-vsx-${{ steps.vsix.outputs.version }}
+          name: ${{ steps.target.outputs.name }}-${{ steps.target.outputs.version }}
           path: |
             ${{ steps.vsix.outputs.path }}
             ${{ steps.vsix.outputs.path }}.sha256
@@ -118,18 +165,19 @@ jobs:
 
       # Both publishes are opt-in by secret: a fork, or this repo before the
       # tokens exist, still gets the release above and simply skips these.
-      # Both CLIs are pinned devDependencies, resolved from the lockfile —
-      # nothing is fetched from a registry while a token is in scope.
+      # Both CLIs are pinned devDependencies of every extension, resolved from
+      # the lockfile — nothing is fetched from a registry while a token is in
+      # scope.
       - name: Publish to Open VSX
         if: github.event_name == 'push' && env.HAS_OVSX == 'true'
-        working-directory: extensions/batlehub-vsx
+        working-directory: extensions/${{ steps.target.outputs.name }}
         env:
           OVSX_PAT: ${{ secrets.OVSX_PAT }}
         run: pnpm exec ovsx publish "$GITHUB_WORKSPACE/${{ steps.vsix.outputs.path }}" --pat "$OVSX_PAT"
 
       - name: Publish to the VS Code Marketplace
         if: github.event_name == 'push' && env.HAS_VSCE == 'true'
-        working-directory: extensions/batlehub-vsx
+        working-directory: extensions/${{ steps.target.outputs.name }}
         env:
           VSCE_PAT: ${{ secrets.VSCE_PAT }}
         run: pnpm exec vsce publish --packagePath "$GITHUB_WORKSPACE/${{ steps.vsix.outputs.path }}" --pat "$VSCE_PAT"

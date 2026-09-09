@@ -3,6 +3,7 @@ ignore_merge_commits = false
 disable_changelog = false
 disable_bump_commit = false
 generate_mono_repository_global_tag = true
+generate_mono_repository_package_tags = true
 branch_whitelist = []
 skip_ci = "[skip ci]"
 skip_untracked = false
@@ -10,14 +11,31 @@ post_bump_hooks = []
 post_package_bump_hooks = []
 tag_prefix = "v"
 
-# The tag is the release, and the number inside the VSIX has to be the number
-# on the tag: the release workflow refuses a mismatch. Cog stages whatever its
-# pre-bump hooks touch, so the bump commit carries the new package.json.
-# `pkg set`, not `pnpm version`: cog writes CHANGELOG.md before it runs these,
-# so the tree is never clean and `pnpm version` refuses to run on it.
-pre_bump_hooks = [
-  "pnpm -C extensions/batlehub-vsx pkg set version={{version}}",
-]
+# Each extension is a package of its own: it carries its own version, its own
+# changelog and its own tag (`<name>-vX.Y.Z`), so a fix in one never republishes
+# the other to Open VSX and the Marketplace. `cog bump --auto` bumps every
+# package a commit touched and adds the global `vX.Y.Z` tag on top; the release
+# workflow ignores that one and keys off the package tags.
+#
+# A package's own `pre_bump_hooks` run with the working directory set to its
+# `path`, which is why these need no `-C`. The tag is the release and the
+# number inside the VSIX has to be the number on the tag: the release workflow
+# refuses a mismatch. Cog stages whatever its pre-bump hooks touch, so the bump
+# commit carries the new package.json. `pkg set`, not `pnpm version`: cog writes
+# the changelog before it runs these, so the tree is never clean and
+# `pnpm version` refuses to run on it.
+#
+# A third extension joins the release by gaining a block here. Nothing else in
+# the pipeline names an extension.
+[monorepo.packages.batlehub-vsx]
+path = "extensions/batlehub-vsx"
+public_api = true
+pre_bump_hooks = ["pnpm pkg set version={{version}}"]
+
+[monorepo.packages.che-remote-ssh]
+path = "extensions/che-remote-ssh"
+public_api = true
+pre_bump_hooks = ["pnpm pkg set version={{version}}"]
 
 
 [git_hooks]

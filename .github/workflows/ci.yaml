@@ -28,10 +28,13 @@ jobs:
         run: pnpm run package
       - name: Docs
         run: pnpm -C docs run build
+      # Every extension's VSIX, under its own directory name inside the
+      # artifact. A new extension is picked up by the glob, the same way
+      # `pnpm run package` above picks it up.
       - uses: actions/upload-artifact@v4
         with:
-          name: batlehub-vsx.vsix
-          path: extensions/batlehub-vsx/batlehub-vsx.vsix
+          name: vsix
+          path: extensions/*/*.vsix
           if-no-files-found: error
       - name: Audit
         run: pnpm audit --audit-level high

@@ -138,13 +138,13 @@
       },
       {
         "command": "cheRemoteSsh.connectFromLink",
-        "title": "Connect from a dashboard link\u2026",
+        "title": "Connect from a dashboard link…",
         "category": "Che Remote SSH",
         "icon": "$(link)"
       },
       {
         "command": "cheRemoteSsh.inspectLink",
-        "title": "Show what a dashboard link says\u2026",
+        "title": "Show what a dashboard link says…",
         "category": "Che Remote SSH",
         "icon": "$(info)"
       },
@@ -180,7 +180,7 @@
       },
       {
         "command": "cheRemoteSsh.useKubeconfig",
-        "title": "Use an existing kubeconfig\u2026",
+        "title": "Use an existing kubeconfig…",
         "category": "Che Remote SSH",
         "icon": "$(file-symlink-file)"
       },
@@ -192,7 +192,7 @@
       },
       {
         "command": "cheRemoteSsh.switchInstance",
-        "title": "Work against another Che\u2026",
+        "title": "Work against another Che…",
         "category": "Che Remote SSH",
         "icon": "$(arrow-swap)"
       }
@@ -298,6 +298,7 @@
     "@types/vscode": "^1.96.0",
     "@vscode/vsce": "^3.6.0",
     "esbuild": "^0.25.0",
+    "ovsx": "^1.1.1",
     "oxlint": "^1.0.0",
     "prettier": "^3.6.0",
     "typescript": "^5.9.0",

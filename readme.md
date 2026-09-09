@@ -1,7 +1,11 @@
 # batlehub-vsx
 
-The BatleHub VS Code extensions. Today: one, `batlehub.batlehub-vsx` — the
-extension [RFC 0011](https://batleforc.git.batleforc.fr/batlehub/rfc/0011-openvsx-login)
+The BatleHub VS Code extensions. Each carries its own version and releases on
+its own tag; see `docs/contributing/releasing.md`.
+
+## `batlehub.batlehub-vsx`
+
+The extension [RFC 0011](https://batleforc.git.batleforc.fr/batlehub/rfc/0011-openvsx-login)
 moved out of the [BatleHub](https://github.com/batleforc/batlehub) repository
 (its §6.5, §12 phases 7 and 8).
 
@@ -15,12 +19,18 @@ moved out of the [BatleHub](https://github.com/batleforc/batlehub) repository
   resolved, the registry's signature verified (RFC 0020), the supply-chain
   verdict honoured (RFC 0018).
 
+## `batlehub.che-remote-ssh`
+
+Connects the editor over SSH to an [Eclipse Che](https://eclipse.dev/che/)
+workspace running on plain Kubernetes, with a kubeconfig it owns and never
+shares with `~/.kube/config`. See `extensions/che-remote-ssh/README.md`.
+
 Documentation: `docs/` (VitePress, `task docs:dev`).
 
 ```sh
 task init          # tools, hooks, dependencies
 task ext:test      # unit tests
-task ext:package   # extensions/batlehub-vsx/batlehub-vsx.vsix
+task ext:package   # a VSIX per extension, extensions/<name>/<name>.vsix
 task heavy:view    # the proof in a real VS Code, in this workspace's devfile
 ```
 
