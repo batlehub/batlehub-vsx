@@ -37,6 +37,11 @@ path = "extensions/che-remote-ssh"
 public_api = true
 pre_bump_hooks = ["pnpm pkg set version={{version}}"]
 
+[monorepo.packages.che-clipboard]
+path = "extensions/che-clipboard"
+public_api = true
+pre_bump_hooks = ["pnpm pkg set version={{version}}"]
+
 
 [git_hooks]
 

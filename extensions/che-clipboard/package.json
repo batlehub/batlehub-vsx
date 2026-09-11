@@ -1,0 +1,60 @@
+{
+  "name": "che-clipboard",
+  "displayName": "Che Clipboard",
+  "description": "pbcopy, pbpaste and xclip in the integrated terminal, backed by the editor's clipboard, for pods and containers that have no clipboard of their own.",
+  "version": "0.1.0",
+  "publisher": "batlehub",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/batleforc/batlehub-vsx"
+  },
+  "homepage": "https://github.com/batleforc/batlehub-vsx",
+  "engines": {
+    "vscode": "^1.96.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "keywords": [
+    "eclipse-che",
+    "clipboard",
+    "pbcopy",
+    "xclip",
+    "terminal"
+  ],
+  "extensionKind": [
+    "workspace"
+  ],
+  "main": "./dist/extension.js",
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": true
+    },
+    "virtualWorkspaces": true
+  },
+  "contributes": {},
+  "scripts": {
+    "build": "node esbuild.mjs",
+    "watch": "node esbuild.mjs --watch",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "lint": "oxlint src test && prettier --check \"src/**/*.ts\" \"test/**/*.ts\" esbuild.mjs",
+    "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\" esbuild.mjs",
+    "test": "vitest run",
+    "package": "node esbuild.mjs && vsce package --no-dependencies --skip-license -o che-clipboard.vsix"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "@types/vscode": "^1.96.0",
+    "@vscode/vsce": "^3.6.0",
+    "esbuild": "^0.25.0",
+    "ovsx": "^1.1.1",
+    "oxlint": "^1.0.0",
+    "prettier": "^3.6.0",
+    "typescript": "^5.9.0",
+    "vitest": "^3.2.0"
+  }
+}
