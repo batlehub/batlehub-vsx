@@ -1,0 +1,58 @@
+{
+  "name": "che-notify",
+  "displayName": "Che Notify",
+  "description": "Show notifications written by processes in an Eclipse Che workspace, with optional browser OS notifications.",
+  "version": "0.5.0",
+  "publisher": "batlehub",
+  "license": "Apache-2.0",
+  "repository": { "type": "git", "url": "https://github.com/batleforc/batlehub-vsx" },
+  "homepage": "https://github.com/batleforc/batlehub-vsx/tree/main/extensions/che-notify",
+  "engines": { "vscode": "^1.96.0" },
+  "categories": ["Other"],
+  "keywords": ["eclipse-che", "notification", "claude-code", "codex", "workspace"],
+  "extensionKind": ["workspace"],
+  "main": "./dist/extension.js",
+  "activationEvents": ["onStartupFinished"],
+  "capabilities": {
+    "untrustedWorkspaces": { "supported": true },
+    "virtualWorkspaces": true
+  },
+  "contributes": {
+    "commands": [
+      { "command": "cheNotify.test", "title": "Send a test notification", "category": "Che Notify", "icon": "$(bell)" },
+      { "command": "cheNotify.openOsBridge", "title": "Open the browser notification bridge", "category": "Che Notify", "icon": "$(browser)" }
+    ],
+    "viewsContainers": { "panel": [{ "id": "cheNotify", "title": "Che Notify", "icon": "media/bell.svg" }] },
+    "views": { "cheNotify": [{ "type": "webview", "id": "cheNotify.osBridge", "name": "Browser notifications", "icon": "media/bell.svg" }] },
+    "configuration": {
+      "title": "Che Notify",
+      "properties": {
+        "cheNotify.file": { "type": "string", "default": "", "markdownDescription": "Notification file to watch. Empty uses `~/.ide-notify`.", "scope": "machine" },
+        "cheNotify.pollInterval": { "type": "number", "default": 1000, "minimum": 100, "description": "File polling interval in milliseconds.", "scope": "machine" },
+        "cheNotify.installCli": { "type": "boolean", "default": true, "description": "Install the bundled `ide-notify` command in ~/.local/bin when the extension starts.", "scope": "machine" },
+        "cheNotify.osBridge.autoOpen": { "type": "boolean", "default": false, "description": "Open the browser notification bridge when the window starts.", "scope": "machine" },
+        "cheNotify.osBridge.autoClose": { "type": "boolean", "default": false, "description": "Close the panel after the automatically opened bridge is ready.", "scope": "machine" },
+        "cheNotify.forwarders": { "type": "array", "default": [], "markdownDescription": "External notification relays. A webhook receives a JSON POST; a command receives the same JSON object on stdin. Commands run without a shell, so provide executable and arguments separately. Each provider can set `levels` to select `info`, `warn` and/or `error`; omit it for every severity.", "scope": "machine", "items": { "type": "object", "required": ["type"], "properties": { "type": { "type": "string", "enum": ["webhook", "command"] }, "url": { "type": "string" }, "headers": { "type": "object", "additionalProperties": { "type": "string" } }, "command": { "type": "string" }, "args": { "type": "array", "items": { "type": "string" } }, "levels": { "type": "array", "description": "Severity levels to forward. Empty means send none; omit it to send all.", "items": { "type": "string", "enum": ["info", "warn", "error"] }, "uniqueItems": true } }, "additionalProperties": false } }
+      }
+    }
+  },
+  "scripts": {
+    "build": "node esbuild.mjs",
+    "watch": "node esbuild.mjs --watch",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "lint": "oxlint src test && prettier --check \"src/**/*.ts\" \"test/**/*.ts\" esbuild.mjs",
+    "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\" esbuild.mjs",
+    "test": "vitest run",
+    "package": "node esbuild.mjs && vsce package --no-dependencies --skip-license -o che-notify.vsix"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "@types/vscode": "^1.96.0",
+    "@vscode/vsce": "^3.6.0",
+    "esbuild": "^0.25.0",
+    "oxlint": "^1.0.0",
+    "prettier": "^3.6.0",
+    "typescript": "^5.9.0",
+    "vitest": "^3.2.0"
+  }
+}

@@ -113,6 +113,10 @@ log "Server: ${SERVER_CMD[*]}; CLI: $CLI"
 log "Packaging the extension"
 (cd "$REPO/extensions/batlehub-vsx" && pnpm run package >"$HEAVY_WORK/package.log" 2>&1) \
   || { tail -20 "$HEAVY_WORK/package.log" >&2; fail "packaging failed"; }
+(cd "$REPO/extensions/che-notify" && pnpm run package >>"$HEAVY_WORK/package.log" 2>&1) \
+  || { tail -20 "$HEAVY_WORK/package.log" >&2; fail "packaging che-notify failed"; }
+CHE_NOTIFY_VSIX="$REPO/extensions/che-notify/che-notify.vsix"
+[[ -s "$CHE_NOTIFY_VSIX" ]] || fail "no $CHE_NOTIFY_VSIX"
 VSIX="$REPO/extensions/batlehub-vsx/batlehub-vsx.vsix"
 [[ -s "$VSIX" ]] || fail "no $VSIX"
 EXT_VERSION="$(python3 -c 'import json;print(json.load(open("extensions/batlehub-vsx/package.json"))["version"])')"
@@ -166,6 +170,8 @@ start_editor() {
   local code=("$CODE_SERVER" --server-data-dir "$data/server" --user-data-dir "$data/user" --extensions-dir "$data/extensions")
   env -u VSCODE_IPC_HOOK_CLI "$@" "${code[@]}" --install-extension "$VSIX" >"$data/install.txt" 2>&1 \
     || { cat "$data/install.txt" >&2; fail "installing $VSIX into the editor failed"; }
+  env -u VSCODE_IPC_HOOK_CLI "$@" "${code[@]}" --install-extension "$CHE_NOTIFY_VSIX" >>"$data/install.txt" 2>&1 \
+    || { cat "$data/install.txt" >&2; fail "installing $CHE_NOTIFY_VSIX into the editor failed"; }
   grep -qi "successfully installed" "$data/install.txt" || { cat "$data/install.txt" >&2; fail "the editor did not report the extension installed"; }
   if (exec 3<>"/dev/tcp/127.0.0.1/$EDITOR_PORT") 2>/dev/null; then fail "port $EDITOR_PORT is taken (HEAVY_EDITOR_PORT picks another)"; fi
   env -u VSCODE_IPC_HOOK_CLI "$@" setsid "${code[@]}" --host 127.0.0.1 --port "$EDITOR_PORT" --without-connection-token \
@@ -231,6 +237,9 @@ if [[ "$ONLY" == "all" || "$ONLY" == "marketplace" ]]; then
     "the log does not say the registry's Ed25519 signature verified before the install"
   log "SIGNATURE-OK (the log: the registry's Ed25519 signature verified with its key before the install)"
   assert_json "$HEAVY_WORK/marketplace.jsonl" log "'mode marketplace' in ' '.join(d['lines'])" "the extension did not activate in marketplace mode"
+  assert_json "$HEAVY_WORK/marketplace.jsonl" notify "d.get('commandFound') and any('Che Notify test notification' in n for n in d.get('notifications', []))" \
+    "Che Notify did not tail its file and display a native notification in the real editor"
+  log "CHE-NOTIFY-OK (real command → watched file → workbench notification)"
 fi
 
 # ── 5. Broker mode: the gallery is the local proxy ───────────────────────

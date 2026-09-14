@@ -291,6 +291,16 @@ try {
     const lines = await outputLines(page);
     await snap(page, "log");
     emit({ phase: "log", lines });
+    const palette = await runCommand(page, "Che Notify: Send a test notification");
+    const seenNotify = new Set();
+    const notifyStart = Date.now();
+    while (Date.now() - notifyStart < 30000) {
+      for (const notification of await notifications(page)) seenNotify.add(notification);
+      if ([...seenNotify].some((notification) => notification.includes("Che Notify test notification"))) break;
+      await sleep(500);
+    }
+    await snap(page, "che-notify");
+    emit({ phase: "notify", commandFound: palette.some((row) => row.includes("Che Notify: Send a test notification")), notifications: [...seenNotify] });
   } else if (PHASE === "broker") {
     await clickActivity(page, "BatleHub");
     await snap(page, "account-anon");

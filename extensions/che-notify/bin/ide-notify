@@ -1,0 +1,24 @@
+#!/usr/bin/env node
+const fs = require("node:fs");
+const os = require("node:os");
+const path = require("node:path");
+const file = process.env.IDE_NOTIFY_FILE || path.join(os.homedir(), ".ide-notify");
+const levels = new Set(["info", "warn", "error"]);
+const args = process.argv.slice(2);
+let level = levels.has(args[0]) ? args.shift() : "info";
+let message = args.join(" ");
+if (message.trimStart().startsWith("{")) {
+  try {
+    const payload = JSON.parse(message);
+    level = levels.has(payload.level) ? payload.level : /permission|approval/i.test(`${payload.type || ""} ${payload.message || ""}`) ? "warn" : level;
+    const source = process.env.IDE_NOTIFY_SOURCE || payload.source || (payload.hook_event_name ? "Claude Code" : payload.type ? "Codex" : "AI");
+    const event = payload.hook_event_name || payload.type;
+    message = `${source}${event && event !== "Notification" ? ` [${event}]` : ""}: ${payload.message || payload.title || "notification"}`;
+  } catch {}
+}
+if (!message && !process.stdin.isTTY) {
+  let input = "";
+  process.stdin.setEncoding("utf8");
+  process.stdin.on("data", (chunk) => (input += chunk));
+  process.stdin.on("end", () => { fs.appendFileSync(file, `info|${input.replace(/\r?\n/g, " ").trim()}\n`); });
+} else if (message) fs.appendFileSync(file, `${level}|${message.replace(/\r?\n/g, " ").trim()}\n`);

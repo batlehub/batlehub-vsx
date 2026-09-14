@@ -1,0 +1,8 @@
+**
+!dist/extension.js
+!dist/extension.js.map
+!bin/ide-notify
+!media/**
+!README.md
+!LICENSE.md
+!package.json
