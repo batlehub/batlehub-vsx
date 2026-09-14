@@ -249,13 +249,35 @@ try {
     const seen = new Set();
     const t0 = Date.now();
     let after = null;
+    // **The row turning to "installed" is the middle of the install, not the
+    // end.** It flips as soon as the *editor* holds the extension, which
+    // happens inside `applyPlan` — before it resolves, and therefore before the
+    // extension shows `BatleHub: installed …`. Breaking on the row alone
+    // captured the progress toast and none of the completion, which is exactly
+    // what the assertion below reads, so whichever signal happened to land
+    // first decided the run.
+    //
+    // Measured on the same commit: a CI run whose only notification was
+    // `BatleHub: …: Installing … 0.5.0…`, against a local run that saw
+    // `BatleHub: installed batleforc.weebo-bridge-notify.` and no progress
+    // toast at all — identical rows in both (`0.5.0 · installed`, Uninstall).
+    // CI is the slower machine, which is what widens the gap.
+    //
+    // So the row no longer ends the wait; it starts a grace window. The
+    // notification ends it, or the window expires and the assertion reports
+    // what was actually seen rather than what the poll happened to catch.
+    const ROW_GRACE_MS = 15000;
+    let rowSeenAt = null;
     while (Date.now() - t0 < 120000) {
       await dismissDialogs(page);
       for (const n of await notifications(page)) seen.add(n);
       const s = await sideBar(page);
       after = s.rows.find((r) => r.name.includes(MATCH)) ?? null;
       if ([...seen].some((n) => /BatleHub: installed|failed|Not installed|not in/.test(n))) break;
-      if (after && /installed/.test(after.description)) break;
+      if (after && /installed/.test(after.description)) {
+        rowSeenAt ??= Date.now();
+        if (Date.now() - rowSeenAt > ROW_GRACE_MS) break;
+      }
       await sleep(800);
     }
     await snap(page, "installed");
