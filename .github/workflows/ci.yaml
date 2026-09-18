@@ -31,7 +31,7 @@ jobs:
       # Every extension's VSIX, under its own directory name inside the
       # artifact. A new extension is picked up by the glob, the same way
       # `pnpm run package` above picks it up.
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: vsix
           path: extensions/*/*.vsix

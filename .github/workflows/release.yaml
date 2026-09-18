@@ -133,7 +133,7 @@ jobs:
           sha256sum "$out" > "$out.sha256"
           echo "path=$out" >> "$GITHUB_OUTPUT"
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: ${{ steps.target.outputs.name }}-${{ steps.target.outputs.version }}
           path: |
