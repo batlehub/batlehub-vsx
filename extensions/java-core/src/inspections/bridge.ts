@@ -36,7 +36,9 @@ export class Bridge implements vscode.Disposable {
     let ok: boolean | undefined;
     if (this.c.server.mode === "Standard") {
       try {
+        log.debug("ping: waiting for serverReady()", "JDT");
         await this.c.server.api?.serverReady?.();
+        log.debug("ping: server ready, sending batlehub.ping", "JDT");
         const r = await this.exec<{ version?: string; inspections?: string[] }>(
           "batlehub.ping",
         );

@@ -85,7 +85,22 @@ mkdir -p "$HEAVY_WORK/shots" "$HEAVY_CACHE"
 ln -sfn "$HEAVY_WORK" "$REPO/tests/heavy/work/last"
 LOG="$HEAVY_WORK/suite.log"
 log() { printf '[%s] %s\n' "$(date +%H:%M:%S)" "$*" | tee -a "$LOG" >&2; }
-fail() { log "FAIL: $*"; exit 1; }
+# On a failure with an editor up, the two logs a CI runner never shows:
+# the extension host's and JDT.LS's own (.metadata/.log of its workspace).
+DUMP_ON_FAIL=""
+dump_editor_logs() {
+  local f
+  for f in $(find "$1" -name remoteexthost.log -o -path '*jdt_ws/.metadata/.log' -o -name 'client.log*' 2>/dev/null | head -6); do
+    printf '\n===== %s (last 60 lines) =====\n' "$f" >&2; tail -60 "$f" >&2
+  done
+}
+DUMP_JSONL=""
+fail() {
+  log "FAIL: $*"
+  [[ -n "$DUMP_JSONL" && -f "$DUMP_JSONL" ]] && grep -E '"phase": "(log2|ready|reload|bundle)"' "$DUMP_JSONL" >&2
+  [[ -n "$DUMP_ON_FAIL" ]] && dump_editor_logs "$DUMP_ON_FAIL"
+  exit 1
+}
 fetch() { curl -fsSL --proto '=https' --proto-redir '=https' "$@"; }
 
 PIDS=()
@@ -443,6 +458,7 @@ if [[ "$ONLY" == "all" || "$ONLY" == "java" ]]; then
   start_editor "$J" '{ "workbench.startupEditor": "none", "java.server.launchMode": "Standard", "java.jdt.ls.vmargs": "-XX:+UseParallelGC -XX:GCTimeRatio=4 -XX:AdaptiveSizePolicyWeight=90 -Dsun.zip.disableMemoryMapping=true -Xmx1G -Xms100m -Xlog:disable", "batlehub.java.log.level": "debug", "security.workspace.trust.enabled": false, "extensions.ignoreRecommendations": true, "git.openRepositoryInParentFolders": "never", "terminal.integrated.gpuAcceleration": "off" }' \
     JAVA_HOME= JDK_HOME= PATH="$JAVA_ENV_PATH" JAVA_TOOL_OPTIONS="-XX:MaxRAMPercentage=6"
   log "Editor (VS Code $VSCODE_VERSION, web) at http://127.0.0.1:$EDITOR_PORT, folder $JWS, started in $(( SECONDS - T_START )) s"
+  DUMP_ON_FAIL="$J"; DUMP_JSONL="$HEAVY_WORK/java.jsonl"
   PREFS="$JWS/core/.settings/org.eclipse.m2e.core.prefs"
   GIVE_PROFILE="mkdir -p '$(dirname "$PREFS")' && printf 'activeProfiles=dev\\neclipse.preferences.version=1\\nresolveWorkspaceProjects=true\\nversion=1\\n' > '$PREFS' && echo 'spike (a): wrote activeProfiles=dev into $PREFS' >&2"
   # The satellite's status bar item is hidden by default (§4.2); the toggle is a workspace setting.
