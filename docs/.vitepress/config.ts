@@ -40,6 +40,7 @@ export default withMermaid(
             { text: "Run, menus, the panel", link: "/guide/java/run" },
             { text: "Settings and commands", link: "/guide/java/settings" },
             { text: "Clean removal", link: "/guide/java/removal" },
+            { text: "Completion, and the chain", link: "/guide/java/editing" },
             { text: "Groovy, Gradle DSL, Jenkinsfile", link: "/guide/java/groovy" },
           ],
         },

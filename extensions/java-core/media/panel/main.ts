@@ -61,6 +61,7 @@ type State = {
   };
   profiles: { declared: string[]; active: string[] };
   experimental: Record<string, boolean>;
+  chainNotice: boolean;
   tabs: { id: string; title: string; html: string }[];
 };
 
@@ -185,6 +186,7 @@ function render(): void {
   if (!tabs.some((t) => t.id === current)) current = "jdk";
   app.innerHTML = `
 ${state.trusted ? "" : `<p class="warn" role="alert">Untrusted workspace: nothing runs until you trust it. Detection reads files only.</p>`}
+${state.chainNotice ? `<p class="notice" role="status">Chain completion turned on (<code>java.completion.chain.enabled</code>) — press the completion shortcut where a value is expected. <button class="link" data-msg="undoChain">Undo</button> <button class="link" data-msg="keepChain">Keep it</button></p>` : ""}
 <div role="tablist" aria-label="Java panel tabs" class="tabs">${tabs.map((t) => `<button role="tab" id="tab-${esc(t.id)}" aria-controls="panel-${esc(t.id)}" aria-selected="${t.id === current}" tabindex="${t.id === current ? 0 : -1}" data-tab="${esc(t.id)}">${esc(t.title)}</button>`).join("")}</div>
 ${tabs.map((t) => `<div role="tabpanel" id="panel-${esc(t.id)}" aria-labelledby="tab-${esc(t.id)}" ${t.id === current ? "" : "hidden"}>${t.html}</div>`).join("")}`;
   wire();

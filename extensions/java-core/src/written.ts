@@ -72,6 +72,24 @@ export function record(m: Manifest, e: NewEntry): Manifest {
   };
 }
 
+/**
+ * The manifest without the entry for `target`, and that entry — the undo of
+ * *one* write, where `Remove BatleHub settings` is the undo of all of them.
+ * A default-on write (RFC 0001 §7.1) offers its own `Undo`, and taking one
+ * entry out has to leave the rest of the manifest exactly as it was.
+ */
+export function takeEntry(
+  m: Manifest,
+  target: string,
+): { manifest: Manifest; entry?: Entry } {
+  const entry = m.entries.find((e) => targetOf(e) === target);
+  if (!entry) return { manifest: m };
+  return {
+    manifest: { version: 1, entries: m.entries.filter((e) => e !== entry) },
+    entry,
+  };
+}
+
 export function targetOf(e: Entry): string {
   switch (e.kind) {
     case "setting":

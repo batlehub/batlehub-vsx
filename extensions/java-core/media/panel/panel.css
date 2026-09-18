@@ -141,3 +141,12 @@ ul.checks {
   list-style: none;
   padding: 0;
 }
+
+/* The default-on rule's one-line announcement (RFC 0001 §7.1): information,
+   not a warning — the core did something useful and says so, with its undo. */
+.notice {
+  margin: 0 0 8px;
+  padding: 6px 8px;
+  border-left: 3px solid var(--vscode-textLink-foreground);
+  background: var(--vscode-textBlockQuote-background);
+}

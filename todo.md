@@ -51,12 +51,134 @@ written here is the first step and what blocks it.
       off or the indent half of the import silently does nothing.
       **Next in this RFC is phase 2** (`templates.ts`), which needs no other
       RFC.
-- [ ] **4 · [RFC 0012](docs/rfc/0012-chain-completion.md) phase 1 — chain completion.**
-      JDT.LS already ships it behind `java.completion.chain.enabled`: the work
-      is the manifest write under the default-on rule (the once-only panel
-      line and its undo), `CHAIN-OK` in the heavy half with `chainMs` gated,
-      the guide section, and the upstream issue carrying our numbers.
-      Unblocked and small.
+4. ~~RFC 0012 phase 1 — chain completion~~ — **done**, revision 3.
+      `CHAIN-WRITE-OK`, `CHAIN-OK`, `UNDO-OK`; `chainMs` 169 ms against a
+      800 ms gate, 80 ms more than with the feature off. It was not small:
+      the measurement found that JDT.LS 1.61's computer answers **only**
+      chains to project reference types — never a primitive, never a JDK
+      type — so the RFC's own use case 2 (`String s = ` → `g.greet()`) could
+      never have passed, and the fixture gained `Config.java`/`Server.java`.
+      It also labels depth ≥ 2 wrongly (`h.getConfig.getServer()`) and sorts
+      every chain last. All five findings are in that RFC's §11 Measured.
+- [ ] **Still owed by RFC 0012 phase 1: file the upstream issue.** Nobody
+      here has filed it, and [RFC 0012](docs/rfc/0012-chain-completion.md)
+      open question 1 ("upstream first?") cannot be decided until it has been
+      seen: the recommendation there is to build phase 2 only if the
+      measurement earns it **and** the issue has no owner by the next
+      `redhat.java` pin bump. It is ready to file, below — posting it is
+      outward-facing and under the maintainer's name, so it waits for them.
+
+      **Repository:** [`eclipse-jdtls/eclipse.jdt.ls`](https://github.com/eclipse-jdtls/eclipse.jdt.ls)
+      (the server `redhat.java` bundles, and the owner of
+      `ChainCompletionProposalComputer`).
+
+      **Searched 2026-09-18: nothing like it exists, so this is a new
+      report.** Fourteen chain-related hits in that repository, all
+      **closed** feature work from 2023–24 — #2544 *Add chain completions
+      support*, #2730, #2835, #2935 *Improve chain completions*. Its four
+      open issues mentioning "chain" are unrelated (Lombok fluent accessors,
+      localized errors, a how-to question, a dependabot bump).
+      `redhat-developer/vscode-java` has nothing open either; its #3008
+      *Add support for chain completions settings* is closed. Re-check
+      before filing — the search was
+      `repo:eclipse-jdtls/eclipse.jdt.ls chain` over all states.
+
+      **Where the bug most likely lives**, worth naming in the report:
+      [PR #2935](https://github.com/eclipse-jdtls/eclipse.jdt.ls/pull/2935)
+      (merged 2024-09-07) reworked "how the chain completions are
+      transformed into `CompletionItem`s … reusing the same logic which is
+      used for normal completions". That is exactly the code that builds
+      `label` and `insertText`, and the final segment being right while the
+      intermediate ones are not fits a path that renders the edge symbol
+      with the normal-completion logic and the rest by concatenation.
+
+      **This is not evidence that upstream is unresponsive** — it is
+      evidence that nobody has asked. Four merged improvement PRs on this
+      one feature in two years is an actively maintained corner. None of
+      [RFC 0001 decision 1's four red flags](docs/rfc/0018-rust-syntactic-tier.md)
+      is anywhere near firing on the strength of it; see
+      [RFC 0018](docs/rfc/0018-rust-syntactic-tier.md) §2.2, which is parked
+      for exactly this kind of moment.
+
+      **Title:** Chain completion: `label` and `insertText` drop the `()` of
+      every segment but the last
+
+      ---
+
+      With `java.completion.chain.enabled: true`, a chain proposal of depth
+      ≥ 2 comes back with a `label` that is not valid Java and an
+      `insertText` that does not compile. Only `textEdit.newText` is
+      correct, so a client that honours `insertText` — which LSP permits
+      when no `textEdit` is applied — inserts broken code, and *every*
+      client shows the malformed label.
+
+      **Version.** `org.eclipse.jdt.ls.core` 1.61.0.202609021834, as shipped
+      in `redhat.java` 1.56.0. JDK 21 (Temurin 21.0.11), Linux x64.
+
+      **Reproduction.** Three classes in one package:
+
+      ```java
+      public class Server { public int getPort() { return 8080; } }
+      public class Config { public Server getServer() { return new Server(); } }
+      public class Holder { public Config getConfig() { return new Config(); } }
+      ```
+
+      then, with the caret at `§`:
+
+      ```java
+      public class Probe {
+        void m() {
+          Holder h = new Holder();
+          Server s = §;
+        }
+      }
+      ```
+
+      `textDocument/completion` with `context.triggerKind = 1` (Invoked).
+
+      **Observed** — one chain item, with:
+
+      ```jsonc
+      {
+        "label":      "h.getConfig.getServer() : Server",  // not Java
+        "insertText": "h.getConfig.getServer",             // does not compile
+        "textEdit":   { "newText": "h.getConfig().getServer()" },  // correct
+        "kind": 2,
+        "sortText": "999999979"
+      }
+      ```
+
+      **Expected.** `label` and `insertText` to carry the same expression as
+      `textEdit.newText`: `h.getConfig().getServer()`. The `()` is present on
+      the final segment in all three, so the omission looks like the
+      intermediate `ChainElement`s being rendered without their
+      parentheses while the last one is rendered with them.
+
+      **A second observation, if it is useful.** At depth 1 the label is
+      correct (`config.getServer() : Server`), which is why this is easy to
+      miss — a one-hop chain, the common case in a small test, looks fine.
+
+      ---
+
+      **Two more things measured at the same time** — worth mentioning in the
+      issue or filing separately, both being *behaviour* rather than bugs, so
+      they are the feature request half of open question 1:
+
+      - the computer answers only chains to **project reference types**: from
+        the same root it proposes `config.getServer()` for `Server s = ` and
+        nothing at all for `int port = ` or `String host = `
+        (`isPrimitiveOrBoxedPrimitive` and the excluded-types gate). IDEA's
+        best-known example of the feature is exactly the refused case;
+      - every chain carries `sortText` `999999979`, so chains always sort
+        below every ordinary proposal, whatever their relevance.
+
+      **Our numbers, for the issue:** on a two-module Maven fixture, ten
+      invocations, median — 169 ms with chain completion on, 89 ms with it
+      off, so 80 ms for the feature. That is cheap; the limits above are
+      about coverage, not cost.
+
+      **To file it** once the text is agreed:
+      `gh issue create --repo eclipse-jdtls/eclipse.jdt.ls --title "…" --body-file <file>`
 - [ ] **5 · [RFC 0003](docs/rfc/0003-server-run-step-kinds.md) phase 1 — the managed process.**
       `src/process/` (`managed.ts`, `budget.ts`, `sweep.ts`, `history.ts`),
       the sum in `resources.ts` and its line in the `JDK` tab,

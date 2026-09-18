@@ -65,6 +65,18 @@ export interface RedHatApi {
   }>;
   onDidProjectsImport?: vscode.Event<unknown>;
   onDidClasspathUpdate?: vscode.Event<unknown>;
+  /**
+   * `redhat.java`'s own request trace: `type` is the LSP method, `duration` is
+   * in milliseconds. The core reads it to *report* latency (RFC 0012 §2.1 use
+   * case 3), never to act on it — the numbers go to the debug log and the
+   * heavy suite's performance gate reads them from there.
+   */
+  onDidRequestEnd?: vscode.Event<{
+    type?: string;
+    duration?: number;
+    resultLength?: number;
+    error?: unknown;
+  }>;
   status?: string;
 }
 

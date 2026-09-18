@@ -44,7 +44,10 @@
 #                Proves: the status bar item; the log; the newcomer story
 #                (no JAVA_HOME, the core writes the language server's JDK);
 #                Standard mode reached; the JDK quick pick; spike (a) — the
-#                m2e preference and the classpath; RFC 0007 use case 1 —
+#                m2e preference and the classpath; RFC 0012 use cases 1–3 —
+#                the default-on write of java.completion.chain.enabled, a
+#                chain on the completion shortcut, its cost and its Undo;
+#                RFC 0007 use case 1 —
 #                `Java: Import from IntelliJ` → Code style, gated on trust,
 #                planned as a diff, and `Format Document` matching the
 #                golden IDEA itself produced; clean removal; and prints
@@ -549,6 +552,19 @@ import difflib, json, sys
 d = json.load(sys.stdin)
 print("".join(list(difflib.unified_diff((d.get("golden") or "").splitlines(True), (d.get("formatted") or "").splitlines(True), "idea", "jdt"))[:24]))')"
   log "IMPORT-OK (the code style of .idea/ → an Eclipse profile + the settings, through the manifest; Format Document on Greeter.java is byte-for-byte what IDEA 2026.1.3 produced with the same scheme; .idea/ untouched)"
+  assert_json "$J_" chain "d['settingWritten'] is True and d['manifestHas'] and d['log']" \
+    "the core did not write java.completion.chain.enabled through the manifest: $(field "$J_" chain | cut -c1-300)"
+  assert_json "$J_" chain "'Chain completion turned on' in d['notice'] and 'Undo' in d['notice']" \
+    "the Java panel did not show the default-on line with its undo: $(field "$J_" chain | python3 -c 'import json,sys;print(json.load(sys.stdin)["notice"][:200])')"
+  log "CHAIN-WRITE-OK (java.completion.chain.enabled written at workspace scope through the manifest; the panel says so once, with Undo)"
+  log "CHAIN-TRACE $(field "$J_" chain | python3 -c 'import json,sys;print((json.load(sys.stdin).get("requestTrace") or "redhat.java request trace: no line")[-80:])')"
+  assert_json "$J_" chain "d['hasChain'] and not d['offHasChain']" \
+    "no chain proposal on the completion shortcut, or one still there with the setting off: $(field "$J_" chain | python3 -c 'import json,sys;d=json.load(sys.stdin);print(d["items"])')"
+  log "CHAIN-OK (a chain to the expected type on the completion shortcut — $(field "$J_" chain | python3 -c 'import json,sys;d=json.load(sys.stdin);print(next((r for r in d["items"] if "getServer" in r), "?"))'); absent with the setting off)"
+  assert_json "$J_" chain "d['afterUndo']['clicked'] and d['afterUndo']['setting'] is None and not d['afterUndo']['manifestHas'] and d['afterUndo']['manifestOther'] > 0" \
+    "Undo did not remove the setting and its one manifest entry, or it removed more than that: $(field "$J_" chain | python3 -c 'import json,sys;print(json.load(sys.stdin)["afterUndo"])')"
+  log "UNDO-OK (Undo restored java.completion.chain.enabled to unset and dropped that one manifest entry, leaving every other write alone)"
+  log "CHAIN-RANK $(field "$J_" chain | python3 -c 'import json,sys;d=json.load(sys.stdin);print("rank", d["chainRank"], "of", d.get("rankedCount"), "after typing con; the server sorts every chain last (sortText 999999979) —", d["rankedItems"][:4])')"
   assert_json "$J_" remove "any(c.startswith('Restore') for c in d['clicked']) and (d['settings'] is None or 'java.configuration.runtimes' not in d['settings'])" \
     "Remove BatleHub settings did not restore java.configuration.runtimes"
   log "REMOVE-OK (the manifest replayed: java.configuration.runtimes and java.jdt.ls.java.home restored, the dialog listed what it would do)"
@@ -565,10 +581,15 @@ import json, sys
 d = json.loads(sys.argv[1]); f = float(sys.argv[2])
 # panelPaintMs is measured from activation and includes the minutes the
 # driver spends elsewhere before opening the panel: printed, not gated.
-gates = {"statusBarMs": 10000, "detectionMs": 3000, "readyMs": 60000, "activationMs": 5000}
+# chainMs is RFC 0012 §2.1 use case 3: the median of ten completion round
+# trips with chain completion on, read from redhat.java's own request trace.
+# chainOffMs is the same with it off, printed beside it so the cost of the
+# feature is a delta in the log rather than a feeling.
+gates = {"statusBarMs": 10000, "detectionMs": 3000, "readyMs": 60000, "activationMs": 5000, "chainMs": 800}
 bad = [f"{k}={d.get(k)} > {v*f:.0f}" for k, v in gates.items() if d.get(k, -1) < 0 or d.get(k) > v * f]
 if bad: print("PERF-GATE failed: " + ", ".join(bad)); sys.exit(1)
-print("PERF-GATE ok: " + ", ".join(f"{k}={d[k]} ms (< {v*f:.0f})" for k, v in gates.items()))
+print("PERF-GATE ok: " + ", ".join(f"{k}={d[k]} ms (< {v*f:.0f})" for k, v in gates.items())
+      + f"; chain completion costs {d.get('chainMs', -1) - d.get('chainOffMs', -1)} ms over chainOffMs={d.get('chainOffMs')} ms, rank {d.get('chainRank')}")
 PY
   # The other half of §2 point 1, and what the runner found (§15.5): a desktop
   # — or a CI runner with /usr/lib/jvm — has a JDK `redhat.java` finds on its

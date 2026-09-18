@@ -16,6 +16,7 @@ import {
   record,
   removeGitignoreLine,
   replay,
+  takeEntry,
 } from "./written";
 
 /**
@@ -128,6 +129,25 @@ export async function writeForeignSetting(
   log.info(
     `wrote ${section ? `${section}.${key}` : key} (workspace) — previous value recorded in the manifest`,
   );
+}
+
+/**
+ * Undo one recorded setting write: put the previous value back and drop that
+ * entry, leaving every other write alone. Returns false when the manifest has
+ * no such entry — the key was the user's, and was never the core's to undo.
+ */
+export async function undoForeignSetting(key: string): Promise<boolean> {
+  const { manifest, entry } = takeEntry(readManifest(), `setting:${key}`);
+  if (!entry || entry.kind !== "setting") return false;
+  const { section, leaf } = splitKey(key);
+  await withSettingsLock(undefined, async () => {
+    await vscode.workspace
+      .getConfiguration(section)
+      .update(leaf, entry.before, vscode.ConfigurationTarget.Workspace);
+    save(manifest);
+  });
+  log.info(`undo: ${key} restored to ${JSON.stringify(entry.before)}`);
+  return true;
 }
 
 /** Another extension's setting (coexistence), recorded as such. */

@@ -9,6 +9,12 @@ import * as path from "node:path";
 import * as vscode from "vscode";
 import type { PanelTab } from "../api-types";
 import { installedStock, restoreStock, STOCK } from "../coexistence";
+import {
+  CHAIN_KEY,
+  chainNotice,
+  keepChainDefault,
+  undoChainDefault,
+} from "../completion/chain";
 import { isOverridden, readSettings, writeWorkspace } from "../config";
 import { formatSize, resourceWarning } from "../detect/resources";
 import type { Core } from "../extension";
@@ -70,6 +76,13 @@ export interface PanelState {
   };
   profiles: { declared: string[]; active: string[] };
   experimental: Record<string, boolean>;
+  /**
+   * The default-on rule's announcement (RFC 0001 §7.1): one line, once, with
+   * the undo beside it. One flag rather than a list of notices because there
+   * is exactly one such write today — when a second arrives, this becomes the
+   * array it obviously wants to be.
+   */
+  chainNotice: boolean;
   tabs: { id: string; title: string; html: string }[];
 }
 
@@ -236,6 +249,7 @@ export class JavaPanel
         active: s.mavenActiveProfiles ?? [],
       },
       experimental: s.experimental,
+      chainNotice: chainNotice(this.core.context),
       tabs,
     };
   }
@@ -323,6 +337,15 @@ export class JavaPanel
             ...((m.args as unknown[]) ?? []),
           );
           return;
+        case "undoChain": {
+          await undoChainDefault(this.core.context);
+          log.info(`${CHAIN_KEY}: undone from the Java panel`);
+          return this.push();
+        }
+        case "keepChain": {
+          await keepChainDefault(this.core.context);
+          return this.push();
+        }
         case "tab": {
           const t =
             this.tabs.get(String(m.id)) ??

@@ -9,7 +9,7 @@
 | Author      | Max Batleforc <maxleriche.60@gmail.com>                       |
 | Co-author   | —                                                             |
 | Created     | 2026-09-18                                                    |
-| Revised     | 2026-09-18 — revision 2, after the series was reviewed against its goal (RFC 0001 §7.1): the default-on write states every condition of the default-on rule, the delegate path gets its own latency gate, the ranking's interaction with the editor's filter is measured in phase 1 rather than asserted |
+| Revised     | 2026-09-18 — revision 3, phase 1 built and measured (§11 Measured): JDT.LS 1.61 does ship the computer, but it answers only chains to project reference types — never a primitive or a JDK type — labels depth ≥ 2 wrongly, and sorts every chain last. Use case 2 is rewritten around a shape the server can answer. Revision 2, after the series was reviewed against its goal (RFC 0001 §7.1): the default-on write states every condition of the default-on rule, the delegate path gets its own latency gate, the ranking's interaction with the editor's filter is measured in phase 1 rather than asserted |
 | Supersedes  | —                                                             |
 | Depends on  | RFC 0001 (the bundle of §6.2, the `written.json` manifest of §4.2, the heavy suite's performance gate of §15.2); RFC 0002 for the headless proof of the delegate; RFC 0016 shares the bindings entry point of `Engine.parse` (§6.2) |
 | Touches     | `extensions/java-core` (`src/completion/chain.ts`, one setting, one manifest write), `jdt/batlehub-jdt-core` (one delegate, the first binding-aware code path in `Engine`), `tests/heavy/java.mjs` (a `CHAIN-OK` step and its two latency lines), `docs/guide/java/editing.md` |
@@ -99,23 +99,24 @@ or, where marked, for the bundle's JUnit layer.
    shows nothing: a value the core did not write is not the core's to
    manage.
 2. **A chain on the shortcut (phase 1).** *Who:* the driver. *Start:*
-   `Main.java` of the `app` module with `Greeter g = new Greeter();` in
-   scope and a `String s = ` on the next line, cursor after `= `.
+   `Main.java` of the `app` module with `Config config = new Config();` in
+   scope and a `Server srv = ` on the next line, cursor after `= `.
    *Action:* Ctrl+Space. *Proof:* the completion list contains one item
-   whose label is `g.greet()` (the chain of depth 1 from a local to the
-   expected type `String`), inserted on Enter as `g.greet()`; the item is
-   absent when the setting is `false`.
+   whose label is `config.getServer() : Server` (a chain of depth 1 from a
+   local to the expected type `Server`); the item is absent when the
+   setting is `false`. **Revision 3**: this used to say `String s = ` →
+   `g.greet()`, which the server cannot answer — see §11 Measured,
+   finding 1.
 3. **The latency gate.** *Who:* the driver, same position. *Action:*
    Ctrl+Space, ten times, dismissing in between. *Proof:* the `PERF` line
-   gains `chainMs` (median of the ten `textDocument/completion` round
-   trips, read from `onDidRequestEnd` of `redhat.java`'s API through the
-   core's debug log); the gate is `chainMs < 800 ms` (`HEAVY_PERF_FACTOR`
-   widens it) and `chainMs` with the setting off is printed beside it, so
-   the cost is a delta in the log, not a feeling. The same step types
-   `g.gr` after the shortcut and records where the chain item sits in the
-   filtered list (`chainRank`, printed, not gated): how `sortText` and the
-   editor's fuzzy score interact is measured here, before phase 2 designs
-   a ranking on top of it.
+   gains `chainMs` (median of ten round trips — the driver's wall clock
+   from the shortcut to the list being on screen, because `onDidRequestEnd`
+   never fires for completion in this build, see §11 Measured finding 5);
+   the gate is `chainMs < 800 ms` (`HEAVY_PERF_FACTOR` widens it) and
+   `chainOffMs`, the same measurement with the setting off, is printed
+   beside it, so the cost is a delta in the log, not a feeling. The same
+   step types `config.getS` after the shortcut and records where the chain
+   item sits in the filtered list (`chainRank`, printed, not gated).
 4. **A ranked chain while typing (phase 2).** *Who:* the driver.
    *Start:* `Main.java` with a field `Config config` whose type has
    `Server getServer()` and `Server` has `int getPort()`, plus a local
@@ -503,7 +504,87 @@ bridge uses.
 | 6 | The budget default | **150 ms.** IDEA's chain completion is perceptibly under 200 ms on a mid-size project; the depth default of 3 (IDEA's) rather than the server's 4 halves the walk. Both are settings. |
 | 7 | May the core turn on `redhat.java`'s key by default? (revision 2) | **Yes, under RFC 0001 §7.1's default-on rule, with every condition stated**: workspace scope, through the manifest, shown once in the panel with its undo, never written when the user has already set the key — either value. |
 | 8 | Is the delegate path gated too? (revision 2) | **Yes: `chainDelegateMs < 150 ms`** in the heavy suite, the same number as the budget — a delegate that returns truncated sets on the fixture to stay under it fails use case 5's flag instead. |
-| 9 | Is the `sortText` ranking known to work under the editor's fuzzy score? (revision 2) | **No — it is measured in phase 1** (`chainRank`), and phase 2's ranking is designed from that number. |
+| 9 | Is the `sortText` ranking known to work under the editor's fuzzy score? (revision 2) | **No — it is measured in phase 1** (`chainRank`), and phase 2's ranking is designed from that number. *Measured*: the server sends `sortText` `999999979` on every chain, so there is no server ordering to preserve — a delegate supplies the whole one. |
+
+### Measured — phase 1, 2026-09-18
+
+Against the pinned `redhat.java` 1.56.0 (**JDT.LS 1.61**, which does ship
+`ChainCompletionProposalComputer` — decision 1's premise holds), driven
+headless over stdio and then in the real editor. Five findings, and they
+change what phase 2 is for.
+
+1. **The stock computer refuses primitive and JDK expected types.** With
+   `Config config` in scope it proposes `config.getServer()` for
+   `Server s = `; for `int port = ` and `String host = ` from the same root
+   it proposes **nothing** — the computer's own
+   `isPrimitiveOrBoxedPrimitive` and excluded-types gates. IDEA's flagship
+   example, `int port = getConfig().getServer().getPort()`, is exactly the
+   case JDT.LS will not answer. **§2.1 use case 2 was written around
+   `String s = ` → `g.greet()` and could never have passed**; the heavy case
+   is now a chain to a project reference type, and the fixture gained
+   `app/.../Config.java` and `Server.java` for it (the type graph of use
+   case 4, so phase 2 reuses them).
+2. **Depth is not the limit.** `h.getConfig().getServer()` — depth 2, all
+   project types — is proposed. The `maxChains`/depth defaults are not what
+   holds the feature back; the expected-type gate is.
+3. **The label is malformed at depth ≥ 2, and `insertText` does not
+   compile.** For that same chain the server sends
+   `label: "h.getConfig.getServer() : Server"` and
+   `insertText: "h.getConfig.getServer"` — the `()` of every segment but
+   the last is missing from both — while `textEdit.newText` is correct
+   (`h.getConfig().getServer()`). A client that honours `textEdit` is fine
+   and the user still reads a label that is not Java. This is the upstream
+   issue of open question 1, with a reproduction.
+4. **Chains sort last, unconditionally**: `sortText` is `999999979` on
+   every chain item. Open question 9 ("is the `sortText` ranking known to
+   work under the editor's fuzzy score?") is answered before phase 2 starts
+   — there is no server-side rank to preserve, so a delegate that wants a
+   rank must supply the whole ordering itself.
+5. **`onDidRequestEnd` is exposed and subscribed, and never fired for
+   `textDocument/completion`** in this build — the channel says
+   `redhat.java request trace: subscribed` and no round trip is ever
+   reported. The latency number therefore comes from the driver's own wall
+   clock (shortcut → list on screen), measured identically with the feature
+   on and off so the *delta* is the cost; the subscription stays, because it
+   is the server-side truth the guide points a user at when completion feels
+   slow, and because its silence is itself worth noticing on the next pin.
+
+**The numbers** (`maven-multi`, this container, driver wall clock from the
+shortcut to the list on screen, median of ten):
+
+| | |
+| --- | --- |
+| `chainMs` | **169 ms** (gate 800 ms) |
+| `chainOffMs` | **89 ms** |
+| what the feature costs | **80 ms** |
+| `chainRank` | **1 of 2** after typing `con` — `config` (the plain local) then `config.getServer()` |
+
+The rank confirms finding 4 from the other side: with `sortText` at the
+bottom of the range, a chain never outranks a plain proposal the prefix
+matches, whatever the fuzzy score does. Note the first attempt at this
+measurement polled the completion list every 500 ms and reported
+`chainMs == chainOffMs == 527 ms` — a cost of zero. Any latency gate whose
+poll is coarser than the thing it measures reports the poll.
+
+**The upstream issue** (owed by phase 1, findings 3 and 5): *"Chain
+completion: `label` and `insertText` drop the `()` of every segment but the
+last"* — on JDT.LS 1.61, with `java.completion.chain.enabled`, a depth-2
+chain comes back as `label: "h.getConfig.getServer() : Server"` and
+`insertText: "h.getConfig.getServer"` while `textEdit.newText` is the
+correct `h.getConfig().getServer()`. A client that honours `insertText`
+inserts code that does not compile, and every client shows a label that is
+not Java. Reproduction: three classes (`Holder → Config → Server`), caret at
+`Server s = `, `triggerKind: 1`. Ours is
+`extensions/java-core/src/completion/chain.ts` plus the probe in this RFC's
+history; the numbers above go with it.
+
+**What this does to decision 2.** Phase 2 was to be earned by "shortcut-only
+invocation and no ranking". The measurement replaces that with a sharper
+pair: the stock computer answers **only** chains to project reference types,
+and it ranks them last. A developer leaving IDEA gets `config.getServer()`
+and never the `int`/`String` chains they used most. Whether that earns a
+delegate is still decision 2's call — but it is now a decision about
+coverage, not about latency, and phase 1 ships the useful half either way.
 
 ### Still open
 
@@ -527,6 +608,6 @@ bridge uses.
 
 | Phase | Content |
 | --- | --- |
-| 1 | The manifest write of `java.completion.chain.enabled` under the default-on rule (the once-only panel line, its undo, the three starting states of use case 1); `CHAIN-OK` (use cases 1–3), `chainMs` gated and `chainRank` measured in the heavy half; the guide section; the upstream issue with the numbers. Useful alone — and possibly the whole RFC. |
+| 1 | ~~The manifest write of `java.completion.chain.enabled` under the default-on rule … the guide section; the upstream issue with the numbers.~~ **Done** (revision 3): the write with its panel line, `Undo` and `Keep it`; `CHAIN-WRITE-OK`, `CHAIN-OK` and `UNDO-OK` in the heavy half with `chainMs` gated and `chainRank` printed; `docs/guide/java/editing.md`; the fixture's `Config.java`/`Server.java`. The upstream issue is **owed** — §11 Measured findings 3 and 5 are its content. |
 | 2 | Only if earned (decision 2): `Engine.parse` with bindings (the entry point shared with RFC 0016), `Chains.java` over `ChainFinder` with budget, rank and cache, the delegate, `ChainsTest` on `AbstractProjectsManagerBasedTest`, `task jdt:smoke` use case 6. |
 | 3 | `src/completion/chain.ts`, the three settings, the manifest flip, use case 4 in the heavy half with the `chainDelegateMs` gate (150 ms); RFC 0002's engine picks the delegate up for free. |

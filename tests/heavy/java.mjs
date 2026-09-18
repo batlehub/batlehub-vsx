@@ -606,6 +606,186 @@ try {
   await snap(page, "classpath");
   emit({ phase: "classpath", before: /commons-lang3/.test(before), afterBaseline: ran, after: /commons-lang3/.test(after.value), entriesBefore: (before.match(/\.jar/g) ?? []).length, entriesAfter: (after.value.match(/\.jar/g) ?? []).length, tail: after.value.slice(-300) });
 
+  // 12b. RFC 0012 phase 1, use cases 1–3: the default-on write of
+  // `java.completion.chain.enabled`, a chain on the completion shortcut, and
+  // what it costs. The Undo comes last, because it stops the key being
+  // written again in this workspace.
+  const readJson = (p) => {
+    try {
+      return JSON.parse(readFileSync(p, "utf8"));
+    } catch {
+      return null;
+    }
+  };
+  const MAIN = path.join(WS, "app", "src", "main", "java", "com", "acme", "app", "Main.java");
+  const chainSettings = () => readJson(path.join(WS, ".vscode", "settings.json"));
+  const chainManifest = () => readJson(path.join(WS, ".batlehub", "java", "written.json"));
+  const chain = {
+    settingWritten: chainSettings()?.["java.completion.chain.enabled"],
+    manifestHas: (chainManifest()?.entries ?? []).some(
+      (e) => e.key === "java.completion.chain.enabled",
+    ),
+    // The write happens at the first detection, which is *before* the
+    // newcomer reload of step 3 — and an output channel starts empty after a
+    // reload. The line is in the channel this run captured back then.
+    log: [...lines, ...lines2, ...(await outputLines(page))].some((l) =>
+      /wrote java\.completion\.chain\.enabled/.test(l),
+    ),
+    requestTrace: [...lines, ...lines2].find((l) =>
+      /redhat\.java request trace:/.test(l),
+    ),
+  };
+  // The panel's once-only line and its two actions.
+  await clickActivity(page, "Java");
+  await sleep(1500);
+  const chainFrame = await panelFrame(page);
+  chain.notice = chainFrame
+    ? await chainFrame
+        .$eval(".notice", (e) => e.innerText.replace(/\s+/g, " ").trim())
+        .catch(() => "")
+    : "";
+  await snap(page, "chain-notice");
+
+  // Use case 2: a chain to the expected type on the completion shortcut. The
+  // line is typed rather than committed, so the fixture keeps compiling.
+  let lastCompletionMs = -1;
+  const completionAt = async () => {
+    const t = Date.now();
+    await chord(page, "Control", " ");
+    const rows = await settle(
+      () =>
+        page
+          .$$eval(".suggest-widget .monaco-list-row", (els) =>
+            els.map((e) => e.innerText.replace(/\s+/g, " ").trim()),
+          )
+          .catch(() => []),
+      (r) => r.length > 0,
+      20000,
+      50,
+    );
+    lastCompletionMs = rows.timedOut ? -1 : Date.now() - t;
+    return rows.value ?? [];
+  };
+  const openProbe = async () => {
+    await openFile(page, "Main.java");
+    await sleep(800);
+    // The line that uses `g`, found by its text — counting ArrowUps from the
+    // end of the file makes the trailing newline decide whether the caret
+    // lands inside main() or in the class body, and the completion list of
+    // the two looks similar enough to pass unnoticed.
+    const line = readFileSync(MAIN, "utf8")
+      .split("\n")
+      .findIndex((l) => l.includes("System.out.print"));
+    await runCommand(page, "Go to Line/Column...");
+    await page.keyboard.type(String(line + 1));
+    await sleep(400);
+    await page.keyboard.press("Enter");
+    await sleep(500);
+    await page.keyboard.press("End");
+    await page.keyboard.press("Enter");
+    // The shape the server actually answers, measured: a chain to a *project*
+    // reference type. It refuses primitives and JDK types outright, so the
+    // `String s = ` of the RFC's first draft could never have produced one.
+    await page.keyboard.type("Config config = new Config();");
+    await page.keyboard.press("Enter");
+    await page.keyboard.type("Server srv = ");
+    await sleep(1500);
+  };
+  await openProbe();
+  const chainRows = await completionAt();
+  chain.items = chainRows.slice(0, 12);
+  const CHAIN_ROW = /config\s*\.\s*getServer\s*\(\s*\)/;
+  chain.hasChain = chainRows.some((r) => CHAIN_ROW.test(r));
+  await snap(page, "chain-suggest");
+  await page.keyboard.press("Escape");
+
+  // Use case 3: ten round trips, median, from redhat.java's own request trace
+  // through the core's debug log (`completion round trip N ms`).
+  // Ten invocations, dismissing in between; the wall clock from the shortcut
+  // to the list being on screen. It is the client's number rather than the
+  // server's — it includes the editor's own rendering — but it is measured
+  // the same way with chains on and off, so the *delta* is the feature's
+  // cost, and it is what the user actually waits for.
+  const roundTrips = async () => {
+    const out = [];
+    for (let i = 0; i < 10; i++) {
+      await completionAt();
+      if (lastCompletionMs >= 0) out.push(lastCompletionMs);
+      await page.keyboard.press("Escape");
+      await sleep(250);
+    }
+    return out;
+  };
+  const median = (xs) =>
+    xs.length ? [...xs].sort((a, b) => a - b)[Math.floor(xs.length / 2)] : -1;
+  chain.samples = await roundTrips();
+  perf.chainMs = median(chain.samples);
+
+  // The rank: where the chain item lands once a prefix filters the list. How
+  // `sortText` and the editor's fuzzy score interact is *measured* here,
+  // before phase 2 designs a ranking on top of it.
+  await page.keyboard.type("con");
+  await sleep(800);
+  const ranked = await completionAt();
+  chain.rankedItems = ranked.slice(0, 8);
+  chain.rankedCount = ranked.length;
+  perf.chainRank = ranked.findIndex((r) => CHAIN_ROW.test(r));
+  await snap(page, "chain-rank");
+  await page.keyboard.press("Escape");
+
+  // The same position with the setting off: the cost is a delta in the log,
+  // not a feeling — and the chain item has to be gone.
+  await runCommand(page, "File: Revert File");
+  await sleep(500);
+  hook(
+    `python3 - '${path.join(WS, ".vscode", "settings.json")}' <<'PY'
+import json, sys
+p = sys.argv[1]
+d = json.load(open(p))
+d["java.completion.chain.enabled"] = False
+json.dump(d, open(p, "w"), indent=2)
+PY`,
+  );
+  await sleep(4000);
+  await openProbe();
+  const offRows = await completionAt();
+  chain.offHasChain = offRows.some((r) => CHAIN_ROW.test(r));
+  await page.keyboard.press("Escape");
+  perf.chainOffMs = median(await roundTrips());
+  await runCommand(page, "File: Revert File");
+  await sleep(500);
+
+  // Use case 1's last half: Undo removes the setting and its manifest entry.
+  hook(
+    `python3 - '${path.join(WS, ".vscode", "settings.json")}' <<'PY'
+import json, sys
+p = sys.argv[1]
+d = json.load(open(p))
+d["java.completion.chain.enabled"] = True
+json.dump(d, open(p, "w"), indent=2)
+PY`,
+  );
+  await sleep(2000);
+  await clickActivity(page, "Java");
+  await sleep(1500);
+  const undoFrame = await panelFrame(page);
+  const undoBtn = undoFrame
+    ? await undoFrame.$('.notice button[data-msg="undoChain"]')
+    : null;
+  if (undoBtn) await undoBtn.click();
+  await sleep(3000);
+  chain.afterUndo = {
+    setting: chainSettings()?.["java.completion.chain.enabled"] ?? null,
+    manifestHas: (chainManifest()?.entries ?? []).some(
+      (e) => e.key === "java.completion.chain.enabled",
+    ),
+    // Every other write the core made has to still be there.
+    manifestOther: (chainManifest()?.entries ?? []).length,
+    clicked: !!undoBtn,
+  };
+  await snap(page, "chain-undone");
+  emit({ phase: "chain", ...chain, chainMs: perf.chainMs, chainOffMs: perf.chainOffMs, chainRank: perf.chainRank });
+
   // 13. Clean removal: the modal lists what it restores; settings.json after.
   await runCommand(page, "Java: Remove BatleHub settings");
   await sleep(1500);

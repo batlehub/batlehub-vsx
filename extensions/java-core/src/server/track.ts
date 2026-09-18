@@ -70,6 +70,23 @@ export class ServerTracker implements vscode.Disposable {
     this.set(this.api?.serverMode);
     if (this.api?.onDidServerModeChange)
       this.subs.push(this.api.onDidServerModeChange((m) => this.set(m)));
+    // One debug line per completion round trip, from `redhat.java`'s own
+    // trace. It is the only honest source for "what did chain completion
+    // cost": a wall clock in the client would also time the editor's
+    // rendering, and a number in the bundle would not exist in phase 1 at
+    // all. Debug level, so it costs nothing unless someone is looking.
+    log.info(
+      `redhat.java request trace: ${this.api?.onDidRequestEnd ? "subscribed" : "not exposed by this version"}`,
+    );
+    if (this.api?.onDidRequestEnd)
+      this.subs.push(
+        this.api.onDidRequestEnd((e) => {
+          if (e?.type !== "textDocument/completion") return;
+          log.debug(
+            `completion round trip ${Math.round(e.duration ?? -1)} ms, ${e.resultLength ?? "?"} item(s)`,
+          );
+        }),
+      );
     log.info(
       `redhat.java ${version} (api ${this.api?.apiVersion ?? "?"}), server mode ${this.mode ?? "unknown"}, its own JDK ${this.serverJdk() ?? "not resolved yet"}`,
     );

@@ -5,6 +5,7 @@
 import * as vscode from "vscode";
 import { JavaTaskProvider, runGoal } from "./build/tasks";
 import { proposeCoexistence } from "./coexistence";
+import { applyChainDefault } from "./completion/chain";
 import { readSettings } from "./config";
 import type { Core } from "./extension";
 import { wire } from "./wire";
@@ -69,6 +70,9 @@ wire((core: Core) => {
     if (snap.folders.some((f) => f.tool)) {
       once.dispose();
       void proposeCoexistence();
+      // RFC 0012 phase 1: the default-on write of java.completion.chain.enabled.
+      // After the detection, because it needs the trust the detection reports.
+      void applyChainDefault(core.context, snap.trusted);
     }
   });
   core.context.subscriptions.push(once);
