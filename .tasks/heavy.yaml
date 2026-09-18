@@ -25,6 +25,11 @@ tasks:
     cmds:
       - HEAVY_ONLY=java bash tests/heavy/view.sh
 
+  view:registry:
+    desc: "Only the registry-link half (RFC 0001 phase 5): batlehub-vsx hands the token to java-core, a real Maven resolves through the hub (needs DATABASE_URL, the sidecar, a BatleHub)"
+    cmds:
+      - HEAVY_ONLY=registry bash tests/heavy/view.sh
+
   shots:
     desc: "List the screenshots of the last heavy run"
     cmds:

@@ -356,7 +356,20 @@ try {
   await page.keyboard.press("Escape");
   await sleep(300);
   await page.keyboard.press("Escape");
-  emit({ phase: "tasks", rows: taskRows });
+  // Run one to completion: the terminal's DOM renderer (gpuAcceleration off) makes its rows readable.
+  await runCommand(page, "Tasks: Run Task");
+  await sleep(2500);
+  await page.keyboard.type("batlehub-java: maven compile");
+  await sleep(1200);
+  await page.keyboard.press("Enter");
+  await sleep(1500);
+  // "Run Task" may ask which problem matcher to use for a task without one; take the first.
+  if (await page.$(".quick-input-widget:not([style*='display: none'])")) await page.keyboard.press("Enter");
+  const termRead = () => page.$$eval(".terminal .xterm-rows > div, .xterm-rows > div", (els) => els.map((e) => e.innerText.replace(/\u00a0/g, " ").trimEnd()).filter(Boolean)).catch(() => []);
+  const built = await settle(termRead, (rows) => rows.some((r) => /BUILD (SUCCESS|FAILURE)/.test(r)), 240000, 3000);
+  await snap(page, "task-run");
+  const termText = built.value.join("\n");
+  emit({ phase: "tasks", rows: taskRows, ran: /BUILD SUCCESS/.test(termText), terminal: built.value.filter((r) => /BUILD|JAVA_HOME|mvn|Total time|ERROR/.test(r)).slice(0, 8) });
 
   // 9. Inspections on Greeter.java: the Problems panel, then Fix all, then the buffer.
   await openFile(page, "Greeter.java");
@@ -392,19 +405,30 @@ try {
   const coreLog = (await outputLines(page)).join(" ");
   const groovyLog = (await outputLines(page, "Java: Show the Groovy log")).join(" ");
   await openFile(page, "Hello.groovy");
-  const text = readFileSync(path.join(WS, "src", "main", "groovy", "com", "acme", "Hello.groovy"), "utf8").split("\n");
-  const line = text.findIndex((l) => /String greet\(/.test(l)) + 1;
-  const col = (text[line - 1] ?? "").indexOf("greet") + 2;
-  await runCommand(page, "Go to Line/Column", false);
-  await page.keyboard.type(`:${line}:${col}`);
-  await page.keyboard.press("Enter");
-  await sleep(500);
-  await runCommand(page, "Show or Focus Hover");
+  // Put the caret on `greet` by clicking its rendered token, then ask for the hover.
+  const caretPlaced = await page.evaluate(() => {
+    const spans = [...document.querySelectorAll(".editor-instance .monaco-editor .view-line span")];
+    const el = spans.find((e) => e.textContent === "greet" || /\bgreet\b/.test(e.textContent ?? ""));
+    if (!el) return false;
+    const r = el.getBoundingClientRect();
+    const x = r.left + Math.min(20, r.width / 2);
+    const y = r.top + r.height / 2;
+    for (const type of ["mousedown", "mouseup", "click"]) el.dispatchEvent(new MouseEvent(type, { bubbles: true, clientX: x, clientY: y, button: 0 }));
+    return true;
+  });
+  await sleep(400);
+  if (caretPlaced) await runCommand(page, "Show or Focus Hover");
   await sleep(2500);
   const hover = norm(await page.$eval(".monaco-hover .hover-contents", (e) => e.innerText).catch(() => ""));
   await snap(page, "groovy");
   const mode = await statusItems(page, /status\.editor\.mode|editor\.mode/);
-  emit({ phase: "groovy", registered: /language groovy registered/.test(coreLog), serverLog: groovyLog.slice(0, 500), started: /running|started|initialize/i.test(groovyLog), hover, languageMode: mode.map((m) => m.text), statusItemHidden: (await statusItems(page, /groovy\.server/)).length === 0 });
+  const hiddenBefore = (await statusItems(page, /groovy\.server/)).length === 0;
+  let shownAfter = false;
+  if (args["after-groovy"]) {
+    hook(args["after-groovy"]);
+    shownAfter = !(await settle(() => statusItems(page, /groovy\.server/), (s) => s.length > 0, 30000)).timedOut;
+  }
+  emit({ phase: "groovy", registered: /language groovy registered/.test(coreLog), serverLog: groovyLog.slice(0, 500), started: /running|started|initialize/i.test(groovyLog), hover, languageMode: mode.map((m) => m.text), statusItemHidden: hiddenBefore, statusItemShownAfterToggle: shownAfter });
 
   // 12. Spike (a): the classpath before, the m2e preference, the classpath after.
   await openFile(page, "Greeter.java");

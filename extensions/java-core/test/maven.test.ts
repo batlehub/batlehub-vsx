@@ -41,7 +41,8 @@ describe("the settings.xml block (§4.2 registry link, §7)", () => {
     });
     expect(hasLink(once)).toBe(true);
     expect(once).toContain("<!-- batlehub:mirror -->");
-    expect(once).toContain("<password>bh_pat_x</password>");
+    expect(once).toContain("<value>Bearer bh_pat_x</value>");
+    expect(once).not.toContain("<password>");
     expect(once).toContain("<id>corp</id>"); // the user's own mirror stays
     const twice = setLink(once, {
       url: "https://hub/proxy/maven2",
@@ -195,6 +196,10 @@ describe("verdicts (BatleHub RFC 0018)", () => {
       registry: "maven",
     });
     expect(splitRegistryUrl("https://hub.example/")).toBeUndefined();
+    expect(splitRegistryUrl("https://hub.example/proxy/mvn-1/maven2")).toEqual({
+      hub: "https://hub.example",
+      registry: "mvn-1",
+    });
     expect(
       verdictUrl(
         "https://hub.example/proxy/maven",

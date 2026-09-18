@@ -37,12 +37,21 @@ function block(what: "mirror" | "server", link: Link): string {
       CLOSE("mirror"),
     ].join("\n    ");
   }
+  // A bearer header, not username/password: BatleHub reads `Authorization:
+  // Bearer` and no Basic scheme, and Maven's transport sends the headers a
+  // `<server>` configures for its `<id>`.
   return [
     OPEN("server"),
     `    <server>`,
     `      <id>${MARKER}</id>`,
-    `      <username>token</username>`,
-    `      <password>${escape(link.token ?? "")}</password>`,
+    `      <configuration>`,
+    `        <httpHeaders>`,
+    `          <property>`,
+    `            <name>Authorization</name>`,
+    `            <value>Bearer ${escape(link.token ?? "")}</value>`,
+    `          </property>`,
+    `        </httpHeaders>`,
+    `      </configuration>`,
     `    </server>`,
     CLOSE("server"),
   ].join("\n    ");

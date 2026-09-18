@@ -13,7 +13,7 @@ describe("the Groovy satellite's pure parts", () => {
       launch("/jdk/21", "/ext/server/groovy-language-server-all.jar"),
     ).toEqual({
       command: "/jdk/21/bin/java",
-      args: ["-jar", "/ext/server/groovy-language-server-all.jar"],
+      args: ["-Xmx512m", "-jar", "/ext/server/groovy-language-server-all.jar"],
     });
   });
   it("maps the core's classpath onto the server's groovy.classpath setting", () => {

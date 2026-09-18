@@ -7,7 +7,10 @@ the explorer's module context menu) runs the goal through the Task API as a
 task of type `batlehub-java`, in an integrated terminal, with the resolved
 JDK on `PATH` and in `JAVA_HOME`, the active Maven configuration's
 `-s`/`-t`, and the active profiles as `-P`. The wrapper (`mvnw`, `gradlew`)
-comes first, the `PATH` tool second; argument arrays, never a shell string.
+comes first, then the configuration's `mavenHome`, then the detected home
+(`MAVEN_HOME` / `GRADLE_HOME`, else the newest mise install — a mise shim on
+`PATH` with no global version set fails rather than being absent), and only
+then the `PATH` tool; argument arrays, never a shell string.
 
 The same tasks are writable by hand and reusable as `preLaunchTask`:
 
@@ -64,13 +67,14 @@ Gradle download by the extension.
 Maven/Gradle project one notification proposes to route the build through
 BatleHub; "Never" writes `false` to the workspace. Enabled, the core writes:
 
-- `~/.m2/settings.xml`: a `<mirror>` (and a `<server>` carrying the token)
-  inside `<!-- batlehub:… -->` fences it owns, file mode 0600;
+- `~/.m2/settings.xml`: a `<mirror>` and a `<server>` carrying the token as
+  an `Authorization: Bearer` header (BatleHub reads no Basic scheme), inside
+  `<!-- batlehub:… -->` fences it owns, file mode 0600;
 - `~/.gradle/init.d/batlehub.gradle`: every repository replaced by the
   mirror, the token as a bearer header.
 
 The registry URL is `batlehub.java.registry.url`, or the one `batlehub-vsx`
-is signed into (`/proxy/maven` on its origin); the token comes from
+is signed into (`/proxy/maven/maven2` on its origin — BatleHub serves a Maven registry under `/proxy/<name>/maven2`); the token comes from
 `batlehub-vsx`'s `token()` export — the core never opens the credential
 file. Signed out or absent: the mirror is written without a token and the
 status bar says so. `false` removes only the core's own blocks; so does

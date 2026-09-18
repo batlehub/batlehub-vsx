@@ -5,12 +5,17 @@
 export type State =
   "stopped" | "starting" | "running" | "failed" | "no-jdk" | "untrusted";
 
-/** `<jdk>/bin/java -jar <jar>` — an argument array, never a shell string (§7). */
+/**
+ * `<jdk>/bin/java -Xmx512m -jar <jar>` — an argument array, never a shell
+ * string (§7). The heap is capped: the JDK's default is a quarter of the
+ * container, and a Che workspace is a memory budget (RFC 0001 §2 point 7,
+ * §15.3); 512 MiB is what the server needs for a workspace of this size.
+ */
 export function launch(
   jdkPath: string,
   jar: string,
 ): { command: string; args: string[] } {
-  return { command: `${jdkPath}/bin/java`, args: ["-jar", jar] };
+  return { command: `${jdkPath}/bin/java`, args: ["-Xmx512m", "-jar", jar] };
 }
 
 /** What `workspace/didChangeConfiguration` carries: the server reads `groovy.classpath`. */

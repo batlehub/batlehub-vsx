@@ -1,0 +1,39 @@
+
+------------------------------------------------------------
+Project ':app'
+------------------------------------------------------------
+
+testRuntimeClasspath - Runtime classpath of source set 'test'.
++--- project :core
++--- org.junit.jupiter:junit-jupiter:5.11.4
+|    +--- org.junit:junit-bom:5.11.4
+|    |    +--- org.junit.jupiter:junit-jupiter:5.11.4 (c)
+|    |    +--- org.junit.jupiter:junit-jupiter-api:5.11.4 (c)
+|    |    +--- org.junit.jupiter:junit-jupiter-engine:5.11.4 (c)
+|    |    +--- org.junit.jupiter:junit-jupiter-params:5.11.4 (c)
+|    |    +--- org.junit.platform:junit-platform-launcher:1.11.4 (c)
+|    |    +--- org.junit.platform:junit-platform-commons:1.11.4 (c)
+|    |    \--- org.junit.platform:junit-platform-engine:1.11.4 (c)
+|    +--- org.junit.jupiter:junit-jupiter-api:5.11.4
+|    |    +--- org.junit:junit-bom:5.11.4 (*)
+|    |    +--- org.opentest4j:opentest4j:1.3.0
+|    |    \--- org.junit.platform:junit-platform-commons:1.11.4
+|    |         \--- org.junit:junit-bom:5.11.4 (*)
+|    +--- org.junit.jupiter:junit-jupiter-params:5.11.4
+|    |    +--- org.junit:junit-bom:5.11.4 (*)
+|    |    \--- org.junit.jupiter:junit-jupiter-api:5.11.4 (*)
+|    \--- org.junit.jupiter:junit-jupiter-engine:5.11.4
+|         +--- org.junit:junit-bom:5.11.4 (*)
+|         +--- org.junit.platform:junit-platform-engine:1.11.4
+|         |    +--- org.junit:junit-bom:5.11.4 (*)
+|         |    +--- org.opentest4j:opentest4j:1.3.0
+|         |    \--- org.junit.platform:junit-platform-commons:1.11.4 (*)
+|         \--- org.junit.jupiter:junit-jupiter-api:5.11.4 (*)
+\--- org.junit.platform:junit-platform-launcher -> 1.11.4
+     +--- org.junit:junit-bom:5.11.4 (*)
+     \--- org.junit.platform:junit-platform-engine:1.11.4 (*)
+
+(c) - A dependency constraint, not a dependency. The dependency affected by the constraint occurs elsewhere in the tree.
+(*) - Indicates repeated occurrences of a transitive dependency subtree. Gradle expands transitive dependency subtrees only once per project; repeat occurrences only display the root of the subtree, followed by this annotation.
+
+A web-based, searchable dependency report is available by adding the --scan option.

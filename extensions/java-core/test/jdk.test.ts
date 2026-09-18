@@ -15,6 +15,7 @@ import {
   parseSdkList,
 } from "../src/jdk/install";
 import { resolve, toSettingsRuntimes } from "../src/jdk/resolve";
+import { homeWithBin, miseHome } from "../src/detect";
 
 const release = (v: string, vendor = "Eclipse Adoptium") =>
   `IMPLEMENTOR="${vendor}"\nJAVA_VERSION="${v}"\n`;
@@ -224,5 +225,34 @@ describe("install by manager (decision 10)", () => {
       "java",
       "21.0.5-tem",
     ]);
+  });
+});
+
+describe("a build tool's home from mise (feedback 22)", () => {
+  it("accepts the install itself or the one nested distribution directory", async () => {
+    const fs = {
+      "/m/gradle/8.14.5/bin/gradle": "#!",
+      "/m/maven/3.9.16/apache-maven-3.9.16/bin/mvn": "#!",
+    };
+    const dirs = {
+      "/m/maven/3.9.16": ["apache-maven-3.9.16", "LICENSE"],
+      "/m/gradle/8.14.5": ["bin", "lib"],
+    };
+    const io = fakeIo(fs, dirs, {
+      "mise ls maven --json": JSON.stringify([
+        { install_path: "/m/maven/3.9.16", installed: true },
+      ]),
+      "mise ls gradle --json": JSON.stringify([
+        { install_path: "/m/gradle/8.14.5", installed: true },
+      ]),
+    });
+    expect(homeWithBin(io, "/m/gradle/8.14.5", "gradle")).toBe(
+      "/m/gradle/8.14.5",
+    );
+    expect(await miseHome(io, "maven", "mvn")).toBe(
+      "/m/maven/3.9.16/apache-maven-3.9.16",
+    );
+    expect(await miseHome(io, "gradle", "gradle")).toBe("/m/gradle/8.14.5");
+    expect(await miseHome(fakeIo({}, {}), "maven", "mvn")).toBeUndefined();
   });
 });

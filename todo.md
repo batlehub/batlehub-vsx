@@ -1,7 +1,8 @@
 # RFC 0001 — Java for VS Code: implementation, findings, state of play
 
 **Started** 2026-09-17 · branch `main` · RFC status at start: **Draft, revision 3
-— ready to implement from §12 phase 0**. **State on 2026-09-18 02:43:** phases
+— ready to implement from §12 phase 0**. **RFC status now: Accepted** (revision
+4, 2026-09-18, reviewed with the user). **State on 2026-09-18 02:43:** phases
 0–8 landed and the whole `java` heavy half is green in the real editor
 (`task heavy:view:java`, run 16: `JAVA-OK`, sixteen steps from `STATUS-OK` to
 `REMOVE-OK` and the performance gate); phase 9 deliberately not done. Nothing
@@ -10,41 +11,29 @@ is committed — the commit message is at
 
 ## Still owed (the honest list)
 
-- the **registry-link scenario** in the marketplace heavy half (needs a
-  BatleHub with a Maven registry; decision 39 puts it there, not in the
-  `java` half) — the code is unit-tested, not driven against a hub;
-- **Gradle driven for real**: no Gradle on this machine (`mise` could install
-  one; the RFC says ask first). The provider, parsers and `gradle-multi`
-  fixture with the 8.14.3 wrapper are ready for CI;
 - **layer 2** (`@vscode/test-cli`) runs only in CI's `host` job — no display here;
-- the **Groovy hover** through the driver (empty; the server answers hover in
-  its smoke), and the shown-after-toggle satellite status bar step;
-- running a `batlehub-java` **task to completion** in the terminal is not
-  read back by the driver (the picker lists them; the command line is
-  unit-tested);
 - the panel's **golden screenshots / pixelmatch** of §10: screenshots are
   taken in the three themes and kept as artifacts; no pixel comparison
   (a renderer-dependent gate nobody stood behind yet);
-- the **RFC text** is untouched: the §Feedback below is what its next revision
-  (§13 implementation notes, decisions 8, 14 answered) should carry.
+- the **nightly matrix** and the **registry half in CI** are written, never
+  run on a runner (this workspace cannot run GitHub Actions);
+- **phase 9** (the split) deliberately not done: no trigger.
 
-This file is the running log of the implementation: what each phase asked,
-what landed, what was proven in a real editor, and where implementing it
-corrected the design (§Feedback, to be carried into RFC §13 when the RFC is
-revised).
+Everything else the RFC names has been driven by a real client: the `java`
+half (run 19, 2026-09-18 06:57, sixteen steps green including a Maven task
+run to `BUILD SUCCESS` in the terminal, the Groovy hover and the status bar
+toggle) and the `registry` half (run 3, 06:35, against BatleHub release
+binaries and the Postgres sidecar).
 
-## Where this stands
-
-| Phase | Content | State |
-| --- | --- | --- |
+--- | --- | --- |
 | 0 | spikes (a) m2e profiles, (b) `redhat.java` API, (c) cgroup | ✅ all three answered — (a) positive in the real editor (run 10): the m2e preference works, no overlay |
 | 1 | skeleton: `java-core`, `java-pack`, layers 1–2, fixtures, `rfc:*`, CI | ✅ landed (layer 2 written, CI-only) |
 | 2 | `java-core` v0.1 — the newcomer story | ✅ landed; **proven in the real editor** (`STATUS-OK`, `DETECT-OK`, `NEWCOMER-OK`, `SERVER-OK`, `PICK-OK`, `REMOVE-OK`, `PERF-GATE`) |
 | 3 | `java-core` v0.2 — the surface (panel, menus, tasks, report) | ✅ landed; **proven** (`PANEL-OK` with ARIA + three themes, `TASKS-OK`, `GENERATE-OK`); Report a problem unit-tested |
 | 4 | `java-core` v0.3 — explorer, run editor, IntelliJ import | ✅ landed; explorer **proven** (`EXPLORER-OK`); run editor (quick-input form, feedback 8) and import unit-tested |
-| 5 | `java-core` v0.4 — Maven, registry link, `batlehub-vsx` export | ✅ landed; profiles-through-m2e **proven** (`SPIKE-A-OK`); registry link unit-tested, not driven against a hub |
+| 5 | `java-core` v0.4 — Maven, registry link, `batlehub-vsx` export | ✅ landed; profiles-through-m2e **proven** (`SPIKE-A-OK`); registry link **proven against a real hub** (`REGISTRY-LINK-OK`: token from batlehub-vsx, Maven resolving through the mirror) |
 | 6 | `java-core` v0.5 — the JDT bundle (Java) | ✅ landed (fork): Maven + bnd, 11 inspections, accessors delegate, 19 JUnit; **proven in the editor** (`BUNDLE-OK`, `INSPECTIONS-OK`, `GENERATE-OK`) |
-| 7 | `java-core` v0.6 — Gradle | ✅ landed (provider, parsers, init.gradle link), unit-tested; no Gradle on this machine |
+| 7 | `java-core` v0.6 — Gradle | ✅ landed; the fixture built and tested with a real Gradle 8.14.5, its real output parsed by the tests |
 | 8 | `java-groovy` v0.1 | ✅ landed (fork); **proven in the editor** (`GROOVY-OK`: contract registration, server on the core's JDK, Groovy mode, panel tab) |
 | 9 | the split | ⬜ (P2 — "if it has earned itself"; it has not, see §9) |
 
@@ -215,8 +204,9 @@ a default Che `memoryLimit` and silent here.
 
 - [x] project explorer (`src/project/explorer.ts`): folder → JDK → modules →
       sources / tests / resources / dependencies (conflicts, verdicts) —
-      `EXPLORER-OK` in the editor (run 15); the `batlehub-java` tasks in the
-      editor's own picker — `TASKS-OK`
+      `EXPLORER-OK` in the editor; the `batlehub-java` tasks in the editor's
+      own picker and `maven compile` run to `BUILD SUCCESS` in the terminal
+      with the resolved JDK and the mise Maven — `TASKS-OK` (run 19)
 - [x] run-configuration editor + templates (`src/run/editor.ts`, `configs.ts`):
       Application / Remote templates, copy, delete, run, debug; comments and
       unknown keys of `launch.json` survive (jsonc-parser edits, one dependency,
@@ -245,8 +235,17 @@ a default Che `memoryLimit` and silent here.
 - [x] verdicts on dependency nodes (`src/registry/verdicts.ts`):
       `GET /api/v1/verdicts/{registry}/{groupId:artifactId}/{version}` with the
       bearer from `batlehub-vsx`, cached, 404 = nothing shown
-- [ ] the registry scenario in the marketplace heavy half (needs a BatleHub
-      with a Maven registry: not run here)
+- [x] **the registry scenario, green against a real BatleHub** (`task
+      heavy:view:registry`, 2026-09-18 06:35, release binaries + the Postgres
+      sidecar): `batlehub-vsx` signed in through `BATLEHUB_TOKEN`; the core
+      logged `registry link enabled → …/proxy/mvn-<run>/maven2 (token from
+      batlehub-vsx)`; the run's `~/.m2/settings.xml` (0600) carried the
+      mirror block and `Authorization: Bearer heavy-user-token`, the Gradle
+      init script the same; a real Maven with a fresh local repository
+      resolved the profile-only `commons-lang3` through the hub, whose Maven
+      registry refuses anonymous reads — `_remote.repositories` names
+      `batlehub` as the serving repository. Two findings on the way (feedback
+      20, 21): Bearer not Basic, and the `/maven2` suffix
 
 ## 7. v0.6 — Gradle
 
@@ -255,9 +254,13 @@ a default Che `memoryLimit` and silent here.
       `dependencies` parsed (`tasks.ts`, with Gradle's `-> 2.0.9` conflict
       arrows and `(*)` duplicates), `init.d/batlehub.gradle` registry link
       (mirror + bearer header) as an owned file
-- [ ] driven with a real Gradle: none on this machine (mise could install
-      one; the RFC says ask first) — the wrapper of `gradle-multi` downloads
-      Gradle 8.14.3 on first use, so CI can
+- [x] driven with a real Gradle (2026-09-18, allowed by the user):
+      `mise use gradle@8` → 8.14.5 in `mise.toml`; `gradle build` on
+      `gradle-multi` green (both jars, the JUnit test); its real
+      `tasks --all` and `:app:dependencies` (runtime and test classpaths)
+      captured under `test/fixtures/gradle-*.txt` and parsed by
+      `test/gradle-real.test.ts` (project references, `(c)` constraints,
+      `(*)` repeats, task groups) — 47 vitest tests
 
 ## 3. v0.2 — the surface
 
@@ -356,14 +359,13 @@ a default Che `memoryLimit` and silent here.
       symbols right; diagnostics published (unresolved Spock with an empty
       classpath — correct); completion on `new Hello().gr|` offers type names,
       not members — the 2022 build's ceiling. Usable; shipped.
-- [x] in the heavy half (run 15): `GROOVY-OK` — registered through the
+- [x] in the heavy half (run 19): `GROOVY-OK` — registered through the
       contract (`registered with BatleHub Java (contract 1.0)`), the server
-      started on the core's JDK 21, `Hello.groovy` in Groovy mode, the
-      `Groovy` panel tab present, the status bar item hidden by default. The
-      hover the driver asks for comes back empty (recorded, not gated: the
-      2022 server answers hover in the smoke, the driver's caret placement
-      through Go to Line is the suspect); the shown-after-toggle status bar
-      step is not driven
+      started on the core's JDK 21 with `-Xmx512m`, `Hello.groovy` in Groovy
+      mode, the `Groovy` panel tab present, the hover answered
+      (`package com.acme class Hello` — the click landed on the class name),
+      the status bar item hidden by default and shown once
+      `batlehub.java.statusBar.items` toggles it
 
 ## 9. The split
 
@@ -507,7 +509,29 @@ Nothing to do; recorded here so the phase is not read as forgotten.
     `dist/webview/main.js` and the VSIX shipped a stale 62-byte
     `panel/main.js` beside it — the panel showed "Loading…" forever (runs
     9–10). `outbase: "media"` and `rmSync("dist")` before every build.
-20. **`1.57.0` is not the only version that is not where the RFC says.**
+20. **Maven's `<server>` username/password would never have authenticated
+    against BatleHub.** The hub's extractor normalises `Bearer`, NuGet's
+    header, cargo's bare token and Galaxy's `Token` scheme — and no HTTP
+    Basic. Revision 3's `<server>` block (a password) was a token Maven
+    would have sent as Basic and BatleHub would have refused. The block now
+    carries `<configuration><httpHeaders>` with `Authorization: Bearer`,
+    which Maven's transport sends for that server id; the `registry` heavy
+    half resolves a dependency through the hub with that file to prove it.
+21. **BatleHub serves Maven under `/proxy/<name>/maven2`, not `/proxy/<name>`.**
+    The first registry run's Maven hit the hub 20 times and got 404 on the
+    `default` route: the mirror URL the core derived lacked `/maven2`.
+    `mavenUrl()` now appends it, accepts a full registry URL as given, and a
+    bare hub origin becomes `/proxy/maven/maven2`; the verdict URL parser
+    accepts the suffix.
+22. **The build tool needs the JDK's treatment too.** Run 17's `maven
+    compile` task launched `mvn` from `PATH` and got mise's "No version is
+    set for shim: mvn": in the newcomer's workspace Maven is installed by the
+    manager exactly like the JDK, and a shim that fails is worse than a
+    binary that is absent. Detection now resolves `MAVEN_HOME`/`GRADLE_HOME`,
+    then `mise ls maven|gradle --json`, and the task provider uses that home
+    before `PATH` (§4.1's "Maven configurations (…, `MAVEN_HOME`)" was the
+    half of it the RFC had).
+23. **`1.57.0` is not the only version that is not where the RFC says.**
    The RFC's `mise`-first default holds in this workspace (temurin 21 and 25
    installed by mise), but `mise` sets no global version, so its `java`
    shim on `PATH` *fails* rather than being absent — a `PATH` scan that

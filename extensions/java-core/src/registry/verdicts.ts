@@ -16,7 +16,7 @@ export interface Verdict {
 export function splitRegistryUrl(
   url: string,
 ): { hub: string; registry: string } | undefined {
-  const m = /^(https?:\/\/[^/]+)\/proxy\/([^/]+)\/?$/.exec(url);
+  const m = /^(https?:\/\/[^/]+)\/proxy\/([^/]+)(?:\/maven2)?\/?$/.exec(url);
   return m ? { hub: m[1]!, registry: m[2]! } : undefined;
 }
 

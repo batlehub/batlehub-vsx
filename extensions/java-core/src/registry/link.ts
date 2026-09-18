@@ -52,13 +52,19 @@ export class Link implements RegistryLink {
     return (await (await vsx())?.url()) ?? null;
   }
 
-  /** The Maven endpoint of the registry: `<hub>/proxy/<maven registry>`; the user gives the whole URL, or batlehub-vsx's origin gains `/proxy/maven`. */
+  /**
+   * The Maven endpoint: BatleHub serves a Maven registry at
+   * `<hub>/proxy/<name>/maven2`. A URL that already names a registry is used
+   * as given (with `/maven2` added when it is missing); a bare hub origin —
+   * what batlehub-vsx knows — gains the default registry name `maven`.
+   */
   async mavenUrl(): Promise<string | null> {
     const u = await this.url();
     if (!u) return null;
-    return /\/proxy\/[^/]+\/?$/.test(u)
-      ? u.replace(/\/$/, "")
-      : `${new URL(u).origin}/proxy/maven`;
+    const trimmed = u.replace(/\/+$/, "");
+    if (/\/proxy\/[^/]+(\/maven2)?$/.test(trimmed))
+      return trimmed.endsWith("/maven2") ? trimmed : `${trimmed}/maven2`;
+    return `${new URL(trimmed).origin}/proxy/maven/maven2`;
   }
 
   /** Once per workspace, after a Maven/Gradle build was detected. */

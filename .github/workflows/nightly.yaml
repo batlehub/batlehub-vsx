@@ -75,3 +75,55 @@ jobs:
             const existing = open.find((i) => i.title === title);
             if (existing) await github.rest.issues.createComment({ owner: context.repo.owner, repo: context.repo.repo, issue_number: existing.number, body });
             else await github.rest.issues.create({ owner: context.repo.owner, repo: context.repo.repo, title, body, labels: ["drift", "java"] });
+
+  heavy-registry:
+    name: registry half (BatleHub release + Postgres)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_DB: batlehub
+          POSTGRES_USER: batlehub
+          POSTGRES_PASSWORD: changeme
+        ports: ["5432:5432"]
+        options: --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 20
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: pnpm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+      - uses: jdx/mise-action@v2
+        with:
+          install: false
+      - run: pnpm install --frozen-lockfile
+      - name: BatleHub release binaries and the tools the suite calls through mise
+        run: |
+          curl -fsSL https://raw.githubusercontent.com/go-task/task/main/install-task.sh | sh -s -- -d -b /usr/local/bin >/dev/null
+          task hub:install || true
+          mise use -g java@temurin-21.0.11+10.0.LTS maven@3.9.16
+      - name: A Chrome with its DevTools port
+        run: |
+          google-chrome --headless=new --no-sandbox --disable-gpu --remote-debugging-port=9222 --user-data-dir=/tmp/chrome about:blank >/tmp/chrome.log 2>&1 &
+          for _ in $(seq 1 30); do curl -sf http://127.0.0.1:9222/json/version >/dev/null && break; sleep 1; done
+      - name: Run
+        env:
+          HEAVY_ONLY: registry
+          CDP_URL: http://127.0.0.1:9222
+          DATABASE_URL: postgresql://batlehub:changeme@127.0.0.1:5432/batlehub
+          BATLEHUB_BIN: /home/runner/.cache/batlehub-vsx/bin/batlehub
+          BATLEHUB_CLI: /home/runner/.cache/batlehub-vsx/bin/batlehub-cli
+        run: bash tests/heavy/view.sh
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: heavy-registry
+          path: tests/heavy/work/last/
+          if-no-files-found: ignore

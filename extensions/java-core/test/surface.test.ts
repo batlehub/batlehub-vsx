@@ -72,6 +72,15 @@ describe("the batlehub-java task command line (§4.2 Running build commands)", (
     ).toEqual({ cmd: "/opt/mvn/bin/mvn", args: ["-B", "-P", "dev", "test"] });
     expect(
       commandFor(
+        { type: "batlehub-java", tool: "maven", goal: "test" },
+        folder,
+        undefined,
+        undefined,
+        { maven: "/home/u/.local/share/mise/installs/maven/3.9.16" },
+      ).cmd,
+    ).toBe("/home/u/.local/share/mise/installs/maven/3.9.16/bin/mvn");
+    expect(
+      commandFor(
         { type: "batlehub-java", tool: "gradle", goal: "build -x test" },
         { ...folder, tool: "gradle", wrapper: "/w/gradlew" },
         undefined,

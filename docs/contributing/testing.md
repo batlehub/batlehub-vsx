@@ -104,5 +104,19 @@ BatleHub and no Postgres**. Driven by `tests/heavy/java.mjs`, it proves:
 - the performance numbers (`PERF` in the suite log): activation, detection,
   status bar visibility, time to Standard mode.
 
+## The registry half
+
+`task heavy:view:registry` (`HEAVY_ONLY=registry`) is RFC 0001 phase 5's
+one registry scenario, beside the BatleHub halves because it needs a hub
+(decision 39): `batlehub-vsx` signed in through `BATLEHUB_TOKEN`, `java-core`
+with `batlehub.java.registry.enabled: true` pointing at the run's Maven
+registry (a proxy of Central that refuses anonymous reads), the editor's
+`HOME` set to the run's directory. It proves the core writes the mirror and
+the bearer token — handed over by `batlehub-vsx`, never read from the
+contract file — into that `~/.m2/settings.xml` (0600) and
+`~/.gradle/init.d/batlehub.gradle`, and then a real Maven with a fresh local
+repository resolves the profile-only dependency through the hub with that
+file (`_remote.repositories` names `batlehub` as the serving repository).
+
 Layer 2 (`task ext:host`, `@vscode/test-cli`) needs a display and runs in
 CI's `host` job; the Che tools container has none.

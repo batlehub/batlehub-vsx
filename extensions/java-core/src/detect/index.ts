@@ -10,7 +10,12 @@ import { requiredJavaOf as gradleRequired } from "../build/gradle/script";
 import { requiredJavaOf as mavenRequired, parsePom } from "../build/maven/pom";
 import { isOverridden, readSettings, type MavenConfiguration } from "../config";
 import { realIo } from "../io";
-import { discover, type Io, type SettingsRuntime } from "../jdk/discover";
+import {
+  discover,
+  type Io,
+  parseMiseLs,
+  type SettingsRuntime,
+} from "../jdk/discover";
 import { availableManagers, type Manager } from "../jdk/install";
 import { resolve } from "../jdk/resolve";
 import { budget, type ResourceSnapshot } from "./resources";
@@ -115,6 +120,38 @@ export function requiredOf(
   return r ? { min: r.min, origin: r.origin } : undefined;
 }
 
+/**
+ * The newest install of a mise tool as a *home* — the directory whose `bin/`
+ * holds the tool. mise unpacks some distributions one level down
+ * (`installs/maven/3.9.16/apache-maven-3.9.16/bin/mvn`), so the install path
+ * is not always the home. Nothing runs untrusted: `exec` answers nothing.
+ */
+export async function miseHome(
+  io: Io,
+  tool: string,
+  bin: string,
+): Promise<string | undefined> {
+  const out = await io.exec("mise", ["ls", tool, "--json"]);
+  if (!out) return undefined;
+  const install = parseMiseLs(out).at(-1);
+  if (!install) return undefined;
+  return homeWithBin(io, install, bin);
+}
+
+/** `home` when `home/bin/<bin>` exists, else the one child directory that has it. */
+export function homeWithBin(
+  io: Io,
+  home: string,
+  bin: string,
+): string | undefined {
+  if (io.readFile(`${home}/bin/${bin}`) !== undefined) return home;
+  for (const child of io.readDir(home)) {
+    if (io.readFile(`${home}/${child}/bin/${bin}`) !== undefined)
+      return `${home}/${child}`;
+  }
+  return undefined;
+}
+
 export async function detect(trusted: boolean): Promise<Snapshot> {
   const s = readSettings();
   const io = realIo({ trusted });
@@ -153,7 +190,14 @@ export async function detect(trusted: boolean): Promise<Snapshot> {
   const mavenConfigurations = mavenOverride
     ? (s.mavenConfigurations ?? [])
     : detectMavenConfigurations(io);
-  const mavenHome = io.env.MAVEN_HOME || io.env.M2_HOME;
+  // Maven and Gradle the way the JDK is found: the environment, then the
+  // manager (`mise ls <tool> --json`), because a mise shim on PATH with no
+  // global version set fails rather than being absent — a task that runs
+  // `mvn` from PATH there says "No version is set for shim: mvn".
+  const mavenHome =
+    io.env.MAVEN_HOME || io.env.M2_HOME || (await miseHome(io, "maven", "mvn"));
+  const gradleHome =
+    io.env.GRADLE_HOME || (await miseHome(io, "gradle", "gradle"));
   const jdtVmargs =
     vscode.workspace.getConfiguration("java").get<string>("jdt.ls.vmargs") ??
     "";
@@ -171,7 +215,7 @@ export async function detect(trusted: boolean): Promise<Snapshot> {
       home: mavenHome,
     },
     gradle: {
-      home: io.env.GRADLE_HOME,
+      home: gradleHome,
       wrapper: folders.some((f) => f.tool === "gradle" && !!f.wrapper),
     },
     resources: budget({ read: io.readFile, jdtVmargs, gradle, groovy }),

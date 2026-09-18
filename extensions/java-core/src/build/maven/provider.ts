@@ -142,6 +142,7 @@ export class MavenProvider implements BuildToolProvider {
       fs0,
       activeMaven(snap),
       readSettings().mavenActiveProfiles,
+      { maven: snap.maven.home },
     );
     const jdk = fs0.resolution.runtime?.path;
     const env = {
@@ -201,6 +202,7 @@ export class MavenProvider implements BuildToolProvider {
       fs0,
       activeMaven(snap),
       readSettings().mavenActiveProfiles,
+      { maven: snap.maven.home },
     );
     const jdk = fs0.resolution.runtime?.path;
     const r = await run(cmd, args, {

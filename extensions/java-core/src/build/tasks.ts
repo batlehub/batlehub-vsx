@@ -50,11 +50,13 @@ export function commandFor(
   folder: FolderSnapshot,
   maven: MavenConfiguration | undefined,
   activeProfiles: string[] | undefined,
+  homes: { maven?: string; gradle?: string } = {},
 ): { cmd: string; args: string[] } {
   if (def.tool === "maven") {
-    const cmd =
-      folder.wrapper ??
-      (maven?.mavenHome ? `${maven.mavenHome}/bin/mvn` : "mvn");
+    // Wrapper first; then the configuration's home, the detected one
+    // (MAVEN_HOME or mise), and only then whatever `mvn` PATH offers.
+    const home = maven?.mavenHome ?? homes.maven;
+    const cmd = folder.wrapper ?? (home ? `${home}/bin/mvn` : "mvn");
     const args = ["-B"];
     if (maven?.settingsFile) args.push("-s", maven.settingsFile);
     if (maven?.toolchainsFile) args.push("-t", maven.toolchainsFile);
@@ -63,7 +65,8 @@ export function commandFor(
     args.push(...def.goal.split(/\s+/).filter(Boolean), ...(def.args ?? []));
     return { cmd, args };
   }
-  const cmd = folder.wrapper ?? "gradle";
+  const cmd =
+    folder.wrapper ?? (homes.gradle ? `${homes.gradle}/bin/gradle` : "gradle");
   return {
     cmd,
     args: [...def.goal.split(/\s+/).filter(Boolean), ...(def.args ?? [])],
@@ -95,6 +98,7 @@ export class JavaTaskProvider implements vscode.TaskProvider {
       fs,
       maven,
       readSettings().mavenActiveProfiles,
+      { maven: snap.maven.home, gradle: snap.gradle.home },
     );
     const jdk = fs.resolution.runtime?.path;
     const env: Record<string, string> = { ...maven?.env };
