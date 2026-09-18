@@ -8,6 +8,9 @@ version: "3"
 # extensions/java-core/jdt/batlehub-jdt-core.jar, where the VSIX picks it up.
 vars:
   JDK: '{{.JDK | default "java@temurin-21.0.11+10.0.LTS"}}'
+  # The pinned redhat.java, the one deps.sh unpacks; jdt:formatter-defaults
+  # reads its jars, so the two must name the same version.
+  REDHAT_JAVA: '{{.REDHAT_JAVA | default "1.56.0"}}'
   MAVEN: '{{.MAVEN | default "maven@3.9.16"}}'
   # A working `mvn` on PATH (CI's setup-java) is used as is; otherwise `mise exec`
   # (this workspace has the shims but no global java/maven version).
@@ -30,6 +33,15 @@ tasks:
       - mkdir -p extensions/java-core/jdt
       - cp jdt/batlehub-jdt-core/target/batlehub-jdt-core-*.jar {{.JAR}}
       - 'unzip -p {{.JAR}} META-INF/MANIFEST.MF | tr -d "\r" | grep -E "^(Bundle-SymbolicName|Bundle-Version|Import-Package)" | cut -c1-160'
+
+  formatter-defaults:
+    desc: "Regenerate extensions/java-core/src/idea/eclipse-defaults.json from the pinned redhat.java's org.eclipse.jdt.core (RFC 0007 §6.2; redo it on every minimum bump)"
+    deps: [deps]
+    cmds:
+      - |
+        CP="$(printf '%s:' "$HOME"/.cache/batlehub-heavy/redhat.java-{{.REDHAT_JAVA}}/extension/server/plugins/*.jar)"
+        mise exec {{.JDK}} -- java -cp "$CP" jdt/EclipseDefaults.java > extensions/java-core/src/idea/eclipse-defaults.json
+      - 'echo "$(node -e "console.log(Object.keys(require(\"./extensions/java-core/src/idea/eclipse-defaults.json\")).length)") formatter defaults from redhat.java {{.REDHAT_JAVA}}"'
 
   test:
     desc: "Layer 1b: JUnit 5 over ASTParser — golden files per generator option set, positive/negative/fix per inspection"

@@ -51,6 +51,18 @@ export function realIo(opts: {
   };
 }
 
+/**
+ * The probe `Io` of RFC 0001 §7.1: what lives outside the workspace in a known
+ * place — the JDKs a manager installed, `~/.m2`, `~/.gradle` — is a fact, not
+ * an input, so it is read before trust. It runs from the home directory and
+ * takes no argument from the workspace, which is also what keeps a repository's
+ * own `mise.toml` out of the answer. Everything the *workspace* controls (a
+ * wrapper, a build file, a `PATH` `mvn`) stays behind `realIo({ trusted })`.
+ */
+export function homeIo(): Io {
+  return realIo({ trusted: true, cwd: os.homedir() });
+}
+
 /** Like `exec` but the failure is an error with stderr, for commands whose output the user reads. */
 export function run(
   cmd: string,

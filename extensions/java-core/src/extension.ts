@@ -62,16 +62,24 @@ export async function activate(
     paint(snap);
     detected.fire(snap);
   };
-  const jdk = new Jdk(() => snapshot, redetect, trusted);
+  const jdk = new Jdk(
+    () => snapshot,
+    redetect,
+    trusted,
+    () => server.needsJdk(),
+  );
 
   const paint = (snap: Snapshot) => {
     const first = snap.folders[0];
     const warnings: string[] = [];
     const errors: string[] = [];
     if (server.error) errors.push(server.error);
+    if (server.warning) warnings.push(server.warning);
     if (!snap.trusted)
       warnings.push(
-        vscode.l10n.t("untrusted workspace: nothing runs until you trust it"),
+        vscode.l10n.t(
+          "untrusted workspace: nothing this project controls runs until you trust it",
+        ),
       );
     if (first?.resolution.reason === "newest" && first.required)
       warnings.push(
@@ -118,6 +126,7 @@ export async function activate(
       mavenProfiles: readSettings().mavenActiveProfiles,
       mavenConfiguration: readSettings().mavenActiveConfiguration,
       serverMode: server.mode,
+      serverJdk: server.serverJdk(),
       warnings: warnings.filter(Boolean),
       errors,
       importing: server.mode === "Hybrid",

@@ -136,11 +136,13 @@ jobs:
           mise use -g "java@temurin-21" || true
           mise ls java
       - name: No system JDK, as a Che workspace has none
-        # ubuntu-latest ships Temurin under /usr/lib/jvm, the one directory
-        # redhat.java scans on its own. Left there, the first session starts
-        # a JDT.LS on it before the core's newcomer write, and the reload
-        # starts a second one on the same workspace. setup-java's JDK lives
-        # under /opt/hostedtoolcache and keeps serving mvn through JAVA_HOME.
+        # §2 point 1's "no JDK but a manager" is a precondition the suite must
+        # create, not assume (RFC 0001 §15.5): ubuntu-latest ships Temurin
+        # under /usr/lib/jvm, which redhat.java scans on its own, so with it
+        # there the newcomer never happens. The opposite case — redhat.java
+        # with a JDK of its own — is the suite's DESKTOP step, which hands it
+        # a JAVA_HOME instead. setup-java's JDK lives under
+        # /opt/hostedtoolcache and keeps serving mvn through JAVA_HOME.
         run: sudo mv /usr/lib/jvm /usr/lib/jvm.hidden
       - name: task, for view.sh's jdt:* and groovy:fetch
         run: curl -fsSL https://raw.githubusercontent.com/go-task/task/main/install-task.sh | sh -s -- -d -b /usr/local/bin >/dev/null

@@ -14,6 +14,7 @@ import { withLock } from "../../lock";
 import { log } from "../../log";
 import {
   ensureGitignore,
+  modeOf,
   recordBlock,
   writeForeignSetting,
   writeOwnedFile,
@@ -283,7 +284,11 @@ export class MavenProvider implements BuildToolProvider {
         before = undefined;
       }
       if (activeProfilesOf(before).join(",") === profiles.join(",")) continue;
-      writeOwnedFile(prefs, setActiveProfiles(before, profiles));
+      // m2e's preference file is shared with the language server and with any
+      // other window on this workspace: one writer at a time (§4.2).
+      await withLock(prefs, () =>
+        writeOwnedFile(prefs, setActiveProfiles(before, profiles)),
+      );
     }
     log.info(
       `activeProfiles=${profiles.join(",")} written to ${walk(modules).length} module(s)' .settings/org.eclipse.m2e.core.prefs`,
@@ -345,6 +350,9 @@ export class MavenProvider implements BuildToolProvider {
       } catch {
         cur = undefined;
       }
+      // Read before the write: the mode this file had is what removal puts
+      // back, and the core is about to set it to 0600 (red line 1).
+      const before = modeOf(file);
       const next = enable
         ? setLink(cur, { url: link.url, token: link.token })
         : unsetLink(cur);
@@ -352,7 +360,7 @@ export class MavenProvider implements BuildToolProvider {
       fs.mkdirSync(path.dirname(file), { recursive: true, mode: 0o700 });
       fs.writeFileSync(file, next, { mode: 0o600 });
       fs.chmodSync(file, 0o600);
-      if (enable) recordBlock(file, MARKER);
+      if (enable) recordBlock(file, MARKER, before);
       log.info(
         `${enable ? "wrote" : "removed"} the ${MARKER} block in ${file} (0600)`,
         "Maven",

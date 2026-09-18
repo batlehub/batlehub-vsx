@@ -20,6 +20,8 @@ import { writeExtSetting, writeForeignSetting } from "../manifest";
 export interface PanelState {
   trusted: boolean;
   serverMode: string;
+  /** Which JDK JDT.LS itself runs on — not the same question as the projects' runtimes (§4.2). */
+  serverJdk?: string;
   jdk: {
     runtimes: {
       name: string;
@@ -159,6 +161,7 @@ export class JavaPanel
     return {
       trusted: this.core.trusted(),
       serverMode: this.core.server.mode ?? "unknown",
+      serverJdk: this.core.server.serverJdk(),
       jdk: {
         runtimes: (snap?.runtimes ?? []).map((r) => ({
           name: r.name,

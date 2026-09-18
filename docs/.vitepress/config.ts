@@ -119,15 +119,6 @@ export default withMermaid(
           ],
         },
         {
-          text: "Ready to build",
-          items: [
-            {
-              text: "0001 — Java extensions",
-              link: "/rfc/0001-java-env",
-            },
-          ],
-        },
-        {
           text: "Parked",
           items: [
             {
@@ -137,6 +128,15 @@ export default withMermaid(
             {
               text: "0018 — Rust syntactic tier",
               link: "/rfc/0018-rust-syntactic-tier",
+            },
+          ],
+        },
+        {
+          text: "Settled",
+          items: [
+            {
+              text: "0001 — Java extensions",
+              link: "/rfc/0001-java-env",
             },
           ],
         },

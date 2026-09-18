@@ -44,33 +44,41 @@ describe("the manifest of §4.2 (decision 24)", () => {
       kind: "file",
       path: "/w/.batlehub/java/settings-corp.xml",
       before: null,
+      mode: null,
     });
+    // Red line 1: the mode is a write. `~/.m2/settings.xml` was 0644 before
+    // the core set it 0600 to carry the token, and removal puts 0644 back.
     m = record(m, {
       kind: "block",
       path: "/home/u/.m2/settings.xml",
       marker: "batlehub",
+      mode: 0o644,
     });
     const calls: string[] = [];
     const errors = await replay(m, {
       setting: async (k, b) =>
         void calls.push(`setting ${k}=${JSON.stringify(b)}`),
       extSetting: async () => {},
-      file: async (p, b) =>
-        void calls.push(`file ${p} ${b === null ? "delete" : "restore"}`),
-      block: async (p) => {
-        calls.push(`block ${p}`);
+      file: async (p, b, mode) =>
+        void calls.push(
+          `file ${p} ${b === null ? "delete" : "restore"} ${mode ?? "-"}`,
+        ),
+      block: async (p, _marker, mode) => {
+        calls.push(`block ${p} ${(mode ?? 0).toString(8)}`);
         throw new Error("locked");
       },
       gitignore: async (p) => void calls.push(`gitignore ${p}`),
     });
     expect(calls).toEqual([
-      "block /home/u/.m2/settings.xml",
-      "file /w/.batlehub/java/settings-corp.xml delete",
+      "block /home/u/.m2/settings.xml 644",
+      "file /w/.batlehub/java/settings-corp.xml delete -",
       "gitignore /w/.gitignore",
       'setting java.configuration.runtimes=["old"]',
     ]);
     expect(errors).toEqual(["block:/home/u/.m2/settings.xml:batlehub: locked"]);
-    expect(describeManifest(m)[0]).toContain("remove the batlehub block");
+    expect(describeManifest(m)[0]).toContain(
+      "remove the batlehub block from /home/u/.m2/settings.xml and put its mode back to 0644",
+    );
     expect(describeManifest(m).at(-1)).toContain(
       'restore workspace setting java.configuration.runtimes to ["old"]',
     );

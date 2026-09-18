@@ -9,7 +9,7 @@ import type { JavaVersionRange, Resolution, Runtime } from "../api-types";
 import { requiredJavaOf as gradleRequired } from "../build/gradle/script";
 import { requiredJavaOf as mavenRequired, parsePom } from "../build/maven/pom";
 import { isOverridden, readSettings, type MavenConfiguration } from "../config";
-import { realIo } from "../io";
+import { homeIo } from "../io";
 import {
   discover,
   type Io,
@@ -124,7 +124,8 @@ export function requiredOf(
  * The newest install of a mise tool as a *home* — the directory whose `bin/`
  * holds the tool. mise unpacks some distributions one level down
  * (`installs/maven/3.9.16/apache-maven-3.9.16/bin/mvn`), so the install path
- * is not always the home. Nothing runs untrusted: `exec` answers nothing.
+ * is not always the home. `mise ls` is a home probe (§7.1), not a workspace
+ * command: the tool name is ours and the cwd is the home directory.
  */
 export async function miseHome(
   io: Io,
@@ -154,14 +155,19 @@ export function homeWithBin(
 
 export async function detect(trusted: boolean): Promise<Snapshot> {
   const s = readSettings();
-  const io = realIo({ trusted });
+  // Detection execs nothing the workspace controls: `mise ls … --json`,
+  // `mise --version` and `sdk version`, from the home directory. §7.1 calls
+  // that a fact rather than an input, so it answers before trust too — which
+  // is the difference between a Restricted-Mode panel that says "JDK 21, from
+  // mise" and one that says nothing at all.
+  const io = homeIo();
   const settingsRuntimes = (
     vscode.workspace
       .getConfiguration("java")
       .get<SettingsRuntime[]>("configuration.runtimes") ?? []
   ).filter((r) => r && typeof r.path === "string");
   const runtimes = await discover(io, s.jdkSources, settingsRuntimes);
-  const managers = trusted ? await availableManagers(io) : [];
+  const managers = await availableManagers(io);
   const folders: FolderSnapshot[] = [];
   let gradle = false;
   for (const f of vscode.workspace.workspaceFolders ?? []) {

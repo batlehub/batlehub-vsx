@@ -19,8 +19,11 @@ The same tasks are writable by hand and reusable as `preLaunchTask`:
 { "type": "batlehub-java", "tool": "maven", "goal": "clean package", "args": ["-DskipTests"], "profiles": ["ci"] }
 ```
 
-In an untrusted workspace nothing runs: not the wrapper, not `mvn` on
-`PATH` — the build file is repository code (decision 40).
+In an untrusted workspace nothing the project controls runs: not the
+wrapper, not `mvn` on `PATH` — the build file is repository code
+(decision 40). Detection still answers, because `mise ls maven --json` from
+your home directory is a fact about the machine, not something the project
+can steer.
 
 ## The explorer
 

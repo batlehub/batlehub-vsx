@@ -12,6 +12,7 @@ declare function acquireVsCodeApi(): {
 type State = {
   trusted: boolean;
   serverMode: string;
+  serverJdk?: string;
   jdk: {
     runtimes: {
       name: string;
@@ -115,6 +116,7 @@ ${res.warning ? `<p class="warn" role="alert">⚠ ${esc(res.warning)} <a href="h
 </section>
 <section aria-labelledby="h-srv"><h2 id="h-srv">Language server</h2>
 <p>Mode: <b>${esc(s.serverMode)}</b>${s.serverMode !== "Standard" ? ` — rename, Generate and inspections need Standard. <button data-msg="switchMode">Switch to Standard</button>` : ""}</p>
+<p>Runs on: <b>${esc(s.serverJdk ?? "not resolved yet")}</b> <span class="muted">— the JDK the server itself uses, which is not necessarily a project's runtime.</span></p>
 </section>`;
 }
 

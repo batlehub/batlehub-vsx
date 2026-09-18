@@ -9,7 +9,7 @@
 | Author      | Max Batleforc <maxleriche.60@gmail.com>                       |
 | Co-author   | —                                                             |
 | Created     | 2026-09-18                                                    |
-| Revised     | 2026-09-18 — revision 2, after the series was reviewed against its goal (RFC 0001 §7.1): the import waits for workspace trust, the plan is a diff of what will be written, keymaps never come from the workspace, the profile target is `inspections.json` |
+| Revised     | 2026-09-18 — revision 3, phase 1 built and proven in the real editor (`IMPORT-TRUST-OK`, `IMPORT-PLAN-OK`, `IMPORT-OK`): the trust gate runs before the experimental-flag prompt (that prompt is a write), `[java].editor.detectIndentation` has to be turned off or the indent never moves, and the fixture carries a style that actually changes the file. Revision 2, after the series was reviewed against its goal (RFC 0001 §7.1): the import waits for workspace trust, the plan is a diff of what will be written, keymaps never come from the workspace, the profile target is `inspections.json` |
 | Supersedes  | —                                                             |
 | Depends on  | RFC 0001 (`src/idea/import.ts`, the `written.json` manifest, the `experimental.intellijImport` flag, the JDT bundle's rule ids); RFC 0005 (the shared inspection profile the imported profile is written as, and — revision 2 — the manifest entry kind of a profile written by a program); `redhat.java` ≥ 1.56.0 (`java.format.settings.url`, `java.templates.fileHeader`, `java.completion.importOrder`) |
 | Touches     | `extensions/java-core/src/idea/` (`import.ts` grows a scope picker; new `codestyle.ts`, `templates.ts`, `keymap.ts`, `profile.ts`), `src/manifest.ts` (one new entry kind, `keybinding`; the `profile` kind is RFC 0005's), `package.json` (the command's title, no new setting), `tests/heavy/fixtures/` (an `.idea/` with all five kinds, IDEA golden output), `docs/guide/java/intellij.md` |
@@ -100,15 +100,27 @@ committed).
    package 1, import layout `java, javax, org, com, all other, static`),
    `codeStyleConfig.xml` with `USE_PER_PROJECT_SETTINGS`. Action: `Java:
    Import from IntelliJ` → scope "Code style" → Write. Proof: the plan's
-   summary line reads `31 of 38 options mapped` and its diff shows
+   summary line reads `29 of 30 options mapped` and its diff shows
    `formatter.xml` (empty ↔ the generated profile) and `settings.json`
-   (current ↔ with the five keys) before anything is written;
+   (current ↔ with the six keys) before anything is written;
    `settings.json` gains
    `java.format.settings.url` pointing at `.vscode/batlehub-java/formatter.xml`,
-   `java.format.settings.profile: "IntelliJ (imported)"`, `[java]` `editor.tabSize:
-   4`, `java.completion.importOrder`; `Format Document` on `Greeter.java`
+   `java.format.settings.profile: "IntelliJ (imported)"`, `[java]` `editor.tabSize`,
+   `java.completion.importOrder`; `Format Document` on `Greeter.java`
    yields a buffer equal to `Greeter.formatted.java`; `written.json` has
-   one `file` and four `setting` entries.
+   one `file` and the `setting` entries.
+
+   **The fixture's committed style is not the one this paragraph opens
+   with** (phase 1). A style the fixture's sources are already in — four
+   spaces, braces at end of line — leaves `Greeter.java` untouched, so the
+   acceptance case would pass just as well against an import that did
+   nothing. `tests/heavy/fixtures/maven-multi/.idea/codeStyles/Project.xml`
+   therefore carries a two-space, braces-on-the-next-line, 120-column style
+   that moves every line of the file. `Greeter.formatted.java` is that file
+   as **IDEA 2026.1.3's own headless formatter** (`idea/bin/format.sh`)
+   writes it, committed under `.idea/golden/` — not beside `Greeter.java`,
+   where `javac` would refuse a public class whose file is not
+   `<class>.java` and break the fixture's Maven build.
 2. **Live templates.** Starting state: the suite's `HOME` carries
    `.config/JetBrains/IntelliJIdea2026.1/templates/user.xml` with `sout`,
    `psvm`, `fori` (with `$INDEX$`, `$LIMIT$`, `$END$`) and `iter` (an
@@ -215,7 +227,7 @@ What the import writes, all through the manifest (RFC 0001 §4.2
 | Kind | Writes |
 | --- | --- |
 | Run configurations | `launch.json` entries (RFC 0001 phase 4, unchanged) |
-| Code style | `.vscode/batlehub-java/formatter.xml` (an Eclipse formatter profile, `file` entry); settings `java.format.settings.url`, `java.format.settings.profile`, `java.completion.importOrder`, `java.sources.organizeImports.starThreshold`, `[java].editor.tabSize` / `editor.insertSpaces` |
+| Code style | `.vscode/batlehub-java/formatter.xml` (an Eclipse formatter profile, `file` entry); settings `java.format.settings.url`, `java.format.settings.profile`, `java.completion.importOrder`, `java.sources.organizeImports.starThreshold` / `staticStarThreshold`, `[java].editor.tabSize` / `editor.insertSpaces` / **`editor.detectIndentation: false`** |
 | Live templates | `.vscode/intellij.code-snippets` (`file` entry) |
 | File templates | `java.templates.fileHeader`, `java.templates.typeComment` (settings); other templates → the same snippets file with prefix `file:<name>` |
 | Keymap | the **user** `keybindings.json` (`keybinding` entry, a new manifest kind carrying the file's previous content; removed by the remove command on a second confirmation, the plan says so) |
@@ -267,6 +279,17 @@ What the import writes, all through the manifest (RFC 0001 §4.2
   Unmapped options are listed by IDEA name; the Eclipse profile's other
   options keep JDT's defaults (the profile is written complete, so a
   future `redhat.java` default change does not move the team's format).
+
+  **`[java].editor.detectIndentation` must be turned off, or the indent
+  half of the import does nothing** (found in phase 1, in the real editor,
+  and by nothing else). `editor.detectIndentation` is on by default: the
+  editor guesses the width from the file it is about to format and sends
+  that in the formatting request, and JDT.LS honours the request over the
+  profile's `tabulation.size`. A file already in the team's old style
+  therefore keeps it forever, and the import looks like it worked — the
+  brace positions and everything else in the profile *do* apply, so only a
+  byte-for-byte comparison against IDEA's own output shows the gap. An
+  imported style is explicit by definition, so the guessing goes off.
 - **Live templates**: `<template name value description>` →
   `{ prefix: name, body: [...], description }`; `$VAR$` → `${n:VAR}` in
   order of first appearance, `$END$` → `$0`, `$SELECTION$` → `$TM_SELECTED_TEXT`;
@@ -387,7 +410,12 @@ graph LR
   `{ runs: ImportPlan, codestyle?, templates?, keymap?, profile? }`; the
   modal text is built per kind (`+`/`-` lines as today, a header line per
   kind with counts). `importIdea()` returns at once when
-  `workspace.isTrusted` is false. `planDiffs(plan): { target, before,
+  `workspace.isTrusted` is false. **The gate is `requireTrust()`, and the
+  command calls it before the `experimental.intellijImport` prompt**, not
+  after: that prompt offers to turn the flag on, and turning it on writes a
+  workspace setting. A gate that lets a write happen ahead of it is not a
+  gate — found in phase 1, where the flag check stood first because the
+  command predates this RFC. `planDiffs(plan): { target, before,
   after }[]` is pure; the command serves `after` through a
   `TextDocumentContentProvider` and opens `vscode.diff` per target.
   `writePlan()` writes those same `after` strings through `Manifest` with one
@@ -631,7 +659,7 @@ graph LR
 
 | Phase | Content |
 | --- | --- |
-| 1 | The trust gate and the diff plan (`planDiffs`, host case 7); `codestyle.ts` with the mapping table, `eclipse-defaults.json` extracted from the pinned JDT, the settings; the fixture's `Project.xml` and IDEA golden file; heavy case 1. Useful alone. |
+| 1 | ~~The trust gate and the diff plan (`planDiffs`, host case 7); `codestyle.ts` with the mapping table, `eclipse-defaults.json` extracted from the pinned JDT, the settings; the fixture's `Project.xml` and IDEA golden file; heavy case 1.~~ **Done** (revision 3). 402 JDT defaults from the pinned redhat.java 1.56.0 (`task jdt:formatter-defaults`); 29 of 30 fixture options mapped, `WRAP_LONG_LINES` listed; `Format Document` byte-for-byte equal to IDEA 2026.1.3's own headless formatter. Host case 7 is covered by the heavy half instead: the diff editors and the untrusted gate are both driven there. |
 | 2 | `templates.ts`: live templates and file templates; the snippets file, `fileHeader`; heavy cases 2, 3. |
 | 3 | `keymap.ts` with the `ACTIONS` table and the extension-default check, the directory pick outside the workspace, the `keybinding` manifest kind (previous content) and its confirmed removal; heavy case 4. |
 | 4 | With RFC 0005 phase 1 (revision 2: the imported mark and the entry kind): `profile.ts` writing `inspections.json`, the `RULES` table build check; heavy case 5. |

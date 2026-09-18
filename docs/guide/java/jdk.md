@@ -15,8 +15,11 @@
 Each candidate is a JDK when it has a `release` file; its version and vendor
 come from there. What `java.configuration.runtimes` already lists is merged
 in. Detection runs at activation, on `Java: Detect environment`, and when a
-setting changes; in an untrusted workspace the sources that run a command
-(`mise`) are skipped and the rest still read.
+setting changes. It works in an untrusted workspace too: `mise ls java
+--json` is run from your home directory with no argument taken from the
+project, which makes it a fact about the machine rather than something the
+repository controls — so Restricted Mode can still tell you which JDKs you
+have. Nothing the project controls runs before you trust it.
 
 ## Resolution
 
@@ -35,12 +38,25 @@ false` always takes the newest.
 ## The language server's own JDK
 
 `redhat.java` needs a JDK ≥ 17 to run JDT.LS and finds it through
-`java.jdt.ls.java.home`, `JDK_HOME`, `JAVA_HOME` or `PATH`. A fresh Che
-workspace with `mise` and no global `java` version has none of those — the
-first thing a newcomer hits (RFC 0001 §2 point 1). When that is the case
-the core writes `java.jdt.ls.java.home` (workspace scope, recorded in the
-manifest) to the newest JDK it found; `redhat.java` asks for a reload, and
-the editor works.
+`java.jdt.ls.java.home`, `JDK_HOME`, `JAVA_HOME`, `PATH` or a couple of
+well-known directories. A fresh Che workspace with `mise` and no global
+`java` version has none of those — the first thing a newcomer hits
+(RFC 0001 §2 point 1). When that is the case the core writes
+`java.jdt.ls.java.home` (workspace scope, recorded in the manifest) to the
+newest JDK it found; `redhat.java` asks for a reload, and the editor works.
+
+**Only when that is the case.** Whether `redhat.java` found a JDK is read
+from `redhat.java` itself, never from the core's own scan: if the server is
+running, or it resolved its own requirement, the core writes nothing and
+never asks for a reload. On a desktop or a CI runner — where `/usr/lib/jvm`
+holds a JDK the core does not look at — writing anyway put a second language
+server on the same workspace. The `Language server` section of the Java
+panel, and the status bar tooltip, name the JDK the server itself runs on;
+it is not necessarily one of your projects' runtimes.
+
+The core also tells you when `redhat.java` is newer than the version this
+release was tested against: a `⚠` naming both, never a refusal. Only the
+minimum (1.56.0) is a hard error.
 
 ## Install
 

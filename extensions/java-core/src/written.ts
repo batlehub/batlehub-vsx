@@ -11,8 +11,24 @@ export type Entry =
       before: unknown;
       at: string;
     }
-  | { kind: "file"; path: string; before: string | null; at: string }
-  | { kind: "block"; path: string; marker: string; at: string }
+  // `mode` is the file's permission bits before the family touched it, `null`
+  // when there was no file: red line 1 counts a mode as a write, because the
+  // core sets `0600` on files that carry a credential and must put back what
+  // it found.
+  | {
+      kind: "file";
+      path: string;
+      before: string | null;
+      mode?: number | null;
+      at: string;
+    }
+  | {
+      kind: "block";
+      path: string;
+      marker: string;
+      mode?: number | null;
+      at: string;
+    }
   | { kind: "gitignore"; path: string; line: string; at: string }
   | { kind: "extSetting"; key: string; before: unknown; at: string };
 
@@ -71,6 +87,11 @@ export function targetOf(e: Entry): string {
   }
 }
 
+const mode = (m: number | null | undefined) =>
+  typeof m === "number"
+    ? ` and put its mode back to ${m.toString(8).padStart(4, "0")}`
+    : "";
+
 /** One human line per entry, newest first — what the command lists before asking. */
 export function describe(m: Manifest): string[] {
   return [...m.entries].reverse().map((e) => {
@@ -82,9 +103,9 @@ export function describe(m: Manifest): string[] {
       case "file":
         return e.before === null
           ? `delete ${e.path}`
-          : `restore ${e.path} to its previous content`;
+          : `restore ${e.path} to its previous content${mode(e.mode)}`;
       case "block":
-        return `remove the ${e.marker} block from ${e.path}`;
+        return `remove the ${e.marker} block from ${e.path}${mode(e.mode)}`;
       case "gitignore":
         return `remove "${e.line}" from ${e.path}`;
     }
@@ -94,8 +115,12 @@ export function describe(m: Manifest): string[] {
 export interface Replayer {
   setting(key: string, before: unknown): Promise<void>;
   extSetting(key: string, before: unknown): Promise<void>;
-  file(path: string, before: string | null): Promise<void>;
-  block(path: string, marker: string): Promise<void>;
+  file(
+    path: string,
+    before: string | null,
+    mode?: number | null,
+  ): Promise<void>;
+  block(path: string, marker: string, mode?: number | null): Promise<void>;
   gitignore(path: string, line: string): Promise<void>;
 }
 
@@ -106,8 +131,8 @@ export async function replay(m: Manifest, r: Replayer): Promise<string[]> {
     try {
       if (e.kind === "setting") await r.setting(e.key, e.before);
       else if (e.kind === "extSetting") await r.extSetting(e.key, e.before);
-      else if (e.kind === "file") await r.file(e.path, e.before);
-      else if (e.kind === "block") await r.block(e.path, e.marker);
+      else if (e.kind === "file") await r.file(e.path, e.before, e.mode);
+      else if (e.kind === "block") await r.block(e.path, e.marker, e.mode);
       else await r.gitignore(e.path, e.line);
     } catch (err) {
       errors.push(`${targetOf(e)}: ${(err as Error).message}`);

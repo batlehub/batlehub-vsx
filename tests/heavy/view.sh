@@ -44,7 +44,10 @@
 #                Proves: the status bar item; the log; the newcomer story
 #                (no JAVA_HOME, the core writes the language server's JDK);
 #                Standard mode reached; the JDK quick pick; spike (a) — the
-#                m2e preference and the classpath; clean removal; and prints
+#                m2e preference and the classpath; RFC 0007 use case 1 —
+#                `Java: Import from IntelliJ` → Code style, gated on trust,
+#                planned as a diff, and `Format Document` matching the
+#                golden IDEA itself produced; clean removal; and prints
 #                the performance numbers (gated from phase 3).
 #
 # Ports: 8124 (server), 8132 (the editor's web server); the proxy binds an
@@ -521,6 +524,31 @@ PY"
   else
     log "SPIKE-A-NEGATIVE (the m2e preference did not bring the profile-only dependency into the classpath: decision 14's overlay fallback applies)"
   fi
+  assert_json "$J_" idea-untrusted "not any('IntelliJ import plan' in n for n in d['notifications']) and any('Trust this workspace' in n for n in d['notifications']) and d.get('settings') is None and d.get('profile') is None" \
+    "the import ran in an untrusted workspace, or its gate said nothing: $(field "$J_" idea-untrusted | cut -c1-300)"
+  log "IMPORT-TRUST-OK (untrusted: the command names workspace trust, reads no .idea/ and writes nothing — not even the experimental flag)"
+  assert_json "$J_" idea "any('Code style' in r for r in d['scopeRows']) and any('Run configurations' in r for r in d['scopeRows'])" \
+    "the scope pick did not offer the kinds: $(field "$J_" idea | cut -c1-300)"
+  assert_json "$J_" idea "'options mapped' in d['plan'] and 'WRAP_LONG_LINES' in d['plan'] and 'run configurations' in d['plan']" \
+    "the plan did not report its counts and its unmapped options: $(field "$J_" idea | python3 -c 'import json,sys;print(json.load(sys.stdin)["plan"][:400])')"
+  assert_json "$J_" idea "d['onDiskDuringPlan'].get('profile') is None and (d['onDiskDuringPlan'].get('settings') is None or 'java.format.settings.url' not in d['onDiskDuringPlan']['settings'])" \
+    "Show diff put something on disk: the right-hand side must be a virtual document until Write"
+  assert_json "$J_" idea "any('formatter.xml' in t for t in d['diffTabs']) and any('settings.json' in t for t in d['diffTabs'])" \
+    "Show diff did not open a diff editor per target: $(field "$J_" idea | python3 -c 'import json,sys;print(json.load(sys.stdin)["diffTabs"])')"
+  log "IMPORT-PLAN-OK (scope pick → a plan with its counts and its gaps → a diff editor per target, nothing on disk)"
+  assert_json "$J_" idea "d['wroteProfile'] and 'java.format.settings.url' in (d.get('wroteSettings') or '') and 'java.completion.importOrder' in (d.get('wroteSettings') or '') and '[java]' in (d.get('wroteSettings') or '')" \
+    "Write did not leave the profile and the settings: $(field "$J_" idea | cut -c1-400)"
+  assert_json "$J_" idea "'formatter.xml' in (d.get('manifest') or '') and 'java.format.settings.url' in (d.get('manifest') or '')" \
+    "the import's writes did not go through the manifest: $(field "$J_" idea | python3 -c 'import json,sys;print((json.load(sys.stdin)["manifest"] or "")[:400])')"
+  assert_json "$J_" idea "d['ideaUnchanged']" "the import modified .idea/ — it is read-only (§6.6)"
+  assert_json "$J_" idea "'this.people' in (d.get('greeterBefore') or '') and 'private int unused' in (d.get('greeterBefore') or '')" \
+    "Greeter.java was not the committed file before Format Document — an earlier step left a dirty buffer or a saved edit behind"
+  assert_json "$J_" idea "not d['formatTimedOut'] and d.get('golden') and d['formatted'].strip() == d['golden'].strip()" \
+    "Format Document did not reproduce IDEA's own output: $(field "$J_" idea | python3 -c '
+import difflib, json, sys
+d = json.load(sys.stdin)
+print("".join(list(difflib.unified_diff((d.get("golden") or "").splitlines(True), (d.get("formatted") or "").splitlines(True), "idea", "jdt"))[:24]))')"
+  log "IMPORT-OK (the code style of .idea/ → an Eclipse profile + the settings, through the manifest; Format Document on Greeter.java is byte-for-byte what IDEA 2026.1.3 produced with the same scheme; .idea/ untouched)"
   assert_json "$J_" remove "any(c.startswith('Restore') for c in d['clicked']) and (d['settings'] is None or 'java.configuration.runtimes' not in d['settings'])" \
     "Remove BatleHub settings did not restore java.configuration.runtimes"
   log "REMOVE-OK (the manifest replayed: java.configuration.runtimes and java.jdt.ls.java.home restored, the dialog listed what it would do)"
@@ -542,6 +570,40 @@ bad = [f"{k}={d.get(k)} > {v*f:.0f}" for k, v in gates.items() if d.get(k, -1) <
 if bad: print("PERF-GATE failed: " + ", ".join(bad)); sys.exit(1)
 print("PERF-GATE ok: " + ", ".join(f"{k}={d[k]} ms (< {v*f:.0f})" for k, v in gates.items()))
 PY
+  # The other half of §2 point 1, and what the runner found (§15.5): a desktop
+  # — or a CI runner with /usr/lib/jvm — has a JDK `redhat.java` finds on its
+  # own. The core must then leave `java.jdt.ls.java.home` alone and never
+  # reload a server that is already starting; two JDT.LS on one `jdt_ws` is a
+  # bundle ping that waits ten minutes. Handing redhat.java a JAVA_HOME is how
+  # the suite creates that precondition without root.
+  DESKTOP_JDK="${JAVA_HOME:-}"
+  [[ -n "$DESKTOP_JDK" ]] || DESKTOP_JDK="$(mise ls java --json 2>/dev/null | python3 -c 'import json,sys
+try: paths = [e["install_path"] for e in json.load(sys.stdin) if e.get("install_path")]
+except Exception: paths = []
+print(paths[-1] if paths else "")' 2>/dev/null || true)"
+  if [[ -n "$DESKTOP_JDK" && -x "$DESKTOP_JDK/bin/java" ]]; then
+    J2="$HEAVY_WORK/editor-java-desktop"
+    JWS2="$HEAVY_WORK/java-ws-desktop"
+    rm -rf "$JWS2" && cp -r "$REPO/tests/heavy/fixtures/maven-multi" "$JWS2"
+    mkdir -p "$HEAVY_WORK/shots/desktop"
+    EDITOR_FOLDER="$JWS2"
+    start_editor "$J2" '{ "workbench.startupEditor": "none", "java.server.launchMode": "Standard", "java.jdt.ls.vmargs": "-XX:+UseParallelGC -Xmx1G -Xms100m -Xlog:disable", "batlehub.java.log.level": "debug", "security.workspace.trust.enabled": false, "extensions.ignoreRecommendations": true, "git.openRepositoryInParentFolders": "never", "terminal.integrated.gpuAcceleration": "off" }' \
+      JAVA_HOME="$DESKTOP_JDK" PATH="$DESKTOP_JDK/bin:$JAVA_ENV_PATH" JAVA_TOOL_OPTIONS="-XX:MaxRAMPercentage=6"
+    DUMP_ON_FAIL="$J2"; DUMP_JSONL="$HEAVY_WORK/java-desktop.jsonl"
+    # Four phases and out: this session is about what the core does *not* do.
+    node tests/heavy/java.mjs --url "http://127.0.0.1:$EDITOR_PORT/?folder=$JWS2" --shots "$HEAVY_WORK/shots/desktop" --cdp "$CDP_URL" \
+      --workspace "$JWS2" --stop-after reload >"$HEAVY_WORK/java-desktop.jsonl" 2>"$HEAVY_WORK/java-desktop.jsonl.err" \
+      || { cat "$HEAVY_WORK/java-desktop.jsonl.err" >&2; cat "$HEAVY_WORK/java-desktop.jsonl" >&2; fail "the java desktop driver failed"; }
+    stop_editor
+    cat "$HEAVY_WORK/java-desktop.jsonl" >>"$LOG"
+    D_="$HEAVY_WORK/java-desktop.jsonl"
+    assert_json "$D_" log "'wrote java.jdt.ls.java.home' not in ' '.join(d['lines'])" \
+      "redhat.java had its own JDK through JAVA_HOME and the core wrote java.jdt.ls.java.home anyway — that write is the second JDT.LS of §15.5"
+    assert_json "$D_" reload "not d['reloaded']" "the core reloaded a language server that was already starting"
+    log "DESKTOP-OK (redhat.java found its own JDK: no java.jdt.ls.java.home write, no reload — the double-server race of §15.5 cannot happen)"
+  else
+    log "DESKTOP-SKIP (no JDK to hand redhat.java directly: set JAVA_HOME, or install one with mise)"
+  fi
   log "JAVA-OK"
 fi
 

@@ -20,6 +20,8 @@ export class Jdk implements JdkService, vscode.Disposable {
     private readonly current: () => Snapshot | undefined,
     private readonly redetect: () => Promise<void>,
     private readonly trusted: () => boolean,
+    /** `redhat.java` found no JDK of its own — the only state that earns the second write (§4.2). */
+    private readonly serverNeedsJdk: () => Promise<boolean>,
   ) {}
 
   async list(): Promise<Runtime[]> {
@@ -43,12 +45,15 @@ export class Jdk implements JdkService, vscode.Disposable {
     // The language server itself needs a JDK ≥ 17; with none on PATH or in
     // JAVA_HOME (`mise` without a global version is exactly that) redhat.java
     // never starts. Point it at the newest we found — the one write that
-    // makes a Che newcomer's editor work.
+    // makes a Che newcomer's editor work. Only when redhat.java itself found
+    // none, though (revision 7): a desktop's /usr/lib/jvm is a JDK the core
+    // does not scan, and writing under a server that was already starting put
+    // a second JDT.LS on the same workspace (§4.2, §15.5).
     const ls = vscode.workspace
       .getConfiguration("java")
       .get<string | null>("jdt.ls.java.home");
     const newest = snap.runtimes.find((r) => r.major >= 17);
-    if (!ls && newest && !process.env.JAVA_HOME && !process.env.JDK_HOME)
+    if (!ls && newest && (await this.serverNeedsJdk()))
       await writeForeignSetting("java", "jdt.ls.java.home", newest.path);
     this.changed.fire();
   }

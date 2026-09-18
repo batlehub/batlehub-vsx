@@ -20,6 +20,8 @@ export interface Facts {
   mavenConfiguration?: string;
   mavenProfiles?: string[];
   serverMode?: string;
+  /** The JDK JDT.LS itself runs on, as `redhat.java` resolved it (§4.2). */
+  serverJdk?: string;
   warnings: string[];
   errors: string[];
   importing?: boolean;
@@ -71,6 +73,7 @@ export class JavaStatusBar implements vscode.Disposable {
         ? `Maven profiles: ${f.mavenProfiles.join(", ")}`
         : undefined,
       f.serverMode ? `Server mode: ${f.serverMode}` : undefined,
+      f.serverJdk ? `The server runs on: ${f.serverJdk}` : undefined,
       ...f.warnings.map((w) => `⚠ ${w}`),
       ...f.errors.map((e) => `✗ ${e}`),
     ].filter(Boolean);

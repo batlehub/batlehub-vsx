@@ -6,7 +6,7 @@
 // suite (view.sh) asserts.
 //
 //   node java.mjs --url <workbench> --shots <dir> --cdp <http://host:port>
-//        --workspace <dir> [--after-baseline <cmd>]
+//        --workspace <dir> [--after-baseline <cmd>] [--stop-after <phase>]
 //
 //   status     the Java status bar item as soon as it exists, and when (ms after load)
 //   trusted    the folder trusted through the Workspace Trust editor; the item after the re-detection
@@ -28,7 +28,7 @@
 //   console    the browser console's error count
 import { createRequire } from "node:module";
 import { execSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -57,9 +57,28 @@ async function chord(page, modifier, key) {
   await page.keyboard.press(key);
   await page.keyboard.up(modifier);
 }
-const emit = (o) => console.log(JSON.stringify(o));
+/** `--stop-after <phase>` ends the run once that phase is emitted: the second
+ * session of the suite (the desktop case) needs the first four phases and
+ * none of the minutes that follow them. */
+class StopSuite extends Error {}
+const emit = (o) => {
+  console.log(JSON.stringify(o));
+  if (o.phase && o.phase === args["stop-after"]) throw new StopSuite();
+};
 let shot = 0;
 const snap = (page, name) => page.screenshot({ path: path.join(SHOTS, `${String(++shot).padStart(2, "0")}-java-${name}.png`) }).catch(() => {});
+/**
+ * A file's content, or `null` when it is not there — `null`, not `undefined`,
+ * because JSON.stringify drops an undefined property and the assertions read
+ * "the file was absent" as a value, not as a missing key.
+ */
+const readIfPresent = (p) => {
+  try {
+    return readFileSync(p, "utf8");
+  } catch {
+    return null;
+  }
+};
 const norm = (s) => (s ?? "").replace(/ /g, " ").replace(/\s+/g, " ").trim();
 /** A shell hook: its output goes to stderr, never into the JSON stream. */
 const hook = (cmd) => execSync(cmd, { stdio: ["ignore", process.stderr, "inherit"] });
@@ -75,6 +94,25 @@ async function dismissDialogs(page, extra = /^(Yes|Trust|OK|Restore)/) {
     }
   }
   return clicked;
+}
+
+/**
+ * A notification's action button. `dismissDialogs` only reaches modal
+ * dialogs; a `showInformationMessage(msg, action)` without `{modal:true}` is
+ * a toast, and its buttons live in a different part of the DOM.
+ */
+async function clickNotificationAction(page, re) {
+  for (const b of await page.$$(
+    ".notifications-toasts .monaco-button, .notifications-toasts .monaco-button-dropdown .monaco-button, .notifications-list-container .monaco-button",
+  )) {
+    const t = norm(await b.evaluate((e) => e.textContent));
+    if (re.test(t)) {
+      await b.click();
+      await sleep(800);
+      return t;
+    }
+  }
+  return null;
 }
 
 async function notifications(page) {
@@ -256,6 +294,22 @@ try {
   perf.statusBarMs = st.ms;
   await snap(page, "status");
   emit({ phase: "status", items: st.value, ms: st.ms });
+  // 1b. RFC 0007 §4.3: the import's gate is the editor's trust, and this is
+  // the one moment in the suite where the workspace is really untrusted. The
+  // command must say so and write nothing — not even the experimental flag,
+  // whose prompt is itself a write.
+  await runCommand(page, "Java: Import from IntelliJ");
+  await sleep(1500);
+  const untrustedNotifications = await notifications(page);
+  await snap(page, "idea-untrusted");
+  emit({
+    phase: "idea-untrusted",
+    notifications: untrustedNotifications,
+    settings: readIfPresent(path.join(WS, ".vscode", "settings.json")),
+    profile: readIfPresent(path.join(WS, ".vscode", "batlehub-java", "formatter.xml")),
+  });
+  await dismissDialogs(page, /^(Cancel|Close)/);
+
   // The folder opens in Restricted Mode; the core activated before trust and
   // ran nothing. Trust it, then wait for the detection trust triggers.
   const how = await trustWorkspace(page);
@@ -373,6 +427,106 @@ try {
   const termText = built.value.join("\n");
   emit({ phase: "tasks", rows: taskRows, ran: /BUILD SUCCESS/.test(termText), terminal: built.value.filter((r) => /BUILD|JAVA_HOME|mvn|Total time|ERROR/.test(r)).slice(0, 8) });
 
+  // 8b. RFC 0007 use case 1: Import from IntelliJ → Code style. The plan is
+  // shown as a diff before anything is on disk; Write puts the Eclipse
+  // profile and the settings in place; Format Document then has to produce
+  // exactly what IDEA 2026.1 produced with the same scheme (the committed
+  // Greeter.formatted.java).
+  const IDEA_STYLE = path.join(WS, ".idea", "codeStyles", "Project.xml");
+  const ideaBefore = readIfPresent(IDEA_STYLE);
+  await runCommand(page, "Java: Import from IntelliJ");
+  await sleep(1200);
+  // The flag is off in a fresh workspace: the command offers to turn it on,
+  // and goes on to the import itself once it is on — no second invocation.
+  const flagged = await notifications(page);
+  const turnedOn = flagged.some((n) => /experimental/.test(n))
+    ? await clickNotificationAction(page, /^Turn it on/)
+    : null;
+  if (turnedOn) await sleep(2500);
+  // The scope pick is a multi-select with every kind on by default (§4.2).
+  // Accept it as it stands: typing would filter the list without unchecking
+  // anything, and `.idea/` here has no runConfigurations, so "everything" and
+  // "code style only" read the same — except that the plan then has to show
+  // both sections, which is the stronger assertion.
+  const scopeRows = await quickPickRows(page);
+  await page.keyboard.press("Enter");
+  await sleep(2500);
+  const planText = norm(
+    await page
+      .$eval(
+        ".monaco-dialog-box .dialog-message-detail, .monaco-dialog-box .dialog-message-text",
+        (e) => e.innerText,
+      )
+      .catch(() => ""),
+  );
+  await snap(page, "idea-plan");
+  // Show diff: one diff editor per target, right-hand side served from memory.
+  const shown = await dismissDialogs(page, /^Show diff/);
+  await sleep(3000);
+  const diffTabs = await page
+    .$$eval(".tabs-container .tab", (els) =>
+      els.map((e) => e.getAttribute("aria-label") ?? e.innerText.trim()),
+    )
+    .catch(() => []);
+  const onDiskDuringPlan = {
+    settings: readIfPresent(path.join(WS, ".vscode", "settings.json")),
+    profile: readIfPresent(path.join(WS, ".vscode", "batlehub-java", "formatter.xml")),
+  };
+  await snap(page, "idea-diff");
+  // The plan comes back after the diff; now write.
+  await sleep(1500);
+  await dismissDialogs(page, /^Write/);
+  await sleep(3000);
+  const wrote = {
+    settings: readIfPresent(path.join(WS, ".vscode", "settings.json")),
+    profile: readIfPresent(path.join(WS, ".vscode", "batlehub-java", "formatter.xml")),
+    manifest: readIfPresent(path.join(WS, ".batlehub", "java", "written.json")),
+    idea: readIfPresent(path.join(WS, ".idea", "codeStyles", "Project.xml")),
+  };
+  await snap(page, "idea-written");
+  // Format Document with the imported profile, against IDEA's own output.
+  // Read the *saved file*, not the editor: `editorText` walks Monaco's
+  // virtualised DOM, which is in recycling order rather than line order and
+  // drops what is scrolled out — good enough for a regex, useless for a
+  // byte-for-byte comparison with a golden file.
+  const GREETER = path.join(WS, "core", "src", "main", "java", "com", "acme", "core", "Greeter.java");
+  const greeterBefore = readIfPresent(GREETER);
+  await openFile(page, "Greeter.java");
+  await sleep(1500);
+  await runCommand(page, "Format Document");
+  await sleep(2000);
+  await chord(page, "Control", "s");
+  const saved = await settle(
+    async () => readIfPresent(GREETER),
+    (text) => text !== null && text !== greeterBefore,
+    45000,
+    1500,
+  );
+  const formatted = saved.value ?? "";
+  await snap(page, "idea-format");
+  emit({
+    phase: "idea",
+    turnedOn,
+    scopeRows: scopeRows.rows,
+    plan: planText,
+    shown,
+    diffTabs,
+    onDiskDuringPlan,
+    wroteProfile: !!wrote.profile,
+    wroteSettings: wrote.settings,
+    manifest: wrote.manifest,
+    ideaUnchanged: wrote.idea === ideaBefore,
+    greeterBefore,
+    formatted,
+    formatTimedOut: !!saved.timedOut,
+    golden: readIfPresent(path.join(WS, ".idea", "golden", "Greeter.formatted.java")),
+  });
+  // Put the fixture's file back before the inspection step reads it. The
+  // buffer is clean (the format was saved), so the editor picks the change
+  // up rather than holding a stale one.
+  if (greeterBefore !== null) writeFileSync(GREETER, greeterBefore);
+  await sleep(1500);
+
   // 9. Inspections on Greeter.java: the Problems panel, then Fix all, then the buffer.
   await openFile(page, "Greeter.java");
   const probs = await settle(() => problems(page), (rows) => rows.some((r) => /batlehub/.test(r)), 60000, 3000);
@@ -384,7 +538,7 @@ try {
   const greeterAfter = await editorText(page);
   await snap(page, "fixed");
   emit({ phase: "inspections", problems: probs.value, fixedIsEmpty: /isEmpty\(\)/.test(greeterAfter), fixedNoThis: !/this\.people/.test(greeterAfter), fixedNoUnused: !/int unused/.test(greeterAfter) });
-  await runCommand(page, "View: Revert File");
+  await runCommand(page, "File: Revert File");
   await sleep(500);
 
   // 10. Generate on Person.java: the bundle's delegate writes the accessors; without it Red Hat's picker opens.
@@ -398,7 +552,7 @@ try {
   const personAfter = await editorText(page);
   await snap(page, "generate");
   emit({ phase: "generate", generated: /getName\(\)/.test(personAfter) && /setAge\(/.test(personAfter), pickerRows: picker.rows.slice(0, 4) });
-  await runCommand(page, "View: Revert File");
+  await runCommand(page, "File: Revert File");
   await sleep(500);
 
   // 11. The Groovy satellite on Hello.groovy.
@@ -469,6 +623,8 @@ try {
 
   emit({ phase: "perf", ...perf });
   emit({ phase: "console", errors: consoleErrors.length, sample: consoleErrors.slice(0, 3) });
+} catch (e) {
+  if (!(e instanceof StopSuite)) throw e;
 } finally {
   await page.close().catch(() => {});
   await ctx.close().catch(() => {});

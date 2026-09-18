@@ -12,7 +12,9 @@ restoring, not deleting:
 - the Maven overlay under `.batlehub/java/` and the `.gitignore` line the
   core added are removed;
 - the `<!-- batlehub -->` block in `~/.m2/settings.xml` and
-  `~/.gradle/init.d/batlehub.gradle` are removed;
+  `~/.gradle/init.d/batlehub.gradle` are removed, and each file's
+  **permission bits go back to what they were**: the core sets `0600` on a
+  file it puts a token in, and that mode is recorded like any other write;
 - the settings written into the stock Java extensions (coexistence) are
   restored.
 

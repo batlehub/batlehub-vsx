@@ -9,7 +9,7 @@ import { readSettings } from "./config";
 import type { Core } from "./extension";
 import { wire } from "./wire";
 import { registerGenerate } from "./generate/menu";
-import { importIdea } from "./idea/import";
+import { importIdea, requireTrust } from "./idea/import";
 import { registerPanel } from "./panel/panel";
 import { registerRefactor } from "./refactor/menu";
 import { reportProblem } from "./report/report";
@@ -42,6 +42,8 @@ wire((core: Core) => {
       (name: string, debug?: boolean) => startConfig(name, !debug),
     ),
     vscode.commands.registerCommand("batlehub.java.importIdea", async () => {
+      // Trust before the flag prompt: turning the flag on is itself a write.
+      if (!(await requireTrust())) return;
       if (!readSettings().experimental.intellijImport) {
         const on = vscode.l10n.t("Turn it on");
         const r = await vscode.window.showInformationMessage(

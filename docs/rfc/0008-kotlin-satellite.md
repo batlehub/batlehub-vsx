@@ -9,7 +9,7 @@
 | Author      | Max Batleforc <maxleriche.60@gmail.com>                       |
 | Co-author   | —                                                             |
 | Created     | 2026-09-18                                                    |
-| Revised     | 2026-09-18 — revision 2, after the series was reviewed against its goal (RFC 0001 §7.1): phase 0 jumps the queue as a measurement, a failed gate falls back to a thin bridge to JetBrains' extension instead of nothing, the server starts through the core's managed process, the coexistence write goes through `manifest.writeSetting`, the size budget is raised for this VSIX and the runtime download dropped |
+| Revised     | 2026-09-18 — revision 3, phase 0 measured: the gate passes on ILS-263.4702.0 (§11 Measured), decision 1 stays a bundled server, open question 1 is answered (the server imports Maven by running `mvn` from `PATH` — which a `mise` workspace does not have), and two questions open: the declared cap must cover a 2.8 GB process tree, and a 352 MB VSIX may not be publishable. Revision 2, after the series was reviewed against its goal (RFC 0001 §7.1): phase 0 jumps the queue as a measurement, a failed gate falls back to a thin bridge to JetBrains' extension instead of nothing, the server starts through the core's managed process, the coexistence write goes through `manifest.writeSetting`, the size budget is raised for this VSIX and the runtime download dropped |
 | Supersedes  | —                                                             |
 | Depends on  | RFC 0001 (the contract of §5.2, `java-groovy` as the model satellite, decision 7's usability gate, decision 31, the red lines of §7.1); the core's Gradle provider (RFC 0001 phase 7) for the Kotlin DSL and the mixed modules; RFC 0003 revision 2 (the managed process); needs members `manifest.writeSetting` and `process.start` — RFC 0001 §5.2 contract changelog |
 | Touches     | `extensions/java-kotlin` (new), `extensions/java-core/src/build/gradle/provider.ts` (source roots), `extensions/java-core/src/build/maven/provider.ts` (`kotlin-maven-plugin` roots), `extensions/java-pack`, `.tasks/kotlin.yaml`, `tests/heavy/fixtures/kotlin-project`, `tests/heavy/java.mjs`, `tests/contract/run.sh`, `docs/guide/java/kotlin.md` |
@@ -520,19 +520,76 @@ sequenceDiagram
 | 2 | Bundled in the VSIX or downloaded? | **Bundled**, as the Groovy jar is; "nothing is downloaded at runtime" is a default of the series about *our* extension (RFC 0001 §7.1). On the bridge fallback of decision 1, what JetBrains' extension downloads is its trust, not ours. The size is decision 7. |
 | 3 | One server for `.kt` and `.kts`? | **Yes**, one language id, one process — the same shape as feedback 11 for Groovy; the server handles Gradle scripts itself. |
 | 4 | JDK for the server? | **The core's resolution for the folder**, no `javaHome` key. Feedback 5 of RFC 0001 was found once; a per-satellite JDK setting would let it be found again. |
-| 5 | Heap? | **Capped, `-Xmx1G` default**, the value measured by the smoke; RFC 0001 §15.3 is not optional for a JVM that embeds an IDE platform. |
+| 5 | Heap? | **Capped, `-Xmx1G` default**, the value measured by the smoke; RFC 0001 §15.3 is not optional for a JVM that embeds an IDE platform. Measured: the cap holds the server and not its daemons — 2.8 GB for the tree (see Measured, and still-open question 4). |
 | 6 | Kotlin in the core's project model? | **Source roots only** (`src/main/kotlin`, `src/test/kotlin`, `build.gradle.kts`). The module, JDK and classpath are the build tool's; Kotlin changes none of them. |
-| 7 | VSIX size (was open question 1) | **The 60 MB budget is raised for this VSIX alone**, to the measured size of the pinned release plus headroom, written into CI's per-extension table (RFC 0001 §13 already checks the budget per extension). A satellite is installed only by who needs it, so its size is paid only by them. The runtime-download fallback is dropped, not kept in reserve. |
+| 7 | VSIX size (was open question 1) | **The 60 MB budget is raised for this VSIX alone**, to the measured size of the pinned release plus headroom — measured: 352 MB packed, 1138 MB unpacked, of which 181 MB is the bundled JBR (still-open question 5 asks whether a VSIX that size can be published at all) — written into CI's per-extension table (RFC 0001 §13 already checks the budget per extension). A satellite is installed only by who needs it, so its size is paid only by them. The runtime-download fallback is dropped, not kept in reserve. |
 | 8 | Manifest sharing (was open question 3) | **`manifest.writeSetting` from the start**; the satellite never has a `written.json` or a `Remove settings` command of its own (RFC 0001 §7.1 red line 1). Needs that member — [RFC 0001 §5.2 contract changelog](/rfc/0001-java-env#contract-changelog); `java-groovy` uses it too. Phase 1 waits for it rather than shipping an interim. |
 | 9 | How the server is started | **Through the core's managed process** (RFC 0003 revision 2; needs `process.start(spec)` — same changelog), cap `-Xmx1G` declared, outside the pack's default set. The satellite never spawns. |
 | 10 | Where in the order of work | **Phase 0 second, the rest last but one** (RFC 0001 §14): Team B is waiting but Team A switches first; a failed gate is cheaper known now than after Team A's track. Phases 1–3 come after that track, before RFC 0009. |
 
+### Measured — phase 0, 2026-09-18
+
+`task kotlin:fetch` + `task kotlin:smoke` on **ILS-263.4702.0**, the
+`kotlin-project` and `kotlin-maven` fixtures, in this 16 GiB tools container.
+**The gate passes: `SMOKE-OK`.** Decision 1 stands as written — a bundled
+JetBrains server, not the thin bridge.
+
+| What decision 7's gate asks | Measured | Budget |
+| --- | --- | --- |
+| `initialize` answers | **5.5 s**, 24 capabilities | 10 s |
+| Hover on the module's own code, before any import | **2.3 s** | — |
+| Gradle import (`intellij/importLog`), warm Gradle caches | **2.7 s** (17.3 s on the first, cold run) | 600 s |
+| Cross-module `app` → `lib` resolves | **yes** — `class Greeter(punctuation: String)` | — |
+| External jar `app` → junit resolves | **yes** — `org.junit.jupiter.api.Assertions` | — |
+| Completion on a member access | **yes**, `greet` offered | — |
+| A type error is reported on the line that holds it | **yes**, `Initializer type mismatch: expected 'Int', actual 'String'` | — |
+| Peak RSS of the process tree, server capped at `-Xmx1g` | **2803 MB** | §15.3's 16 GiB |
+| Unpacked server / bundled JBR / archive | **1138 MB / 181 MB / 352 MB** | decision 7 |
+
+Four things the numbers say that the yes/no column does not.
+
+- **Diagnostic latency is the gate's real number, and it is bimodal.** The
+  first diagnostic after the first edit of a cold session took **59 s**; once
+  the session has answered a hover and a completion, the same edit is
+  diagnosed in **0.4 s**. The Maven twin, edited straight after its import,
+  took **76 s**. Hover and completion are not a proxy for it: they answer in
+  seconds while the analyser is still cold. This is what phase 3's
+  `KOTLIN-OK` must gate on, and what the guide must set expectations about —
+  a user who types an error and waits a minute for the squiggle on the first
+  file of the day is seeing the server work, not hang. The first written
+  `kotlin:smoke` failed the gate on exactly this: it gave diagnostics 30 s
+  and read the silence as "no diagnostics at all".
+- **`-Xmx1g` caps the server, not the tree.** 2803 MB peak against a 1 GiB
+  cap: the rest is the Gradle daemon and the Kotlin compile daemon the server
+  starts for the import. Decision 5's cap is still right and still not
+  enough — the declared cap of decision 9's `process.start` has to cover a
+  tree, and RFC 0003's budget must count what the server spawns, not what it
+  is started with. The Maven twin peaked at 2467 MB the same way.
+- **Open question 1 is answered: the server imports Maven itself — by
+  shelling out to `mvn` on `PATH`.** With a real Maven on `PATH` the import
+  succeeds in **7.3 s** and diagnostics follow. With the `PATH` a `mise`
+  workspace really has, the shim answers
+  `mise ERROR No version is set for shim: mvn` and the import fails outright
+  (`Failed to import Maven project`) — hover still works from the standalone
+  analysis, everything the build model owns does not. This is feedback 5 of
+  RFC 0001 again in a second costume: a JVM tool that finds its own
+  toolchain finds nothing here. The satellite must hand the server a real
+  Maven the way the core hands it a JDK, so use case 4's Maven half is *not*
+  explorer-only — it works, once the server can run the build tool.
+- **The server ignores the JDK question and uses its own.** It ran on its
+  bundled JBR 25 (`java.home` = `<server>/jbr`) and handed that same path to
+  Maven as `JAVA_HOME`. Decision 4 says the core's resolution and no
+  `javaHome` key; phase 1 has to make that true, because left alone the
+  server compiles the user's project against a JDK the core never chose.
+
 ### Still open
 
-1. **Maven Kotlin projects.** Whether the pinned server imports a Maven
-   project itself or only serves what the core's classpath gives it;
-   `kotlin:smoke` runs a Maven twin of the fixture to find out. If the
-   latter, use case 4's Maven half is explorer-only and the guide says so.
+1. ~~**Maven Kotlin projects.**~~ **Answered by phase 0** (see Measured): the
+   server imports Maven itself by running `mvn` from `PATH`, so the Maven
+   half is a full one — provided the satellite puts a real Maven on that
+   `PATH`. What is left is *which* Maven: the core resolves one for its own
+   run steps, and phase 1 should pass that rather than let the server take
+   whatever a `mise` shim resolves to. Folded into phase 1, not open.
 2. **A run template for a Kotlin `main`.** `mainClass` is `<File>Kt` unless
    `@file:JvmName` says otherwise; guessing wrong is worse than the user
    typing it. Recommendation: no template in v0.1; the run editor's
@@ -541,6 +598,20 @@ sequenceDiagram
    promises no compatibility; the nightly matrix (RFC 0001 §4.2) gains a
    `kotlin-lsp` pre-release row so a breaking release is a drift issue, not
    a user report.
+4. **What the declared cap has to be** (opened by phase 0). The server obeys
+   `-Xmx1g`; its Gradle and Kotlin daemons bring the tree to 2.8 GB. Whether
+   decision 9 declares the tree's number to `process.start`, or caps the
+   daemons too (`org.gradle.jvmargs`, the Kotlin daemon's own options)
+   through the import it drives, is RFC 0003's question to settle with this
+   measurement in hand. Blocks nothing before phase 1.
+5. **Whether the 352 MB VSIX can be published at all** (opened by phase 0).
+   Decision 7 raises the budget to the measured size, and the measured size
+   is an order of magnitude over the 60 MB the other extensions live in;
+   Open VSX and the Marketplace have their own limits, which nobody here has
+   checked. Phase 1's first act is to check them — if a 352 MB VSIX cannot
+   be published, decision 2 ("bundled, nothing downloaded at runtime")
+   reopens and decision 1's bridge is back on the table for a reason that
+   has nothing to do with the server's quality.
 
 ---
 

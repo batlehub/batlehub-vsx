@@ -7,8 +7,12 @@ import { log } from "../log";
 import {
   gate,
   MIN_REDHAT_JAVA,
+  newerThanTested,
   type RedHatApi,
+  serverJdkOf,
+  serverNeedsJdk,
   type ServerMode,
+  TESTED_REDHAT_JAVA,
   versionAtLeast,
 } from "./mode";
 
@@ -20,6 +24,10 @@ export class ServerTracker implements vscode.Disposable {
   api: RedHatApi | undefined;
   /** The hard error of §4.3, or undefined. */
   error: string | undefined;
+  /** The "tested up to" warning of §7.1, or undefined. */
+  warning: string | undefined;
+  /** `redhat.java`'s own `activate` rejected — the newcomer's workspace (§4.1). */
+  activationFailed = false;
 
   async attach(): Promise<void> {
     const ext = vscode.extensions.getExtension<RedHatApi>("redhat.java");
@@ -40,9 +48,19 @@ export class ServerTracker implements vscode.Disposable {
       );
       return;
     }
+    // Never blocked above the newest version the nightly matrix passed (§7.1).
+    if (newerThanTested(version))
+      this.warning = vscode.l10n.t(
+        "redhat.java {0} is newer than the {1} BatleHub Java is tested against — it is not blocked, but a problem may be the drift.",
+        version,
+        TESTED_REDHAT_JAVA,
+      );
     try {
       this.api = ext.isActive ? ext.exports : await ext.activate();
     } catch (e) {
+      // The newcomer's workspace: no JDK, so `redhat.java` rejects. This is
+      // the one state that lets the core write `java.jdt.ls.java.home`.
+      this.activationFailed = true;
       this.error = vscode.l10n.t(
         "redhat.java failed to activate: {0}",
         (e as Error).message,
@@ -53,8 +71,41 @@ export class ServerTracker implements vscode.Disposable {
     if (this.api?.onDidServerModeChange)
       this.subs.push(this.api.onDidServerModeChange((m) => this.set(m)));
     log.info(
-      `redhat.java ${version} (api ${this.api?.apiVersion ?? "?"}), server mode ${this.mode ?? "unknown"}`,
+      `redhat.java ${version} (api ${this.api?.apiVersion ?? "?"}), server mode ${this.mode ?? "unknown"}, its own JDK ${this.serverJdk() ?? "not resolved yet"}`,
     );
+    if (this.warning) log.warn(this.warning);
+  }
+
+  /**
+   * Whether the core should point the language server at a JDK (§4.2,
+   * revision 7). Read off `redhat.java`, never off the core's own scan; with
+   * no `redhat.java` at all there is no server to point anywhere.
+   */
+  async needsJdk(): Promise<boolean> {
+    if (!this.api) return this.activationFailed;
+    const needs = await serverNeedsJdk({
+      activationFailed: this.activationFailed,
+      javaRequirement: this.api.javaRequirement,
+      running: () => this.running(),
+    });
+    log.debug(
+      `the language server ${needs ? "found no JDK of its own: the core points it at one" : "has its own JDK: the core writes nothing"}`,
+    );
+    return needs;
+  }
+
+  /** `serverRunning()` answers a promise in 1.56: awaited, because a promise is truthy. */
+  private async running(): Promise<boolean> {
+    try {
+      return (await this.api?.serverRunning?.()) ?? false;
+    } catch {
+      return false;
+    }
+  }
+
+  /** Which JDK JDT.LS itself runs on, as `redhat.java` resolved it. */
+  serverJdk(): string | undefined {
+    return serverJdkOf(this.api?.javaRequirement);
   }
 
   private set(mode: ServerMode | undefined): void {

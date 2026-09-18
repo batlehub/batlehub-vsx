@@ -61,7 +61,15 @@ export interface ProjectService {
 
 export interface RegistryLink {
   enabled(): "ask" | "true" | "false";
-  /** Forwarded from `batlehub-vsx`; `null` when it is absent or signed out. */
+  /**
+   * Forwarded from `batlehub-vsx`; `null` when it is absent or signed out.
+   *
+   * @deprecated Contract 1.0 only, and **gone in 1.1** (RFC 0001 §5.2, red
+   * line 2): the registry token is written by the core, in fenced blocks, and
+   * handed to no one. A satellite that needs a build tool to authenticate asks
+   * for `writeCredential(target)` — a target reviewed in the core — instead of
+   * holding the credential itself. The one consumer is in this repository.
+   */
   token(): Promise<string | null>;
   url(): Promise<string | null>;
 }

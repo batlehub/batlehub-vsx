@@ -5,6 +5,7 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 import * as vscode from "vscode";
+import { withLock } from "./lock";
 import { log } from "./log";
 import {
   addGitignoreLine,
@@ -55,9 +56,48 @@ function save(m: Manifest): void {
   fs.writeFileSync(p, JSON.stringify(m, null, 2) + "\n", { mode: 0o600 });
 }
 
+/** The file's permission bits before we touch it, `null` when there is no file. */
+export function modeOf(p: string): number | null {
+  try {
+    return fs.statSync(p).mode & 0o777;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * `.vscode/settings.json` is a shared file like `~/.m2/settings.xml`: two
+ * windows on one workspace write it through their own extension host, and the
+ * editor serialises nothing between them (§4.2 "Trust", the locks).
+ */
+function withSettingsLock<T>(
+  folder: vscode.WorkspaceFolder | undefined,
+  fn: () => Promise<T>,
+): Promise<T> {
+  const root = (folder ?? vscode.workspace.workspaceFolders?.[0])?.uri.fsPath;
+  if (!root) return Promise.resolve(fn());
+  return withLock(path.join(root, ".vscode", "settings.json"), fn);
+}
+
+/**
+ * A dotted key's section and leaf. `"[java]"` — a language block — has no
+ * section at all: `getConfiguration("")` is not the root, so the section must
+ * be `undefined`, and the manifest key must not gain a leading dot.
+ */
+export function splitKey(key: string): {
+  section: string | undefined;
+  leaf: string;
+} {
+  if (key.startsWith("[")) return { section: undefined, leaf: key };
+  const i = key.lastIndexOf(".");
+  return i < 0
+    ? { section: undefined, leaf: key }
+    : { section: key.slice(0, i), leaf: key.slice(i + 1) };
+}
+
 /** Write a foreign key at workspace scope, recording its previous workspace value. */
 export async function writeForeignSetting(
-  section: string,
+  section: string | undefined,
   key: string,
   value: unknown,
   folder?: vscode.WorkspaceFolder,
@@ -68,23 +108,25 @@ export async function writeForeignSetting(
     ? c.inspect(key)?.workspaceFolderValue
     : c.inspect(key)?.workspaceValue;
   if (JSON.stringify(before) === JSON.stringify(value)) return;
-  save(
-    record(readManifest(), {
-      kind: "setting",
-      key: `${section}.${key}`,
-      scope: "workspace",
-      before,
-    }),
-  );
-  await c.update(
-    key,
-    value,
-    folder
-      ? vscode.ConfigurationTarget.WorkspaceFolder
-      : vscode.ConfigurationTarget.Workspace,
-  );
+  await withSettingsLock(folder, async () => {
+    save(
+      record(readManifest(), {
+        kind: "setting",
+        key: section ? `${section}.${key}` : key,
+        scope: "workspace",
+        before,
+      }),
+    );
+    await c.update(
+      key,
+      value,
+      folder
+        ? vscode.ConfigurationTarget.WorkspaceFolder
+        : vscode.ConfigurationTarget.Workspace,
+    );
+  });
   log.info(
-    `wrote ${section}.${key} (workspace) — previous value recorded in the manifest`,
+    `wrote ${section ? `${section}.${key}` : key} (workspace) — previous value recorded in the manifest`,
   );
 }
 
@@ -96,14 +138,16 @@ export async function writeExtSetting(
 ): Promise<void> {
   const c = vscode.workspace.getConfiguration(section);
   const before = c.inspect(key)?.workspaceValue;
-  save(
-    record(readManifest(), {
-      kind: "extSetting",
-      key: `${section}.${key}`,
-      before,
-    }),
-  );
-  await c.update(key, value, vscode.ConfigurationTarget.Workspace);
+  await withSettingsLock(undefined, async () => {
+    save(
+      record(readManifest(), {
+        kind: "extSetting",
+        key: `${section}.${key}`,
+        before,
+      }),
+    );
+    await c.update(key, value, vscode.ConfigurationTarget.Workspace);
+  });
 }
 
 /** A file the family owns entirely (the overlay, `init.d/batlehub.gradle`), 0600. */
@@ -114,15 +158,26 @@ export function writeOwnedFile(p: string, content: string): void {
   } catch {
     before = null;
   }
-  save(record(readManifest(), { kind: "file", path: p, before }));
+  save(
+    record(readManifest(), {
+      kind: "file",
+      path: p,
+      before,
+      mode: modeOf(p),
+    }),
+  );
   fs.mkdirSync(path.dirname(p), { recursive: true, mode: 0o700 });
   fs.writeFileSync(p, content, { mode: 0o600 });
   fs.chmodSync(p, 0o600);
 }
 
-/** A fenced block inside a shared file (`settings.xml`); the caller has already rewritten the file. */
-export function recordBlock(p: string, marker: string): void {
-  save(record(readManifest(), { kind: "block", path: p, marker }));
+/** A fenced block inside a shared file (`settings.xml`); the caller has already rewritten the file, and read its mode before doing so. */
+export function recordBlock(
+  p: string,
+  marker: string,
+  mode: number | null,
+): void {
+  save(record(readManifest(), { kind: "block", path: p, marker, mode }));
 }
 
 /** The `.gitignore` line, written *before* the overlay (§4.2); throws when it cannot be written. */
@@ -144,6 +199,16 @@ export function ensureGitignore(root: string): void {
     }),
   );
   fs.writeFileSync(p, next);
+}
+
+/** Put back the permission bits the file had before the core set `0600` on it. */
+function restoreMode(p: string, mode: number | null | undefined): void {
+  if (typeof mode !== "number") return;
+  try {
+    fs.chmodSync(p, mode);
+  } catch {
+    /* the file is gone: nothing to restore */
+  }
 }
 
 /** `Java: Remove BatleHub settings`: list, ask, replay backwards, delete the manifest. */
@@ -172,10 +237,10 @@ export async function removeBatleHubSettings(
   if (pick !== go) return;
   const errors = await replay(m, {
     setting: async (key, before) => {
-      const i = key.lastIndexOf(".");
+      const { section, leaf } = splitKey(key);
       await vscode.workspace
-        .getConfiguration(key.slice(0, i))
-        .update(key.slice(i + 1), before, vscode.ConfigurationTarget.Workspace);
+        .getConfiguration(section)
+        .update(leaf, before, vscode.ConfigurationTarget.Workspace);
     },
     extSetting: async (key, before) => {
       const i = key.lastIndexOf(".");
@@ -183,14 +248,18 @@ export async function removeBatleHubSettings(
         .getConfiguration(key.slice(0, i))
         .update(key.slice(i + 1), before, vscode.ConfigurationTarget.Workspace);
     },
-    file: async (p, before) => {
+    file: async (p, before, mode) => {
       if (before === null) fs.rmSync(p, { force: true });
-      else fs.writeFileSync(p, before);
+      else {
+        fs.writeFileSync(p, before);
+        restoreMode(p, mode);
+      }
     },
-    block: async (p, marker) => {
+    block: async (p, marker, mode) => {
       const remover = blockRemovers[marker];
       if (!remover) throw new Error(`no remover for the ${marker} block`);
       remover(p);
+      restoreMode(p, mode);
     },
     gitignore: async (p, line) => {
       try {

@@ -15,6 +15,7 @@ includes:
   rfc: ./.tasks/rfc.yaml
   jdt: ./.tasks/jdt.yaml
   groovy: ./.tasks/groovy.yaml
+  kotlin: ./.tasks/kotlin.yaml
 
 vars:
   # The kubectl hop into the browser sidecar (see .tasks/browser.yaml). Both
