@@ -8,6 +8,11 @@ on:
 permissions:
   contents: read
 
+# RFC 0001 §13: the PR gate. `check` is lint + unit + package + docs (the
+# existing job, plus the settings-doc, l10n and RFC-index checks); `host` is
+# layer 2 in a real extension host; `heavy-java` is layer 4's Java half —
+# no BatleHub, no Postgres (decision 39) — timed here first (§12 phase 1)
+# and a gate once its time fits the 20-minute budget.
 jobs:
   check:
     name: Lint, test, package, docs
@@ -22,15 +27,51 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - name: Type-check, lint, format
         run: pnpm run typecheck && pnpm run lint
+      - name: Settings ↔ docs, localisation, RFC index
+        run: |
+          node scripts/check-settings-doc.mjs
+          node scripts/check-l10n.mjs
+          (cd docs && node build/rfc.mjs index --check)
       - name: Unit tests
         run: pnpm run test
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/batlehub-heavy/redhat.java-1.56.0*
+          key: redhat-java-1.56.0
+      - name: The JDT bundle (RFC 0001 phase 6, layer 1b)
+        # `task jdt:build` in the tree: the jars of the pinned redhat.java into
+        # ~/.m2, then Maven (the JUnit layer runs with `package`).
+        run: |
+          bash jdt/deps.sh
+          mvn -q -B -f jdt/batlehub-jdt-core/pom.xml package
+          mkdir -p extensions/java-core/jdt && cp jdt/batlehub-jdt-core/target/batlehub-jdt-core-*.jar extensions/java-core/jdt/batlehub-jdt-core.jar
+          node jdt/smoke.mjs
+      - name: The Groovy language server jar (RFC 0001 phase 8)
+        run: |
+          curl -fsSL https://raw.githubusercontent.com/go-task/task/main/install-task.sh | sh -s -- -d -b /usr/local/bin >/dev/null
+          task groovy:fetch
       - name: Package
         run: pnpm run package
+      - name: Contract (layer 5)
+        run: bash tests/contract/run.sh
+      - name: Third-party notices
+        run: node scripts/third-party.mjs
+      - name: VSIX size budget
+        # RFC 0001 §13 `package`: one universal VSIX per extension, under the budget.
+        run: |
+          set -e
+          for v in extensions/*/*.vsix; do
+            size=$(stat -c %s "$v"); max=$((15 * 1024 * 1024))
+            case "$v" in */java-groovy.vsix) max=$((60 * 1024 * 1024));; */java-core.vsix) max=$((20 * 1024 * 1024));; esac
+            echo "$v: $size bytes (budget $max)"; [ "$size" -le "$max" ] || { echo "over budget"; exit 1; }
+          done
       - name: Docs
         run: pnpm -C docs run build
-      # Every extension's VSIX, under its own directory name inside the
-      # artifact. A new extension is picked up by the glob, the same way
-      # `pnpm run package` above picks it up.
       - uses: actions/upload-artifact@v4
         with:
           name: vsix
@@ -38,3 +79,81 @@ jobs:
           if-no-files-found: error
       - name: Audit
         run: pnpm audit --audit-level high
+
+  host:
+    name: Extension host (java-core)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: pnpm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm -C extensions/java-core run build
+      - name: Layer 2 under xvfb
+        run: xvfb-run -a pnpm -C extensions/java-core run test:host
+
+  heavy-java:
+    name: Heavy (java half)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: pnpm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+      - name: Warm ~/.m2 with the fixture, as the workspace it was proven in had it
+        # JDT.LS's m2e import and the driver's `maven compile` task resolve
+        # plugins and the `dev` profile's dependency from this repository.
+        run: mvn -q -B -f tests/heavy/fixtures/maven-multi/pom.xml -Pdev -DskipTests package
+      - uses: jdx/mise-action@v2
+        with:
+          install: false
+      - run: pnpm install --frozen-lockfile
+      - name: A Chrome with its DevTools port, standing in for the sidecar
+        run: |
+          google-chrome --headless=new --no-sandbox --disable-gpu --remote-debugging-port=9222 --user-data-dir=/tmp/chrome about:blank >/tmp/chrome.log 2>&1 &
+          for _ in $(seq 1 30); do curl -sf http://127.0.0.1:9222/json/version >/dev/null && break; sleep 1; done
+      - name: The JDK as mise would hold it
+        # The newcomer story removes JAVA_HOME and the PATH JDK; the core
+        # must find a JDK through a manager. `mise` is on the runner; give it
+        # the runner's Temurin as an installed version.
+        run: |
+          mise use -g "java@temurin-21" || true
+          mise ls java
+      - name: No system JDK, as a Che workspace has none
+        # §2 point 1's "no JDK but a manager" is a precondition the suite must
+        # create, not assume (RFC 0001 §15.5): ubuntu-latest ships Temurin
+        # under /usr/lib/jvm, which redhat.java scans on its own, so with it
+        # there the newcomer never happens. The opposite case — redhat.java
+        # with a JDK of its own — is the suite's DESKTOP step, which hands it
+        # a JAVA_HOME instead. setup-java's JDK lives under
+        # /opt/hostedtoolcache and keeps serving mvn through JAVA_HOME.
+        run: sudo mv /usr/lib/jvm /usr/lib/jvm.hidden
+      - name: task, for view.sh's jdt:* and groovy:fetch
+        run: curl -fsSL https://raw.githubusercontent.com/go-task/task/main/install-task.sh | sh -s -- -d -b /usr/local/bin >/dev/null
+      - name: Run
+        env:
+          HEAVY_ONLY: java
+          CDP_URL: http://127.0.0.1:9222
+        run: bash tests/heavy/view.sh
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: heavy-java
+          path: tests/heavy/work/last/
+          if-no-files-found: ignore

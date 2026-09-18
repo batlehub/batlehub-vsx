@@ -1,0 +1,37 @@
+version: "3"
+
+# The RFCs (docs/rfc/): a new one, the two listings, the state of play.
+# Ported from BatleHub (RFC 0001 §12 phase 1): every fact about an RFC lives
+# in its own header table (`Status`, `Short`, `Settles`), and the table on
+# /rfc/ and the sidebar in docs/.vitepress/config.ts are generated from it by
+# docs/build/rfc.mjs, so the three never disagree.
+tasks:
+  new:
+    desc: 'Scaffold the next RFC from the template — TITLE="…" [SHORT=…] [SETTLES=…] [CLOSES=…] [STATUS=Parked] [SLUG=…] [BIS=NNNN]'
+    dir: docs
+    cmds:
+      - node build/rfc.mjs new --title {{.TITLE | quote}} {{if .SHORT}}--short {{.SHORT | quote}}{{end}} {{if .SETTLES}}--settles {{.SETTLES | quote}}{{end}} {{if .CLOSES}}--closes {{.CLOSES | quote}}{{end}} {{if .STATUS}}--status {{.STATUS | quote}}{{end}} {{if .SLUG}}--slug {{.SLUG | quote}}{{end}} {{if .BIS}}--bis {{.BIS | quote}}{{end}}
+
+  index:
+    desc: Regenerate the /rfc/ index table and sidebar from each RFC's header table
+    dir: docs
+    cmds:
+      - node build/rfc.mjs index
+
+  index:check:
+    desc: Fail if the /rfc/ index or sidebar has drifted from the documents
+    dir: docs
+    cmds:
+      - node build/rfc.mjs index --check
+
+  status:
+    desc: Every RFC's status, open-question count and readiness — a report, not a gate
+    dir: docs
+    cmds:
+      - node build/rfc.mjs status
+
+  deferred:
+    desc: Every choice the RFCs put off — decided deferrals, and the questions still owed
+    dir: docs
+    cmds:
+      - node build/rfc.mjs deferred

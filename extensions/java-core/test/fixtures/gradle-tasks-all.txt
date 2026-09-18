@@ -1,0 +1,110 @@
+
+------------------------------------------------------------
+Tasks runnable from root project 'gradle-multi'
+------------------------------------------------------------
+
+Application tasks
+-----------------
+app:run - Runs this project as a JVM application
+
+Build tasks
+-----------
+app:assemble - Assembles the outputs of this project.
+core:assemble - Assembles the outputs of this project.
+app:build - Assembles and tests this project.
+core:build - Assembles and tests this project.
+app:buildDependents - Assembles and tests this project and all projects that depend on it.
+core:buildDependents - Assembles and tests this project and all projects that depend on it.
+app:buildNeeded - Assembles and tests this project and all projects it depends on.
+core:buildNeeded - Assembles and tests this project and all projects it depends on.
+app:classes - Assembles main classes.
+core:classes - Assembles main classes.
+app:clean - Deletes the build directory.
+core:clean - Deletes the build directory.
+app:jar - Assembles a jar archive containing the classes of the 'main' feature.
+core:jar - Assembles a jar archive containing the classes of the 'main' feature.
+app:testClasses - Assembles test classes.
+core:testClasses - Assembles test classes.
+
+Build Setup tasks
+-----------------
+init - Initializes a new Gradle build.
+updateDaemonJvm - Generates or updates the Gradle Daemon JVM criteria.
+wrapper - Generates Gradle wrapper files.
+
+Distribution tasks
+------------------
+app:assembleDist - Assembles the main distributions
+app:distTar - Bundles the project as a distribution.
+app:distZip - Bundles the project as a distribution.
+app:installDist - Installs the project as a distribution as-is.
+
+Documentation tasks
+-------------------
+app:javadoc - Generates Javadoc API documentation for the 'main' feature.
+core:javadoc - Generates Javadoc API documentation for the 'main' feature.
+
+Help tasks
+----------
+artifactTransforms - Displays the Artifact Transforms that can be executed in root project 'gradle-multi'.
+app:artifactTransforms - Displays the Artifact Transforms that can be executed in project ':app'.
+core:artifactTransforms - Displays the Artifact Transforms that can be executed in project ':core'.
+buildEnvironment - Displays all buildscript dependencies declared in root project 'gradle-multi'.
+app:buildEnvironment - Displays all buildscript dependencies declared in project ':app'.
+core:buildEnvironment - Displays all buildscript dependencies declared in project ':core'.
+dependencies - Displays all dependencies declared in root project 'gradle-multi'.
+app:dependencies - Displays all dependencies declared in project ':app'.
+core:dependencies - Displays all dependencies declared in project ':core'.
+dependencyInsight - Displays the insight into a specific dependency in root project 'gradle-multi'.
+app:dependencyInsight - Displays the insight into a specific dependency in project ':app'.
+core:dependencyInsight - Displays the insight into a specific dependency in project ':core'.
+help - Displays a help message.
+app:help - Displays a help message.
+core:help - Displays a help message.
+javaToolchains - Displays the detected java toolchains.
+app:javaToolchains - Displays the detected java toolchains.
+core:javaToolchains - Displays the detected java toolchains.
+outgoingVariants - Displays the outgoing variants of root project 'gradle-multi'.
+app:outgoingVariants - Displays the outgoing variants of project ':app'.
+core:outgoingVariants - Displays the outgoing variants of project ':core'.
+projects - Displays the sub-projects of root project 'gradle-multi'.
+app:projects - Displays the sub-projects of project ':app'.
+core:projects - Displays the sub-projects of project ':core'.
+properties - Displays the properties of root project 'gradle-multi'.
+app:properties - Displays the properties of project ':app'.
+core:properties - Displays the properties of project ':core'.
+resolvableConfigurations - Displays the configurations that can be resolved in root project 'gradle-multi'.
+app:resolvableConfigurations - Displays the configurations that can be resolved in project ':app'.
+core:resolvableConfigurations - Displays the configurations that can be resolved in project ':core'.
+tasks - Displays the tasks runnable from root project 'gradle-multi' (some of the displayed tasks may belong to subprojects).
+app:tasks - Displays the tasks runnable from project ':app'.
+core:tasks - Displays the tasks runnable from project ':core'.
+
+Verification tasks
+------------------
+app:check - Runs all checks.
+core:check - Runs all checks.
+app:test - Runs the test suite.
+core:test - Runs the test suite.
+
+Other tasks
+-----------
+app:compileJava - Compiles main Java source.
+core:compileJava - Compiles main Java source.
+app:compileTestJava - Compiles test Java source.
+core:compileTestJava - Compiles test Java source.
+components - Displays the components produced by root project 'gradle-multi'. [deprecated]
+app:components - Displays the components produced by project ':app'. [deprecated]
+core:components - Displays the components produced by project ':core'. [deprecated]
+dependentComponents - Displays the dependent components of components in root project 'gradle-multi'. [deprecated]
+app:dependentComponents - Displays the dependent components of components in project ':app'. [deprecated]
+core:dependentComponents - Displays the dependent components of components in project ':core'. [deprecated]
+model - Displays the configuration model of root project 'gradle-multi'. [deprecated]
+app:model - Displays the configuration model of project ':app'. [deprecated]
+core:model - Displays the configuration model of project ':core'. [deprecated]
+prepareKotlinBuildScriptModel
+app:processResources - Processes main resources.
+core:processResources - Processes main resources.
+app:processTestResources - Processes test resources.
+core:processTestResources - Processes test resources.
+app:startScripts - Creates OS specific scripts to run the project as a JVM application.

@@ -1,0 +1,35 @@
+version: "3"
+
+# RFC 0008 phase 0: the gate, measured. Nothing here ships — `kotlin:fetch`
+# puts JetBrains' pinned Kotlin LSP in the heavy cache (never in the working
+# tree: the archive is 368 MB and unpacks to 1.2 GB), `kotlin:smoke` runs
+# decision 7's gate on it and prints the numbers §11 records.
+vars:
+  KOTLIN_LSP_VERSION: 263.4702.0
+  KOTLIN_LSP_URL: https://download.jetbrains.com/language-server/kotlin-server/263.4702.0/kotlin-server-263.4702.0.tar.gz
+  KOTLIN_LSP_SHA256: 1e11d2e5fefbf9ea215ad8dd6be95f2222897cd086e8cb7a661a52084a590405
+  KOTLIN_LSP_ARCHIVE: "{{.HOME}}/.cache/batlehub-heavy/kotlin-server-263.4702.0.tar.gz"
+  KOTLIN_LSP_DIR: "{{.HOME}}/.cache/batlehub-heavy/kotlin-server-263.4702.0"
+
+tasks:
+  fetch:
+    desc: "Put JetBrains' pinned Kotlin LSP (Linux x64 standalone archive, sha256 pinned here) in ~/.cache/batlehub-heavy — never in the working tree"
+    status:
+      - test -x {{.KOTLIN_LSP_DIR}}/bin/intellij-server
+    cmds:
+      - mkdir -p "$(dirname "{{.KOTLIN_LSP_ARCHIVE}}")"
+      - test -s "{{.KOTLIN_LSP_ARCHIVE}}" || curl -fsSL --proto '=https' -o "{{.KOTLIN_LSP_ARCHIVE}}" "{{.KOTLIN_LSP_URL}}"
+      - echo "{{.KOTLIN_LSP_SHA256}}  {{.KOTLIN_LSP_ARCHIVE}}" | sha256sum -c --quiet
+      - tar xzf "{{.KOTLIN_LSP_ARCHIVE}}" -C "$(dirname "{{.KOTLIN_LSP_ARCHIVE}}")"
+
+  smoke:
+    desc: "Decision 7's gate on the pinned Kotlin LSP: initialize, import, hover, completion, a diagnostic, peak RSS, and the Maven twin of open question 1 (the numbers go into RFC 0008 §11)"
+    deps: [fetch]
+    cmds:
+      - node extensions/java-kotlin/test/smoke.mjs {{.KOTLIN_LSP_DIR}}
+
+  size:
+    desc: "What a bundled Kotlin LSP would cost a VSIX: the archive, the unpacked tree, and the JetBrains Runtime inside it (RFC 0008 §11 decision 7)"
+    deps: [fetch]
+    cmds:
+      - 'for p in {{.KOTLIN_LSP_ARCHIVE}} {{.KOTLIN_LSP_DIR}} {{.KOTLIN_LSP_DIR}}/jbr {{.KOTLIN_LSP_DIR}}/lib {{.KOTLIN_LSP_DIR}}/plugins {{.KOTLIN_LSP_DIR}}/modules; do du -sh "$p"; done'

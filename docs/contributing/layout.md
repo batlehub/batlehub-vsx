@@ -11,10 +11,18 @@ extensions/batlehub-vsx/   the extension: src/, test/, media/, esbuild.mjs
   src/api.ts               the registry client: header scoping, one 401 retry
   src/vsix.ts              zip reader, manifest, Ed25519 signature check
   src/marketplace/         tree, installer, ledger, details
-docs/                      this site (VitePress)
-tests/heavy/               the real-editor suite
+extensions/java-core/      RFC 0001: the Java core — src/jdk, detect, server, panel,
+                           build/{maven,gradle}, run, generate, refactor, project,
+                           registry, inspections; api.d.ts is the contract; jdt/ the bundle
+extensions/java-groovy/    the Groovy satellite over the contract (server/ fetched by task)
+extensions/java-pack/      the pack: nothing but package.json
+jdt/                       the JDT.LS bundle (Java, Maven + bnd), task jdt:*
+docs/                      this site (VitePress); docs/build/rfc.mjs generates /rfc/
+tests/heavy/               the real-editor suite; fixtures/ the Maven, Gradle, Groovy projects
+tests/contract/            layer 5: the satellite against the core's contract
+scripts/                   the lint job's checks: settings↔docs, l10n, third-party notices
 dev/hub/                   the dev BatleHub's config (task hub:up)
-.tasks/                    ext, docs, heavy, hub, browser task files
+.tasks/                    ext, docs, heavy, hub, browser, rfc, jdt, groovy task files
 ```
 
 A second extension is a second directory under `extensions/`; the pnpm
@@ -33,7 +41,12 @@ task hub:install     # a BatleHub release's server + CLI
 task hub:up          # the dev BatleHub on 8080, Postgres sidecar
 task hub:seed        # publish the fixture into it
 task browser:start   # unpark the sidecar's Chrome
-task heavy:view      # the real-editor suite
+task heavy:view      # the real-editor suite (BatleHub halves + the Java half)
+task heavy:view:java # the Java half alone: no BatleHub, no Postgres
+task ext:host        # layer 2, a real extension host (needs a display)
+task jdt:build       # the JDT bundle jar into extensions/java-core/jdt/
+task groovy:fetch    # the Groovy language server jar
+task rfc:new         # scaffold an RFC; rfc:index regenerates the listings
 task check           # what CI runs
 ```
 

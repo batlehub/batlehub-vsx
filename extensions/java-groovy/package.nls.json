@@ -1,0 +1,5 @@
+{
+  "capabilities.untrusted": "The Groovy language server is a process: it does not start in an untrusted workspace. Groovy files keep their syntax colouring.",
+  "cmd.restart": "Restart the Groovy language server",
+  "cmd.showLog": "Show the Groovy log"
+}

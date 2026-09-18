@@ -42,3 +42,18 @@ key_id = "heavy"
 anonymous = []
 user = ["releases:read", "releases:list", "source:read"]
 admin = ["*"]
+
+# RFC 0001 phase 5: the Maven registry the `registry` half routes a build
+# through (proxy of Central); reads need the user token, so the mirror the
+# core writes into settings.xml — with the token from batlehub-vsx — is what
+# makes the build work.
+[[registries]]
+type = "maven"
+name = "mvn-${HEAVY_RUN}"
+mode = "proxy"
+upstreams = ["https://repo1.maven.org/maven2/"]
+
+[registries.rbac]
+anonymous = []
+user = ["releases:read", "releases:list", "source:read"]
+admin = ["*"]

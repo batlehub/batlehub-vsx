@@ -1,0 +1,48 @@
+{
+  "name": "java-pack",
+  "displayName": "BatleHub Java Pack",
+  "description": "Java for VS Code the BatleHub way: the core, the Groovy satellite, the Red Hat and Microsoft stack, and the IntelliJ keymap (RFC 0001).",
+  "version": "0.1.0",
+  "publisher": "batlehub",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/batleforc/batlehub-vsx"
+  },
+  "homepage": "https://github.com/batleforc/batlehub-vsx/tree/main/extensions/java-pack",
+  "icon": "media/java.png",
+  "engines": {
+    "vscode": "^1.96.0"
+  },
+  "categories": [
+    "Extension Packs"
+  ],
+  "keywords": [
+    "java",
+    "batlehub",
+    "intellij",
+    "maven",
+    "gradle",
+    "groovy"
+  ],
+  "extensionPack": [
+    "batlehub.java-core",
+    "batlehub.java-groovy",
+    "redhat.java",
+    "vscjava.vscode-java-debug",
+    "vscjava.vscode-java-test",
+    "k--kato.intellij-idea-keybindings"
+  ],
+  "scripts": {
+    "build": "echo 'java-pack: nothing to build'",
+    "typecheck": "echo 'java-pack: nothing to type-check'",
+    "lint": "prettier --check package.json README.md",
+    "format": "prettier --write package.json README.md",
+    "test": "echo 'java-pack: nothing to test'",
+    "package": "vsce package --no-dependencies --skip-license -o java-pack.vsix"
+  },
+  "devDependencies": {
+    "@vscode/vsce": "^3.6.0",
+    "prettier": "^3.6.0"
+  }
+}

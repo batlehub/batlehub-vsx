@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- The JDT bundle of RFC 0001 §6.2: an OSGi bundle JDT.LS loads through
+     redhat.java's `contributes.javaExtensions`. Plain Maven + bnd
+     (maven-bundle-plugin), not Tycho: every dependency is `provided` and
+     comes from the pinned redhat.java VSIX (`task jdt:deps`), so the
+     Import-Package ranges bnd writes are the versions the server runs. -->
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+  <groupId>dev.batlehub</groupId>
+  <artifactId>batlehub-jdt-core</artifactId>
+  <version>0.1.0</version>
+  <packaging>bundle</packaging>
+  <name>BatleHub JDT bundle</name>
+
+  <properties>
+    <maven.compiler.release>21</maven.compiler.release>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <!-- Rewritten by jdt/deps.sh from the VSIX's plugins directory. -->
+    <v.org.eclipse.jdt.ls.core>1.61.0.202609021834</v.org.eclipse.jdt.ls.core>
+    <v.org.eclipse.jdt.core>3.47.0.v20260828-1141</v.org.eclipse.jdt.core>
+    <v.org.eclipse.jdt.core.compiler.batch>3.46.100.v20260826-1225</v.org.eclipse.jdt.core.compiler.batch>
+    <v.org.eclipse.jdt.core.manipulation>1.25.0.v20260813-1704</v.org.eclipse.jdt.core.manipulation>
+    <v.org.eclipse.core.runtime>3.35.0.v20260623-1631</v.org.eclipse.core.runtime>
+    <v.org.eclipse.core.resources>3.24.100.v20260812-0827</v.org.eclipse.core.resources>
+    <v.org.eclipse.core.jobs>3.15.900.v20260604-0622</v.org.eclipse.core.jobs>
+    <v.org.eclipse.core.contenttype>3.9.900.v20260617-0626</v.org.eclipse.core.contenttype>
+    <v.org.eclipse.equinox.common>3.21.0.v20260604-1221</v.org.eclipse.equinox.common>
+    <v.org.eclipse.equinox.registry>3.12.600.v20250906-0651</v.org.eclipse.equinox.registry>
+    <v.org.eclipse.equinox.preferences>3.12.100.v20251111-0704</v.org.eclipse.equinox.preferences>
+    <v.org.eclipse.text>3.14.800.v20260815-0849</v.org.eclipse.text>
+    <v.org.eclipse.lsp4j>1.0.0.v20260209-1721</v.org.eclipse.lsp4j>
+    <v.org.eclipse.lsp4j.jsonrpc>1.0.0.v20260209-1721</v.org.eclipse.lsp4j.jsonrpc>
+    <v.com.google.gson>2.14.0</v.com.google.gson>
+    <v.org.eclipse.osgi>3.24.300.v20260721-1251</v.org.eclipse.osgi>
+  </properties>
+
+  <dependencies>
+    <dependency><groupId>batlehub.jdtls</groupId><artifactId>org.eclipse.jdt.ls.core</artifactId><version>${v.org.eclipse.jdt.ls.core}</version><scope>provided</scope></dependency>
+    <dependency><groupId>batlehub.jdtls</groupId><artifactId>org.eclipse.jdt.core</artifactId><version>${v.org.eclipse.jdt.core}</version><scope>provided</scope></dependency>
+    <dependency><groupId>batlehub.jdtls</groupId><artifactId>org.eclipse.jdt.core.compiler.batch</artifactId><version>${v.org.eclipse.jdt.core.compiler.batch}</version><scope>provided</scope></dependency>
+    <dependency><groupId>batlehub.jdtls</groupId><artifactId>org.eclipse.jdt.core.manipulation</artifactId><version>${v.org.eclipse.jdt.core.manipulation}</version><scope>provided</scope></dependency>
+    <dependency><groupId>batlehub.jdtls</groupId><artifactId>org.eclipse.core.runtime</artifactId><version>${v.org.eclipse.core.runtime}</version><scope>provided</scope></dependency>
+    <dependency><groupId>batlehub.jdtls</groupId><artifactId>org.eclipse.core.resources</artifactId><version>${v.org.eclipse.core.resources}</version><scope>provided</scope></dependency>
+    <dependency><groupId>batlehub.jdtls</groupId><artifactId>org.eclipse.core.jobs</artifactId><version>${v.org.eclipse.core.jobs}</version><scope>provided</scope></dependency>
+    <dependency><groupId>batlehub.jdtls</groupId><artifactId>org.eclipse.core.contenttype</artifactId><version>${v.org.eclipse.core.contenttype}</version><scope>provided</scope></dependency>
+    <dependency><groupId>batlehub.jdtls</groupId><artifactId>org.eclipse.equinox.common</artifactId><version>${v.org.eclipse.equinox.common}</version><scope>provided</scope></dependency>
+    <dependency><groupId>batlehub.jdtls</groupId><artifactId>org.eclipse.equinox.registry</artifactId><version>${v.org.eclipse.equinox.registry}</version><scope>provided</scope></dependency>
+    <dependency><groupId>batlehub.jdtls</groupId><artifactId>org.eclipse.equinox.preferences</artifactId><version>${v.org.eclipse.equinox.preferences}</version><scope>provided</scope></dependency>
+    <dependency><groupId>batlehub.jdtls</groupId><artifactId>org.eclipse.text</artifactId><version>${v.org.eclipse.text}</version><scope>provided</scope></dependency>
+    <dependency><groupId>batlehub.jdtls</groupId><artifactId>org.eclipse.lsp4j</artifactId><version>${v.org.eclipse.lsp4j}</version><scope>provided</scope></dependency>
+    <dependency><groupId>batlehub.jdtls</groupId><artifactId>org.eclipse.lsp4j.jsonrpc</artifactId><version>${v.org.eclipse.lsp4j.jsonrpc}</version><scope>provided</scope></dependency>
+    <dependency><groupId>batlehub.jdtls</groupId><artifactId>com.google.gson</artifactId><version>${v.com.google.gson}</version><scope>provided</scope></dependency>
+    <dependency><groupId>batlehub.jdtls</groupId><artifactId>org.eclipse.osgi</artifactId><version>${v.org.eclipse.osgi}</version><scope>provided</scope></dependency>
+    <dependency><groupId>org.junit.jupiter</groupId><artifactId>junit-jupiter</artifactId><version>5.11.4</version><scope>test</scope></dependency>
+  </dependencies>
+
+  <build>
+    <plugins>
+      <plugin>
+        <groupId>org.apache.felix</groupId>
+        <artifactId>maven-bundle-plugin</artifactId>
+        <version>5.1.9</version>
+        <extensions>true</extensions>
+        <configuration>
+          <instructions>
+            <Bundle-SymbolicName>batlehub.jdt.core;singleton:=true</Bundle-SymbolicName>
+            <Bundle-Name>BatleHub JDT bundle</Bundle-Name>
+            <Bundle-Vendor>BatleHub</Bundle-Vendor>
+            <Bundle-RequiredExecutionEnvironment>JavaSE-21</Bundle-RequiredExecutionEnvironment>
+            <!-- Versioned imports from the jars the server ships (decision 26). -->
+            <Import-Package>*</Import-Package>
+            <Export-Package>batlehub.jdt.core;version=${project.version}</Export-Package>
+            <Include-Resource>{maven-resources}</Include-Resource>
+          </instructions>
+        </configuration>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-surefire-plugin</artifactId>
+        <version>3.5.2</version>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-compiler-plugin</artifactId>
+        <version>3.13.0</version>
+      </plugin>
+    </plugins>
+  </build>
+</project>

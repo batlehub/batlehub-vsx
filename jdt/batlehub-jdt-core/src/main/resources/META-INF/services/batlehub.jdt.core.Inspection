@@ -1,0 +1,11 @@
+batlehub.jdt.core.inspections.UnusedPrivateField
+batlehub.jdt.core.inspections.UnusedPrivateMethod
+batlehub.jdt.core.inspections.RedundantThis
+batlehub.jdt.core.inspections.SizeIsZero
+batlehub.jdt.core.inspections.StringConcatInLoop
+batlehub.jdt.core.inspections.MissingOverride
+batlehub.jdt.core.inspections.ObjectsEqualsLiteral
+batlehub.jdt.core.inspections.BoxingConstructor
+batlehub.jdt.core.inspections.EmptyCatch
+batlehub.jdt.core.inspections.BooleanLiteralComparison
+batlehub.jdt.core.inspections.IfReturnBoolean

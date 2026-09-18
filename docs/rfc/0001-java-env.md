@@ -2,13 +2,13 @@
 
 | Field       | Value                                                        |
 | ----------- | ------------------------------------------------------------ |
-| Status      | Draft, revision 3 — ready to implement from §12 phase 0        |
+| Status      | Implemented — revision 8, 2026-09-18; phases 0–8 landed and proven in a real editor, everything revision 7 owed in code written, the split (phase 9) deliberately not earned |
 | Short       | Java extensions                                               |
 | Settles     | How BatleHub closes the gap between VS Code and IntelliJ IDEA for Java: one core extension that orchestrates the Red Hat language stack and adds what it lacks, the contract a later satellite plugs into, and what is deliberately deferred to its own RFC |
 | Author      | Max Batleforc <maxleriche.60@gmail.com>                       |
 | Co-author   | —                                                             |
 | Created     | 2026-09-17                                                    |
-| Revised     | 2026-09-17 — revision 2, the v1 scope cut (§8, §11 decisions 3, 19, 21, 31). Same day, revision 3, read against the tree: the registry token asked from `batlehub-vsx` instead of a second contract-file reader (decision 38), the Java heavy half without a BatleHub (decision 39), m2e's profile preference tried before the credential-bearing overlay (decision 14), v0.1 shrunk to the newcomer story (decision 37), untrusted means nothing runs (decision 40), `fr` and the `.batlehub/java/*.toml` files dropped, `.forgejo` mirror and Sonar removed, diagrams rendered by the docs site |
+| Revised     | 2026-09-17 — revision 2, the v1 scope cut (§8, §11 decisions 3, 19, 21, 31). Same day, revision 3, read against the tree: the registry token asked from `batlehub-vsx` instead of a second contract-file reader (decision 38), the Java heavy half without a BatleHub (decision 39), m2e's profile preference tried before the credential-bearing overlay (decision 14), v0.1 shrunk to the newcomer story (decision 37), untrusted means nothing runs (decision 40), `fr` and the `.batlehub/java/*.toml` files dropped, `.forgejo` mirror and Sonar removed, diagrams rendered by the docs site. 2026-09-18, revision 4, written from the implementation (`todo.md` of this repository): `redhat.java` a soft dependency (§4.1, decision 41), the language server's own JDK written by the core (§4.2), decisions 8 and 14 answered, Maven + bnd instead of Tycho (§6.2), the scope notes of §15. Same day, revision 5, after the last real-editor runs: the registry link driven against a real BatleHub (`/maven2`, §4.2), the build tool resolved through the manager like the JDK (§4.2), the Groovy heap capped, §15 brought up to date. Same day, revision 6, after the first green CI on a runner (PR #7): what the runner found (§15.5). Same day, revision 7, after the series was reviewed against its goal: the red lines and the memory rule (§7.1), the contract changelog and `token()` leaving the contract (§5.2), the server's JDK written only when `redhat.java` found none (§4.2), what would reopen decision 1 (§11), the stale rows of revisions 3–6 corrected, Appendix A rows linked to their RFCs. No new feature enters this document; everything new is a draft of the series. Same day, revision 8, **Implemented**: the six things revision 7 owed in code are written and proven (§15.7) — the server's JDK read off `redhat.java` and never off the core's own scan, file modes in the manifest, the workspace `settings.json` and m2e's preference under the lock, `registry.token()` deprecated in 1.0, the "tested up to" warning, and the home probes answering before trust (§7.1's gate, decision 40). Nothing is owed; the RFC closes and the series moves to [0008](/rfc/0008-kotlin-satellite) phase 0 (§14) |
 | Supersedes  | —                                                             |
 | Depends on  | BatleHub RFC 0011 (the credential `batlehub-vsx` holds; the optional registry link asks that extension for it and never reads the file); BatleHub RFC 0018 (verdicts the dependency views may surface); BatleHub RFC 0023 (the che-code the extensions are exercised in). BatleHub RFCs live in `batleforc/batlehub/docs/rfc/`; this series is the extensions' own. |
 | Touches     | `extensions/java-core`, `java-groovy`, `java-pack`; `jdt/` (phase 6); `tests/heavy` (a `java` half); `docs/rfc/` (this series), `docs/guide/java/`; `extensions/batlehub-vsx` (one exported method, phase 5) |
@@ -179,18 +179,24 @@ Beyond parity — what neither IDEA nor Eclipse offers, and this family does:
 
 | Extension id                | Depends on                                                             | Ships |
 | --------------------------- | ---------------------------------------------------------------------- | ----- |
-| `batlehub.java-core`        | **hard:** `redhat.java` · **soft:** `vscjava.vscode-java-debug`, `vscjava.vscode-java-test` | JDK manager, project explorer, the Java panel (tabs), run configs, Generate menu, Maven, Gradle, registry link, satellite host; from phase 6 the `javaExtensions` bundle and the inspections view |
+| `batlehub.java-core`        | **soft:** `redhat.java` (≥ 1.56.0, a hard *error* when absent, §4.3), `vscjava.vscode-java-debug`, `vscjava.vscode-java-test` | JDK manager, project explorer, the Java panel (tabs), run configs, Generate menu, Maven, Gradle, registry link, satellite host; from phase 6 the `javaExtensions` bundle and the inspections view |
 | `batlehub.java-groovy`      | `batlehub.java-core`                                                   | Groovy language server, Gradle DSL and Jenkinsfile modes |
 | `batlehub.java-pack`        | both + recommended keymap and theme                                    | nothing but the pack |
 
-**Hard versus soft is a distribution decision, not a taste.** An
-`extensionDependencies` entry makes the extension *uninstallable* in an editor
-whose gallery lacks that id — che-code with a partial Open VSX mirror, an
-air-gapped BatleHub gallery. Only `redhat.java` earns that, because every
-language feature is delegated to it. The debugger and the test runner are
-found at runtime through `extensions.getExtension`, listed in the pack as
-`extensionPack` entries (installed together, refused separately), and their
-absence degrades one feature each (§4.3) instead of blocking the install.
+**Every dependency is soft, and `redhat.java` had to become one** (revision 4,
+decision 41). Revision 3 made it an `extensionDependencies` entry — an entry
+makes the extension *uninstallable* in an editor whose gallery lacks that id,
+which reads as a guarantee. The real editor showed the cost: when
+`redhat.java` finds no JDK — the newcomer of §2 point 1, a fresh Che
+workspace with `mise` and no global `java` — its own activation rejects, and
+the editor then refuses to activate every extension that depends on it. The
+one extension whose job is to fix "no JDK" was switched off by "no JDK". So
+`redhat.java`, the debugger and the test runner are all found at runtime
+through `extensions.getExtension`; `redhat.java` absent or below the pinned
+minimum is a hard *error* (§4.3, a notification, the language features off,
+everything else — JDK, memory, panel — working), and the pack's
+`extensionPack` keeps the lot installed together. What is given up is that
+installing the core alone no longer pulls `redhat.java` in.
 
 Settings share the `batlehub.java.*` prefix — **not** `java.batlehub.*`:
 `java.*` is `redhat.java`'s configuration namespace, and the Settings UI
@@ -234,7 +240,11 @@ hand.
   describes the environment rather than a taste — JDK sources and the active
   runtime, `installVia`, Maven configurations (every `~/.m2/settings*.xml`,
   `mvnw`, `MAVEN_HOME`), the profiles declared, Gradle wrapper and home, the
-  registry URL — is *absent* by default and computed by detection. A key the
+  registry URL — is *absent* by default and computed by detection. The build
+  tool gets the JDK's treatment (revision 5): `MAVEN_HOME`/`GRADLE_HOME`,
+  then `mise ls maven|gradle --json`, and tasks run that home before `PATH`
+  — in the newcomer's workspace a `mise` shim with no version set *fails*
+  rather than being absent, for `mvn` exactly as for `java`. A key the
   user writes is an override and wins until removed. Detection runs at
   activation and on demand: `Java: Detect environment` (everything) and a
   `Detect` button on each panel tab (that domain only). Detected values are
@@ -302,6 +312,29 @@ hand.
   result is written to `java.configuration.runtimes` (workspace scope) so
   `redhat.java` sees exactly what the status bar says. The core never edits
   user-scope settings.
+- **The language server's own JDK is a second write** (revision 4).
+  `java.configuration.runtimes` tells JDT.LS which JDKs *projects* use, not
+  which JDK *it* runs on; `redhat.java` finds that one through
+  `java.jdt.ls.java.home`, `JDK_HOME`, `JAVA_HOME` or `PATH`, and does not
+  scan a manager's install directory. A fresh Che workspace with `mise` and
+  no global `java` has none of those, so the server never starts — which
+  is the whole of §2 point 1, and revision 3 had only half of it. When
+  nothing names a JDK ≥ 17, the core writes `java.jdt.ls.java.home`
+  (workspace scope, through the manifest) to the newest runtime it found
+  and lets `redhat.java` ask for the reload. Proven by the heavy suite's
+  `NEWCOMER-OK` step. **Only then** (revision 7): "nothing names a JDK" is
+  read off `redhat.java` itself — its activation failed, or `serverRunning()`
+  is false with no `javaRequirement` — never off the core's own scan. A
+  desktop or a CI runner has `/usr/lib/jvm`, which `redhat.java` scans and the
+  core did not count: the core then wrote the setting under a server that was
+  already starting, the reload put a second JDT.LS on the same `jdt_ws`, and
+  the bundle ping waited ten minutes (§15.5). A server that is running is
+  never reloaded by the core; the resolved JDK goes to
+  `java.configuration.runtimes`, and the panel's `Language server` section
+  and the status bar tooltip both say which JDK the server itself runs on
+  (`javaRequirement`'s `tooling_jre`). Written in revision 8: the rule is one
+  pure function with its own unit table, and the heavy half's `DESKTOP` step
+  proves the other side — a `redhat.java` holding its own JDK is left alone.
 - **The container's resources are a first-class diagnostic.** At activation
   the core reads the cgroup limit (`/sys/fs/cgroup/memory.max`, v1 fallback
   `memory/memory.limit_in_bytes`; absent on a laptop, present in every Che
@@ -368,12 +401,14 @@ hand.
   the core writes the set where m2e already reads it: `activeProfiles=` in
   the project's `.settings/org.eclipse.m2e.core.prefs` (a file JDT.LS
   already generates beside `.classpath`; the manifest records the previous
-  value), then asks for a re-import. Only if spike (a) shows JDT.LS ignores
-  that file does the core fall back to a generated overlay of the active
-  settings file under `.batlehub/java/`, pointed at by
-  `java.configuration.maven.userSettings` (decision 14).
-- **The overlay, if spike (a) leaves it in, is a secret-bearing file and is
-  treated as one.** Maven has
+  value), then asks for a re-import. **Spike (a) answered yes** (decision
+  14, revision 4): the profile-only dependency reached the classpath after
+  re-import in the real editor. The overlay below is therefore *not* on any
+  default path; it stays as an explicit command (`Java: Maven: apply the
+  profiles through a settings overlay`) for a JDT.LS that stops reading the
+  preference.
+- **The overlay, when someone runs that command, is a secret-bearing file
+  and is treated as one.** Maven has
   no include mechanism, so the overlay is a *copy* of the active
   settings file with `<activeProfiles>` added — credentials, mirrors and
   tokens included, inside the work tree. Therefore: the core writes it
@@ -383,15 +418,18 @@ hand.
   only the elements the import needs (`<profiles>`, `<activeProfiles>`,
   `<mirrors>`, `<servers>` — the last one because m2e resolves through it)
   and never logs its content. `Java: Remove BatleHub settings` deletes it.
-  A positive result for the m2e preference removes the file from the design
-  entirely, which is the outcome to hope for.
 - **Coexistence with the stock Java extensions.** At activation the core
   checks for `vscjava.vscode-maven`, `vscjava.vscode-gradle`,
-  `vscjava.vscode-java-dependency`. Once per workspace it proposes to hide
-  their redundant views and lenses (through their own settings, never by
-  disabling the extension), remembers the answer in
-  `batlehub.java.coexistence`, and the Java panel's `Build` tab shows what is
-  hidden and lets it back.
+  `vscjava.vscode-java-dependency`. Once per workspace it proposes to quiet
+  what they duplicate — through their own settings, never by disabling the
+  extension — remembers the answer in `batlehub.java.coexistence`, and the
+  Java panel's `Build` tab shows what was changed and puts it back. What a
+  setting can quiet is what is quieted (revision 4): those extensions have
+  no setting that hides a view, so the writes are the duplicate context-menu
+  entries and the explorer sync (`maven.showInExplorerContextMenu`,
+  `java.dependency.syncWithFolderExplorer`, `gradle.showStoppedDaemons`),
+  each recorded in the manifest; a view itself is hidden by the developer
+  from its title menu, as the editor intends.
 - **Import from IntelliJ** (phase 4, behind `experimental.intellijImport`).
   `Java: Import IntelliJ run configurations` reads `.idea/runConfigurations/*.xml`
   and `workspace.xml` and writes `launch.json` entries of type `java`
@@ -434,11 +472,19 @@ hand.
   (BatleHub RFC 0010 toolchain managers apply there). No telemetry, ever:
   nothing leaves the machine unless the user clicks.
 - **Trust.** The core runs `mvn`, `gradle`, `sdk`, `mise` and the wrappers
-  `mvnw` / `gradlew`. In an untrusted workspace it runs nothing at all:
-  detection reads files, and every command that would execute is disabled
-  with the reason. A build file is code whichever binary runs it, so "`PATH`
-  tools only" would protect nothing (decision 40). Once the workspace is
-  trusted, wrapper first, `PATH` tool second. Writes to shared
+  `mvnw` / `gradlew`. In an untrusted workspace it runs nothing the workspace
+  controls: no goal, no task, no wrapper, no `PATH` `mvn`, and every command
+  that would execute one is disabled with the reason. A build file is code
+  whichever binary runs it, so "`PATH` tools only" would protect nothing
+  (decision 40). Once the workspace is trusted, wrapper first, `PATH` tool
+  second. **The home probes are the one exception, and §7.1 is why**:
+  `mise ls java --json`, `mise --version` and `sdk version`, run from the home
+  directory with no argument taken from the workspace, are a fact about the
+  machine rather than an input from the project — the same class of thing as
+  reading `~/.m2`. They answer before trust, which is what lets a Restricted
+  Mode panel say "JDK 21, from mise" instead of nothing at all to the very
+  newcomer of §2 point 1. Running them from the home directory is also what
+  keeps a repository's own `mise.toml` out of the answer (revision 8). Writes to shared
   files (`~/.m2/settings.xml`, `~/.gradle/init.d/batlehub.gradle`, the
   overlay) take a lock file so two windows cannot interleave.
 - **Logging.** One output channel per component — `BatleHub Java`,
@@ -465,8 +511,11 @@ hand.
   `registry.enabled: "ask"`, one notification proposes to route the build
   through BatleHub; "Never" writes `false` to workspace settings. Enabled, the
   core writes a mirror into `~/.m2/settings.xml` (Maven, in a
-  `<!-- batlehub -->` fenced block it owns) or `~/.gradle/init.d/batlehub.gradle`
-  and injects the token `batlehub-vsx` hands it; disabled, it removes only its
+  `<!-- batlehub -->` fenced block it owns; the hub serves Maven under
+  `/proxy/<name>/maven2`, revision 5) or `~/.gradle/init.d/batlehub.gradle`
+  and injects the token `batlehub-vsx` hands it — as an `Authorization:
+  Bearer` header in both (revision 4: BatleHub reads Bearer and no Basic
+  scheme, and Maven's `<server><configuration><httpHeaders>` sends one); disabled, it removes only its
   own block. The core never opens the contract file: `batlehub-vsx` exports
   `token()` and `url()` from its `activate` (phase 5, its only change) and
   stays the one extension that signs in (decision 38).
@@ -479,7 +528,7 @@ Hard errors (notification, feature disabled until fixed):
 | --- | --- |
 | `redhat.java` absent or below the minimum version pinned in `java-core/package.json` | every language feature is delegated; degrading silently would look like a broken editor |
 | Satellite contract major ≠ core contract major | mixing APIs across majors produces wrong trees, not errors |
-| `.batlehub/java/` or the workspace `.gitignore` not writable, with a Maven configuration active | the overlay carries credentials; no place to write it safely means no overlay |
+| `.batlehub/java/` or the workspace `.gitignore` not writable, **when the overlay command is run** (revision 7: the overlay is an explicit command since decision 14 was answered, so this is that command's refusal, not an activation error) | the overlay carries credentials; no place to write it safely means no overlay |
 
 Warnings (status bar item turns yellow, details in the `BatleHub Java` output channel):
 
@@ -541,7 +590,7 @@ export interface JavaCoreApi {
   registerInspectionBundle(bundle: InspectionBundle): Disposable;  // phase 6
   readonly jdk: JdkService;            // list, resolve(folder)
   readonly project: ProjectService;    // modules, sourceRoots, onDidChange
-  readonly registry: RegistryLink;     // enabled(); token() and url() forwarded from batlehub-vsx
+  readonly registry: RegistryLink;     // enabled(), url(); writeCredential(target) from 1.1 — never the token
   assertContract(satelliteMajor: number): void;
 }
 ```
@@ -564,6 +613,36 @@ interface BuildToolProvider {
 Exported members are versioned by `contractVersion`; a minor bump adds
 optional members, a major bump is a coordinated release of every satellite.
 Moving a member from the internal seam to the exported API is a minor bump.
+
+#### Contract changelog
+
+The one place the contract's next version is written (revision 7). A satellite
+RFC says "needs member X" and links here; it does not define a version. Four
+drafts had each defined 1.1 on their own.
+
+| Version | Member | Asked by | Notes |
+| --- | --- | --- | --- |
+| 1.0 | everything in the interface above | `java-groovy` | shipped; `registry.token()` is **deprecated in 1.0 and gone in 1.1** — one consumer, in this repository, moved with it |
+| 1.1 | `registry.writeCredential(target)` | [0008](/rfc/0008-kotlin-satellite), [0009](/rfc/0009-scala-satellite) | the core writes the fenced block — `0600`, under the lock, in the manifest with the file's previous mode — into a target it knows (`maven-settings`, `gradle-init`; `coursier` when BatleHub accepts what Coursier sends). A new target is a reviewed change in the core, not satellite code |
+| 1.1 | `manifest.writeSetting(key, value)` | 0008, [0010](/rfc/0010-spring-boot-satellite), [0011](/rfc/0011-quarkus-satellite), [0013](/rfc/0013-spell-checking) | a satellite's foreign-setting write lands in the core's one manifest, so `Remove BatleHub settings` stays one command; applies the default-on rule of §7.1 |
+| 1.1 | `process.start(spec)` — the managed process | [0003](/rfc/0003-server-run-step-kinds), every satellite that spawns | declared cap, readiness probe, clean stop, peak RSS recorded; the only way anything long-lived starts (§7.1) |
+| 1.1 | `process.declare(estimate)` | 0008 (fallback bridge), 0009, 0010, 0011, [0016](/rfc/0016-inspections-growth) | a JVM another extension starts (Spring Tools, MicroProfile, Metals, SonarLint): not managed, but counted in the sum as an estimate the satellite names |
+| 1.1 | `registerRunStepKind(kind)` | 0003, 0010, 0011 | the built-in kinds go through it too |
+| 1.1 | `registerRunTemplate(template)` | 0009, 0010, 0011 | with `upsertTask` and a template's `extraArgs`, which 0011 and [0004](/rfc/0004-run-config-sources) both need |
+| 1.1 | `BuildTool` gains `"sbt"` | 0009 | see the union rule below |
+| 1.1 | `projectConfig(id)` | [0006](/rfc/0006-shared-project-config) | a satellite's own section of the committed `.batlehub/java/project.json`, read-only |
+
+**Widening an exported union is a major bump** — a consumer may switch over
+it exhaustively — **unless the type was published as open**. From 1.1 every
+exported string union is documented as open ("handle a value you do not
+know"), and `api.d.ts` types it `Known | (string & {})`; `"sbt"` is then a
+minor.
+
+**The extension host has no isolation.** Any installed extension can read
+`~/.m2/settings.xml` or call another extension's exports; taking `token()` off
+the contract does not stop a hostile extension, and this RFC does not claim
+it does. It keeps the credential in one code path that is reviewed, locked
+and recorded, which is what the core can actually promise.
 
 ### 5.3 Where each thing runs
 
@@ -596,12 +675,15 @@ sequenceDiagram
     U->>C: new name
     C->>LS: textDocument/rename
     LS-->>C: WorkspaceEdit across every module
-    C->>C: preview if > 1 file (setting), apply
+    C->>C: apply (the editor's own preview, Ctrl+Enter, is available)
 ```
 
 Nothing here is new code: the sequence exists in `redhat.java`. The core's
-contribution is the keybinding, the menu entry, the mode check and the
-preview threshold.
+contribution is the keybinding, the menu entry and the mode check. Revision
+3 also had a "preview threshold" setting; a threshold that forces the
+preview would need a rename provider wrapped around JDT.LS's, which is
+exactly the new code this section argues against, so the editor's own
+preview is the preview.
 
 ---
 
@@ -628,10 +710,10 @@ src/build/maven/*.ts    BuildToolProvider, configurations, profiles, overlay, li
 src/build/gradle/*.ts   BuildToolProvider, tasks, dependency insight
 src/build/tasks.ts      the batlehub-java task provider
 src/run/configs.ts      read/write launch.json entries of type java
-src/run/editor.ts       webview form (media/run-editor/), templates
+src/run/editor.ts       the run-configuration form: the editor's multi-step quick input, templates (no webview — see §15)
 src/run/gutter.ts       CodeLens "Run | Debug", when vscode-java-debug is present
 src/generate/menu.ts    Generate submenu: Red Hat's commands in v0.2, delegates from phase 6
-src/refactor/rename.ts  keybinding, mode check, preview threshold
+src/refactor/rename.ts  keybinding, mode check (no preview threshold: §5.4)
 src/inspections/*.ts    view, fix-all, the JDT.LS diagnostic bridge (phase 6)
 src/idea/import.ts      .idea/runConfigurations → launch.json (flagged, phase 4)
 src/registry/link.ts    RegistryLink over batlehub-vsx's exports; never opens the contract file
@@ -651,31 +733,59 @@ jdt/                    phase 6: batlehub-jdt-*.jar, referenced by contributes.j
 
 ### 6.2 `jdt/batlehub-jdt-core` (Java, phase 6)
 
-- A Maven/Tycho project producing the OSGi bundle; one `IDelegateCommandHandler`
-  (`batlehub.ping`, `batlehub.generate.*`, `batlehub.inspections.list`,
-  `batlehub.inspections.fixAll`).
+- A Maven project with `maven-bundle-plugin` (bnd) producing the OSGi bundle
+  — not Tycho (revision 4, see below); one `IDelegateCommandHandler`
+  (`batlehub.ping`, `batlehub.generate.accessors`, `batlehub.inspections.list`,
+  `batlehub.inspections.fixAll`). The other generators (constructor,
+  `toString`, `equals`/`hashCode`, delegates) stay on Red Hat's prompts,
+  whose pickers are what those need; adding one is a handler case.
 - Generators use `org.eclipse.jdt.core.dom.rewrite.ASTRewrite`, the same
   machinery JDT's own `GenerateGetterSetterOperation` uses, with the options
   of §4.1 passed as JSON.
 - Inspections implement one interface, `Inspection { id, visit(CompilationUnit, ctx) }`,
-  registered by `META-INF/services`. Phase 6 ships 10–15 (unused private member,
-  redundant `this`, `Objects.equals` on non-null, string concatenation in
-  loop, missing `@Override`, `size() == 0`, …). Each has a `QuickFix` producing
-  a `WorkspaceEdit`.
-- Java, Tycho and a p2 target platform are unavoidable *here* and nowhere
-  else, which is why the whole chain arrives in phase 6 with the inspections
-  that amortise it, not in phase 1 for the sake of a getter prefix
-  (§11 decision 6). The bundle stays small and headless: no UI, no settings,
-  options in, edits out.
+  registered by `META-INF/services`. Phase 6 ships eleven (unused private
+  field and method, redundant `this`, `size() == 0`, string concatenation in
+  a loop, missing `@Override`, `Objects.equals` on a literal, boxing
+  constructors, empty catch, boolean-literal comparison, `if … return true
+  else return false`), each with a `QuickFix` producing a `WorkspaceEdit`
+  where a fix is safe. **They are syntactic** (revision 4): they run on the
+  AST without bindings, so they work before indexing and are unit-tested
+  from a string; the first rule that needs types is the trigger to resolve
+  bindings against the compilation unit's project (one flag in the parser),
+  and each rule's known ceiling is named beside it.
+- The Java build chain arrives in phase 6 with the inspections that
+  amortise it, not in phase 1 for the sake of a getter prefix (§11 decision
+  6). **Tycho and a p2 target platform turned out not to be needed**
+  (revision 4): the jars the bundle compiles against are the ones the pinned
+  `redhat.java` VSIX ships (`task jdt:deps` installs them into `~/.m2`;
+  `org.eclipse.jdt.ls.core` is not on Maven Central at all), which is the
+  same guarantee a target platform gives — the bundle compiles against
+  exactly the server it is loaded into — without hours of p2 download and
+  without a p2 mirror in CI. Two costs, recorded: `org.eclipse.jdt.core` and
+  `org.eclipse.jdt.ls.core` export their packages unversioned, so decision
+  26's `Import-Package` ranges exist only where the exporter versions them
+  (`gson`, `core.runtime`) and the pin is the VSIX version; and layer 1b is
+  JUnit 5 over `ASTParser`-built units rather than the
+  `AbstractProjectsManagerBasedTest` harness — the same engine the handler
+  runs, and a headless JDT.LS smoke (`task jdt:smoke`) covers the loading.
+  The bundle stays small and headless: no UI, no settings, options in, edits
+  out.
 
 ### 6.3 `extensions/java-groovy` (phase 8)
 
 - Bundles a Groovy language server: Prominic `groovy-language-server`
-  (Apache-2.0, Java, runs on the same JDK the core resolved). Registered
-  through `registerLanguage` so the core knows which JDK and classpath to
-  hand it; Gradle DSL and Jenkinsfile are `LanguageProvider` modes with their
-  own classpath hints. It is also the first real consumer of the contract,
-  which is why the contract tests start here.
+  (Apache-2.0, Java, runs on the same JDK the core resolved). The jar is the
+  prebuilt one the `DontShaveTheYak.groovy-guru` extension ships on Open VSX
+  (the same sources, built 2022), fetched by `task groovy:fetch` with a
+  pinned sha256 and a committed `NOTICE.md`, not built with Gradle (revision
+  4). Registered through `registerLanguage` so the core knows which JDK and
+  classpath to hand it. **Gradle DSL and Jenkinsfile are one language id**
+  (`groovy`, the builtin, extended with `.gradle`, `.gvy`, `.gy`, `.gsh` and
+  the `Jenkinsfile` name) over one server: revision 3's per-mode classpath
+  hints have nowhere to go, the server reads a single `groovy.classpath`
+  for the workspace. The Gradle API jars as hints are the next step once
+  phase 7 knows where a Gradle distribution is. It is also the first real
+  consumer of the contract, which is why the contract tests start here.
 - If the server proves unusable, the extension is not shipped and the gap
   goes back to Appendix A. There is no second implementation to fall back on:
   a tree-sitter outline maintained beside a dead language server is two
@@ -738,6 +848,80 @@ jdt/                    phase 6: batlehub-jdt-*.jar, referenced by contributes.j
   resolution written, no run, no registry prompt, no overlay), matching
   `redhat.java`'s own `untrustedWorkspaces: { supported: "limited" }`.
 
+### 7.1 Red lines (revision 7)
+
+What "safe" means in this series is **safe to adopt**: a developer leaving
+IntelliJ can install the pack, try it for a week and take every trace of it
+back out. The goal itself is comfort — the practical threat to this project
+is a missing feature, not an attacker — and the adversaries the extensions
+own are a hostile repository and the developer's own mistake (a committed
+token). Whether an upstream package is safe is the registry's verdict
+(BatleHub's or another's), surfaced here, not decided here. Every RFC of the
+series answers the following in its own §7 (the template carries the form).
+
+**The gate is the editor's.** VS Code's workspace trust decides whether
+project-controlled code may run; the series adds no second trust model.
+Before trust nothing the workspace controls is executed — no wrapper, no build
+file, no `PATH` `mvn`, no tool that evaluates a workspace file to list it.
+What lives outside the workspace in a known place is a fact, not an input:
+the JDKs a manager installed, `~/.m2`, `~/.gradle`, and `mise ls … --json`
+run from the home directory with no argument from the workspace.
+
+**Red line 1 — every write is in the manifest, and one command undoes it.**
+Anything written outside the extension's own storage — a setting of ours or
+of another extension, a file, a fenced block, a file's *mode* — is recorded
+in the one manifest with what was there before, by the core or through
+`manifest.writeSetting`; no satellite keeps a second manifest. Source edits
+(a generator, a fix-all, an agent's rename) are not configuration: the
+editor's undo and git are their undo, and the manifest is never stretched to
+cover them.
+
+**Red line 2 — the registry token is written only by the core, in fenced
+blocks, and handed to no one.** Not to a satellite (`token()` leaves the
+contract, §5.2), not to a log, not to a report. A new place a build tool
+reads credentials from is a `writeCredential` target added to the core.
+
+**The memory rule.** An OOM-killed pod reads as "VS Code cannot do Java" (§2
+point 7), and it is the likeliest way to lose a team in its first week.
+Everything long-lived — a language server, a dev mode, an application
+server, a bridge's JVM where the core starts it — starts through the core's
+managed process ([RFC 0003](/rfc/0003-server-run-step-kinds)): a declared
+cap, a readiness probe, a clean stop, its peak RSS recorded into `Report a
+problem`. Before starting one the resource diagnostic sums the declared caps
+against the container limit and offers to skip what does not fit, instead of
+starting and hoping. The pack's default set is JDT.LS plus one framework
+server; everything else is opt-in per workspace. The budget is the pod's
+memory *request* (8 GiB for a Java workspace today), not its limit.
+
+**Defaults — crossed only with the reason written in the RFC that crosses
+them.**
+
+- *Bridge a maintained extension; do not rebuild it.*
+- *The extension downloads nothing at runtime.* What another extension
+  downloads (Metals, JetBrains' Kotlin) is that extension's trust, not ours.
+- *A bridge may write another extension's setting by default* only at
+  workspace scope, through the manifest, shown once in the panel with its
+  undo, and never over a value the user already set.
+- *Every feature traces to a row of Appendix A* (the `Closes` header row;
+  `task rfc:index:check` enforces it). A draft that closes nothing is
+  **Parked**. A **Product** RFC (the theme) serves BatleHub's identity: exempt
+  from tracing, bound by the red lines, never on the path of a traced row.
+- *No source or comment text is sent to a third party* by anything the
+  extension configures.
+
+**Who pulls a trigger.** Each team keeps a committed diary
+([`docs/diary/`](/diary/)): what was tried, what was missing, which Appendix A
+row it maps to. A missing row is added; three dated entries un-park a draft.
+The end goals the series is measured by: a newcomer goes from clone to a green
+test with no manual JDK step, and a named developer works a week without
+opening IDEA.
+
+**Distribution.** The pack cannot pin versions; the core checks the minimum
+`redhat.java` (hard error below it) and warns — never blocks — above the
+newest version the nightly matrix has passed. Each release publishes the
+sha256 of every VSIX. Reproducible packaging waits for BatleHub verdicts on
+the VSX registry.
+
 ---
 
 ## 8. Alternatives considered
@@ -748,6 +932,7 @@ jdt/                    phase 6: batlehub-jdt-*.jar, referenced by contributes.j
 | Five extensions from day one (`java-maven`, `java-gradle` as satellites, `packages/java-api`, a contract test layer) — revision 1's plan | The stated benefits are a smaller install (~30 KB of JavaScript) and crash isolation (Gradle and Maven run as child processes either way); the real one is an independent release cadence, which neither has needed yet. The cost is paid immediately: a workspace package with one consumer, a contract test layer with nothing to compare, three `package.json` to keep in step. The seam that makes the split cheap (`BuildToolProvider`, §5.2) ships in v1; the split happens in phase 9, when one of them has a reason. |
 | One monolithic `batlehub.java` including Groovy | A Groovy server that fails to start would be shipped to every Java user, and the language satellite is exactly the case the contract exists for. `java-groovy` stays separate. |
 | Hard `extensionDependencies` on the debugger and the test runner | Makes the pack uninstallable in an editor whose gallery lacks either id — che-code with a partial mirror, an air-gapped gallery — to save two `getExtension` calls and one degraded feature each. |
+| Hard `extensionDependencies` on `redhat.java` (revision 3's choice) | A failed `redhat.java` activation — no JDK, the newcomer's case — makes the editor refuse to activate its dependents, so the core is dead exactly when it is needed. Soft, with §4.3's hard error (decision 41). Kept as the middle path if the distribution guarantee ever matters more than the newcomer: the core then cannot help before a JDK exists. |
 | A Rust helper in v1 | Directory probing, `mise ls`, XML rewriting and a cgroup read are a few hundred lines of TypeScript that the existing vitest setup tests directly. The binary brings a cross-compilation matrix, per-platform VSIX, ARM runners, signing and fuzzing before a single feature ships. Deferred to `headless-engine-mcp`, which is the use case that justifies it (§11 decision 3). |
 | Download JDKs from Adoptium in v1 | Decision 10 already prefers a manager when one exists, and in every image this repository targets `mise` is there. The remaining case — no manager at all — is a link to the guide, against a downloader with checksums, archive validation, mirror settings and an air-gapped guide to maintain. Own RFC. |
 | Ship generator options in v0.2 through our own OSGi bundle | Options are worth having, but they drag Java, Tycho, a p2 target platform, spotless and a JUnit layer into phase 1 for a getter prefix. v0.2 groups Red Hat's own generators in the menu; phase 6 adds the options with the inspections that make the Java build chain worth its weight (§11 decision 6). |
@@ -799,7 +984,7 @@ layer 6 is the same layer 4 against a matrix, nightly.
 | Layer | Tool | Guards against | Where | From |
 | --- | --- | --- | --- | --- |
 | 1 · Unit, TypeScript | vitest + `test/vscode-mock.ts` (as the other extensions) | logic regressions: JDK resolution table, `mise`/`sdkman` output parsing, cgroup reading and the warning threshold, `launch.json` round-trip with unknown keys preserved, `settings.xml` set·set·unset leaving the fixture byte-identical, overlay content filtering, the `written.json` manifest replay, diagnostic overrides, override/detect precedence, server-mode gating, contract-major refusal, redaction | `extensions/java-*/test/*.test.ts` | phase 1 |
-| 1b · Unit, Java | JUnit 5 under Tycho surefire, JDT.LS's `AbstractProjectsManagerBasedTest` harness; golden file per generator × option set; positive / negative / fix triplet per inspection | generator and inspection regressions, JDT API drift | `jdt/batlehub-jdt-core.tests/` | phase 6 |
+| 1b · Unit, Java | JUnit 5 under plain Maven surefire over `ASTParser`-built units (no Tycho, no `AbstractProjectsManagerBasedTest`: §6.2); a rule that needs types is proven by `task jdt:smoke` against the real server instead; golden file per generator × option set; positive / negative / fix triplet per inspection | generator and inspection regressions, JDT API drift | `jdt/batlehub-jdt-core.tests/` | phase 6 |
 | 2 · Extension host | `@vscode/test-cli` + `@vscode/test-electron`: real extension host, no browser | activation, commands, settings and `launch.json` writes, coexistence, removal (a workspace with every write ends identical to its pristine copy), the `.gitignore`-before-overlay rule, panel tab registry, status-bar toggles, degradation with the debugger absent | `extensions/java-*/test-host/` | phase 1 |
 | 3 · Panel | `@vscode/test-cli` (the panel is plain DOM in the webview; no component framework to mount) | tab logic, forms, override/detected origin display, keyboard navigation and ARIA roles | `extensions/java-core/test-host/panel.*.ts` | phase 3 |
 | 4 · Heavy (real editor) | the existing suite (`tests/heavy/view.sh` + `view.mjs`) gains a `java` half, `HEAVY_ONLY=java`: the same VS Code web build in the browser sidecar, **no BatleHub and no Postgres** — the Java extensions need neither before the registry link, whose one scenario joins the marketplace half in phase 5 (decision 39). Adds: golden screenshots of the panel on light / dark / high-contrast (`pixelmatch`), accessibility-tree walk, the performance numbers (printed from phase 2, gated from phase 3), JDT.LS-dependent scenarios (rename across modules, Generate, run, LSP profiles) | what only a real editor shows: rendering, a11y, timing, JDT.LS integration | `tests/heavy/view.mjs`, the `java` scenarios | phase 0 |
@@ -835,20 +1020,20 @@ silent retry.
 
 | # | Question | Decision |
 | --- | --- | --- |
-| 1 | Depend on `redhat.java` or bundle JDT.LS? | **Depend.** Bundling only if it proves insufficient; the core API is the seam that makes the switch a core-only change. |
+| 1 | Depend on `redhat.java` or bundle JDT.LS? | **Depend.** Bundling only if it proves insufficient; the core API is the seam that makes the switch a core-only change. Revision 7: replacing the server altogether (a Rust one was examined) is reopened only by a **red flag**, any one of: (1) on a team's largest real project, the editor, a tuned JDT.LS, one framework server and a running build together peak above 6 GiB — three quarters of the 8 GiB memory *request* a Java workspace is scheduled with; the 16 GiB limit is burst, not budget; (2) `redhat.java` removes the internal commands or the `javaExtensions` loading the bundle rests on, with no replacement; (3) the project goes unmaintained or its licence changes; (4) the server prevents a feature the register ranks P2 or higher from being built at all. The measurement of (1) is free once every process starts through the managed process (§7.1). A small syntactic Rust tier for the time before indexing is its own parked RFC (§14) and lives only as long as this decision stands. |
 | 2 | Which build tool first? | **Maven, then Gradle**, both inside the core (decision 31). |
 | 3 | Rust helper or the extension host? | **The extension host, in v1.** Everything v1 needs is filesystem probing, a child process, XML editing and a cgroup read. A native engine is the `headless-engine-mcp` RFC's subject, triggered by the bundle's delegates existing (phase 6), and it brings its own platform matrix when it lands. |
 | 4 | Is the BatleHub registry link part of v1? | **Yes, opt-in.** `registry.enabled` = `ask` / `true` / `false`; `false` removes every trace. |
 | 5 | Is the feature list frozen? | **No.** §12's register is the living list; a phase's scope is renegotiated at its start, not at the RFC's. |
-| 6 | Reuse `redhat.java`'s generator commands? | **Yes in v0.2, no from phase 6.** Red Hat's `java.action.generate*Prompt` commands take no options and cannot be driven headless, but they work, and the v0.2 win is the grouped menu. Our own delegates — with options, and drivable by a headless engine — land in phase 6 together with the inspections, because both need the same Tycho/OSGi chain and only the pair justifies it. The menu falls back to Red Hat's command whenever a delegate is missing. |
+| 6 | Reuse `redhat.java`'s generator commands? | **Yes in v0.2, no from phase 6.** Red Hat's `java.action.generate*Prompt` commands take no options and cannot be driven headless, but they work, and the v0.2 win is the grouped menu. Our own delegates — with options, and drivable by a headless engine — land in phase 6 together with the inspections, because both need the same Maven/OSGi chain (Tycho in revision 3, bnd since revision 4) and only the pair justifies it. The menu falls back to Red Hat's command whenever a delegate is missing. |
 | 7 | Groovy server | **Prominic `groovy-language-server`**; if it proves unusable, `java-groovy` is not shipped and the gap returns to Appendix A. No second implementation. |
-| 8 | Minimum `redhat.java` version | **The oldest release that has every API spike (b) needs**, pinned in `package.json` and bumped only when a new API is needed, each bump its own Renovate PR read against the nightly first. "Latest at each release" (`main` is 1.57.0 as of 2026-09-09) would hard-fail every Che image one release behind, for nothing. |
+| 8 | Minimum `redhat.java` version | **The oldest release that has every API spike (b) needs, checked against Open VSX — `1.56.0`** (revision 4), pinned in `package.json` and bumped only when a new API is needed, each bump its own Renovate PR read against the nightly first. Open VSX — what che-code and a BatleHub mirror install from — carries `1.56.0`, `1.55.0` and dated pre-releases; `1.57.0` exists on `main` and the Microsoft marketplace only. "Latest at each release" would hard-fail every Che image one release behind, for nothing. Revision 8: there are now **two** pins beside each other in `server/mode.ts`, and they are different questions — `MIN_REDHAT_JAVA` is this row (below it, a hard error) and `TESTED_REDHAT_JAVA` is the newest the nightly matrix has passed (above it, a warning, never a refusal — §7.1 "Distribution"). They happen to hold the same value today; the second moves whenever the nightly passes a newer version, the first only when a new API is needed. |
 | 9 | Where do the RFCs of the extensions live? | **In `batlehub-vsx/docs/rfc/`**, own numbering starting here; the template and the `rfc:new` / `rfc:index` tasks are ported from BatleHub in phase 1. Kotlin, Scala and each framework satellite get their own RFC in this series. |
 | 10 | JDK install path | **Delegate to `mise` or `sdkman`, in that order; nothing else in v1.** The JDK stays owned by the user's manager. No manager and no JDK is a warning and a link, not a downloader (decision 21). |
 | 11 | What happens to gaps this RFC does not build? | **Each gets its own RFC in this series**; only A.14 is parked for a later review. |
 | 12 | Which "beyond IDEA" features are in scope? | **v1:** config-as-files instead of `.idea`, usable before indexing, supply-chain verdicts and git-forge dependencies in the dependency tree, the resource diagnostic. **Own RFCs:** headless engine (CLI + MCP), devfile-aware run configurations, JDK matrix runs, shared inspection profiles with rationale. |
 | 13 | Does the core write into the devfile? | **Never.** It reads the container's limits to warn (decision 30) and may, in a later RFC, read devfile commands as templates. |
-| 14 | Maven profiles and the language server's import | **A proving step in phase 0** (a `java` heavy scenario): JDT.LS has no `-P`, but m2e reads `activeProfiles=` from `.settings/org.eclipse.m2e.core.prefs`. Spike (a) tries that first; if the profile-only dependency appears in the classpath after re-import, that is the mechanism and no overlay exists. Otherwise the credential-bearing overlay of §4.2 is the fallback, gated by §4.2 and §7; both failing is the first concrete reason to leave `redhat.java` for a bundled server (decision 1's fallback). |
+| 14 | Maven profiles and the language server's import | **Answered: the m2e preference works** (revision 4). Spike (a), in the real editor (JDT.LS 1.61.0 of `redhat.java` 1.56.0): `activeProfiles=dev` in `core/.settings/org.eclipse.m2e.core.prefs` plus a re-import put the profile-only `commons-lang3` on `core`'s classpath. That is the mechanism; the credential-bearing overlay of §4.2 is an explicit command and on no default path; decision 1's bundled-server trigger is not fired. The heavy suite keeps the scenario (`SPIKE-A-OK`) so a JDT.LS that stops reading the file is seen. |
 | 15 | Where does configuration live in the UI? | **A `Java` panel with tabs** (JDK, Build, Run, Profiles, Inspections), not the status bar. The core's own item summarises state and opens the panel; satellites may add items through the core, each one switchable off by the developer. |
 | 16 | How are settings populated? | **Auto-detected by default, overridable, re-detectable** — environment keys are absent unless the user sets them; `Java: Detect environment` and a per-tab `Detect` button re-run detection; overrides always win and can be cleared from the panel. |
 | 17 | v1 additions | **All in, spread over phases 2–4:** IntelliJ *run configurations* import (phase 4, flagged, decision 33), coexistence rule with the stock extensions (phase 3), performance numbers measured in phase 2 and gated in phase 3 (decision 34), CI matrix stock VS Code × che-code × two `redhat.java` versions (phase 3), `Report a problem` (phase 3), `en` only until a second language is asked for, feature flags, `virtualWorkspaces: false` and no web build. |
@@ -860,21 +1045,22 @@ silent retry.
 | 23 | Platforms | **One universal VSIX; Linux is what CI tests**, macOS and Windows best-effort with the gaps of §9 named. The platform matrix comes back with a native binary, i.e. with the headless-engine RFC. |
 | 24 | Clean removal | **`Java: Remove BatleHub settings`, driven by a manifest** (`.batlehub/java/written.json`) that records the previous value of every foreign key and file the family touched; the command restores rather than deletes, lists what it will do, and never removes a JDK. |
 | 25 | Fixtures | **Maven and Gradle fixtures from phase 1**, Groovy from phase 8. |
-| 26 | JDT.LS drift | **`redhat.java` pre-release in the nightly matrix; explicit `Import-Package` version ranges** in the bundle manifest (phase 6). |
+| 26 | JDT.LS drift | **`redhat.java` pre-release in the nightly matrix; `Import-Package` version ranges** in the bundle manifest where the exporter versions its packages (`gson`, `core.runtime`); `jdt.core` and `jdt.ls.core` export unversioned, so for those the pin is the VSIX version the bundle was built against (§6.2, revision 4). |
 | 27 | Accessibility | **Full keyboard navigation and ARIA roles in the panel**, asserted in layer 3 and through the accessibility tree the heavy suite already reads. |
 | 28 | Test and CI layers | **The layers of §10, wired the phase they first assert something**, and the job set of §13; PR gate under 20 minutes, matrix nightly with auto-opened drift issues; Renovate for dependencies. |
 | 29 | Scope-aware CI | **No.** Every job runs on every PR while the gate fits in its budget; a dependency map and a Conventional-Commit cross-check are written when a measurement says the gate hurts, not before. |
 | 30 | The container's resources | **A first-class diagnostic.** The core reads the cgroup limit, compares it with JDT.LS's `-Xmx` plus the daemons this workspace runs, warns once per session below `resources.warnBelow`, and `docs/guide/java/resources.md` gives the devfile values. The extension never edits the devfile. |
 | 31 | Satellites or one core? | **One core for v1** (JDK, panel, run, explorer, Maven, Gradle), plus `java-groovy` and the pack. The `BuildToolProvider` seam ships in v1; the split into `java-maven` / `java-gradle` with `packages/java-api` is phase 9, when one of them needs its own release cadence. |
-| 32 | Hard or soft dependency on the debugger and the test runner? | **Soft.** `extensionDependencies` is only for `redhat.java`; a missing debugger or test runner degrades one feature each (§4.3) instead of making the pack uninstallable in a gallery that lacks the id. |
+| 32 | Hard or soft dependency on the debugger and the test runner? | **Soft.** `extensionDependencies` is empty — `redhat.java` went soft too in revision 4 (decision 41); a missing debugger or test runner degrades one feature each (§4.3) instead of making the pack uninstallable in a gallery that lacks the id. |
 | 33 | How much of `.idea/` is imported? | **Run configurations and nothing else** in phase 4 (flagged), because that is what people miss and the rest maps onto settings this RFC does not have. Code style, live templates, keymap and inspection profiles are `intellij-import-full`. |
 | 34 | Performance budget | **Measured from phase 2, gated from phase 3**, at thresholds set from what phase 2 measured on the CI runner. |
 | 35 | Settings prefix | **`batlehub.java.*`.** `java.*` belongs to `redhat.java`'s schema, and the Settings UI groups by contributing extension, so the prefix buys no grouping and risks a collision. |
 | 36 | `java.server.launchMode` | **Followed, never assumed.** The core tracks `redhat.java`'s server mode, puts it in the tooltip, gates rename / Generate / inspections behind a context key, and offers to switch the mode instead of failing a command. |
 | 37 | What is v0.1? | **The newcomer story only** (§2 points 1 and 7): JDK detect / resolve / install-by-manager, the resource diagnostic, mode gating, one status bar item, the removal manifest. The panel, the menus and everything that needs a design pass are v0.2 (phase 3). A first release that closes the two things a Che newcomer hits is worth more than one that ships most of the product late. |
-| 38 | Who reads the credential? | **`batlehub-vsx`, and only it.** It exports `token()` / `url()` in phase 5; `java-core` soft-depends on it the way it does on the debugger. Copying `contract.ts` would put two readers of a credential file in one repository to drift apart; a `packages/` extraction is the phase 9 question. |
+| 38 | Who reads the credential? | **`batlehub-vsx`, and only it.** It exports `token()` / `url()` in phase 5 — to the core, which forwards `url()` and never the token (revision 7, §5.2, §7.1); `java-core` soft-depends on it the way it does on the debugger. Copying `contract.ts` would put two readers of a credential file in one repository to drift apart; a `packages/` extraction is the phase 9 question. |
 | 39 | Does the Java heavy suite need a BatleHub? | **No.** The Java extensions call no registry before phase 5, so the `java` half of `tests/heavy` runs against the editor alone — no Postgres, no BatleHub build — which is also what makes it affordable as a PR gate. The registry-link scenario joins the marketplace half when it exists. |
-| 40 | Untrusted workspace | **Nothing runs.** Not the wrappers, not a `PATH` `mvn`: the build file is the code. Detection reads files; every executing command is disabled with the reason. |
+| 40 | Untrusted workspace | **Nothing the workspace controls runs.** Not the wrappers, not a `PATH` `mvn`: the build file is the code. Every executing command is disabled with the reason. Revision 8 draws the line where §7.1 put it: the home probes (`mise ls … --json`, `sdk version`, run from the home directory with no workspace argument) are a fact about the machine, like `~/.m2`, and answer before trust — the newcomer of §2 point 1 meets Restricted Mode first, and a panel that can name their JDK there is the whole point. |
+| 41 | Is `redhat.java` a hard dependency? | **No — soft, like the debugger** (revision 4). A dependent of a failed activation is never activated, and `redhat.java` fails exactly in the newcomer's workspace (no JDK). §4.1 has the argument; §8 the alternative kept. |
 
 ### Still open
 
@@ -896,7 +1082,7 @@ throughout (`task check`).
 | 3 | **`java-core` v0.2 — the surface:** Java panel (JDK · Build · Run) with keyboard navigation and ARIA, rename with keybinding and preview, the grouped Generate menu over Red Hat's generators, Run/Debug gutter, IDEA-style context menu, goals and tasks through the Task API, coexistence prompt, `Report a problem`, shared-file locks, `en` strings through `l10n`, the performance numbers become a gate, the nightly compatibility matrix. |
 | 4 | `java-core` v0.3: unified project explorer, run-configuration editor and templates, IntelliJ run-configuration import behind `experimental.intellijImport`. |
 | 5 | `java-core` v0.4 — Maven: named configurations, profiles (goals and the LS import, m2e preference or overlay per decision 14), lifecycle, dependency tree with conflicts, effective POM, registry link (opt-in; `batlehub-vsx` gains its `token()` / `url()` export here and the one registry scenario joins the marketplace heavy half), supply-chain verdicts on dependency nodes. |
-| 6 | `java-core` v0.5 — the JDT bundle: `jdt/batlehub-jdt-core` with the generator delegates (options of §4.1) and the first 10–15 inspections with fixes, the inspections view with fix-all, severity overrides, `.tasks/jdt.yaml`, layer 1b, the Tycho p2 cache in CI. |
+| 6 | `java-core` v0.5 — the JDT bundle: `jdt/batlehub-jdt-core` with the generator delegates (options of §4.1) and the first 10–15 inspections with fixes, the inspections view with fix-all, severity overrides, `.tasks/jdt.yaml`, layer 1b (no Tycho and no p2 cache: §6.2). |
 | 7 | `java-core` v0.6 — Gradle: tasks, dependency insight, `init.gradle` registry link. |
 | 8 | `java-groovy` v0.1: server, Gradle DSL and Jenkinsfile modes; the contract's first external consumer, so layer 5 (contract tests) and `tests/contract/` land here. |
 | 9 | The split, if it has earned itself: `packages/java-api` (+ the `pnpm-workspace.yaml` entry), `java-maven` and `java-gradle` as satellites over the existing `BuildToolProvider`, then the framework / Kotlin / Scala satellites — each under its own RFC in this series. |
@@ -939,7 +1125,7 @@ does not need a bis for that.
 | Performance budget gated | 3 | P0 | build |
 | Config as files (`launch.json`, workspace `settings.json`, `mise.toml`), no `.idea` | 4 | P0 | build |
 | Maven: switch named configurations (settings.xml, toolchains, home, env) | 5 | P0 | build |
-| Maven: activate a set of profiles, applied to goals and to the LS import (overlay, gitignored, 0600) | 5 | P0 | build |
+| Maven: activate a set of profiles, applied to goals and to the LS import (m2e's own preference, decision 14; the overlay is an explicit fallback command, off every default path) | 5 | P0 | build |
 | Maven lifecycle, dependency tree + conflicts, effective POM | 5 | P0 | build |
 | Registry link (mirror + token), opt-in | 5 | P1 | build |
 | Supply-chain verdicts, signatures, provenance on dependency nodes | 5 | P1 | build (BatleHub RFC 0018/0020) |
@@ -962,7 +1148,7 @@ is nightly. Every job runs on every PR (decision 29).
 
 | Job | Gate | Content |
 | --- | --- | --- |
-| `lint` | PR | existing `task lint`, the non-localised-string check, the settings-schema check (`package.json` ↔ the docs' settings page; fails on a key missing from either), `task ext:licenses` → `THIRD-PARTY.md`; from phase 6 Java formatting (spotless) |
+| `lint` | PR | existing `task lint`, the non-localised-string check, the settings-schema check (`package.json` ↔ the docs' settings page; fails on a key missing from either), `task ext:licenses` → `THIRD-PARTY.md` (Java sources are hand-formatted: no spotless, a second formatter in a prettier tree) |
 | `unit` | PR | layer 1 (and 1b from phase 6); coverage kept as a build artifact (`task ext:coverage`) |
 | `host` | PR | layers 2 and 3 under `@vscode/test-cli`, stock VS Code, pinned `redhat.java` |
 | `contract` | PR, from phase 8 | layer 5 |
@@ -973,41 +1159,75 @@ is nightly. Every job runs on every PR (decision 29).
 | `nightly` | nightly | layer 6: full matrix (stock VS Code × che-code × `redhat.java` pinned / previous / pre-release), JDT.LS nightly; a failure opens or updates one issue per (dependency, version) so drift is visible before users see it |
 | `release` | tag | per-extension tag (existing `releasing.md`): package, sign, publish to Open VSX and to BatleHub, VS Code pre-release channel for builds carrying flagged features, `THIRD-PARTY.md` attached to the GitHub / Forgejo release |
 
-Dependencies are kept current by **Renovate** over pnpm (and Maven/Tycho from
+Dependencies are kept current by **Renovate** over pnpm (and Maven from
 phase 6) in one configuration, grouped weekly, with `redhat.java`
 minimum-version bumps as their own PR so the nightly's verdict on that
 version is read before merging.
 
-Caches: pnpm store; from phase 6 the Tycho p2 mirror keyed on the target
-platform file — without it the Java build doubles every PR.
+Caches: pnpm store, `~/.m2`, and the pinned `redhat.java` VSIX under
+`~/.cache/batlehub-heavy` (the jars the bundle compiles against come from
+it, §6.2) — no p2 mirror, there is no p2.
 
 ---
 
 ## 14. Related RFCs to create
 
 Each row is a future RFC of this series, numbered when it is opened (`task
-rfc:new`). "Depends on" is always this RFC unless stated; "Trigger" says what
+rfc:new`); thirteen were opened as drafts on 2026-09-18 (0002–0014) and four more
+the same day by revision 7 (0015–0018, two of them born parked), each
+carrying its use cases as acceptance scenarios in its §2.1. "Depends on" is always this RFC unless stated; "Trigger" says what
 has to exist before it is worth writing. The first table is what revision 2
 cut out of this RFC, with the trigger that brings each one back.
+
+### The order of work (revision 7)
+
+Set against the goal of §7.1, with two teams waiting: **Team A** (Spring
+Boot, Quarkus, the generate shortcuts, cspell) switches first; **Team B**
+(Kotlin, Scala) depends on a pre-alpha language server and on BatleHub
+accepting what Coursier sends, so only its measurement jumps the queue.
+
+1. ~~This RFC's revision 7 and what it owes in code~~ — **done** (revision 8,
+   §15.7); this RFC is Implemented and the series starts at 2.
+2. [0008](/rfc/0008-kotlin-satellite) **phase 0 only** — the gate measured; a
+   failed gate is cheaper known now than after Team A's track.
+3. [0007](/rfc/0007-intellij-import-full) — the switching aid itself.
+4. [0012](/rfc/0012-chain-completion) phase 1.
+5. [0003](/rfc/0003-server-run-step-kinds) — the orchestrator and the managed
+   process, without the server kinds ([0017](/rfc/0017-server-kinds), parked).
+6. [0010](/rfc/0010-spring-boot-satellite) and
+   [0011](/rfc/0011-quarkus-satellite) together.
+7. [0015](/rfc/0015-generate-shortcuts).
+8. [0013](/rfc/0013-spell-checking) — cspell, nothing else.
+9. [0016](/rfc/0016-inspections-growth).
+10. [0002](/rfc/0002-headless-engine-mcp) — the live editor as an MCP server
+    first, the command-line twin second.
+11. [0005](/rfc/0005-shared-inspection-profiles) and
+    [0006](/rfc/0006-shared-project-config).
+12. 0008's remaining phases, then [0009](/rfc/0009-scala-satellite).
+
+Outside the order: [0014](/rfc/0014-batlehub-theme) (Product, independent,
+built whenever). Parked: 0017, [0018](/rfc/0018-rust-syntactic-tier), and
+[0004](/rfc/0004-run-config-sources) keeps its place behind 0003 with no
+team asking yet.
 
 ### Deferred out of this RFC
 
 | Slug (proposed) | Settles | Trigger |
 | --- | --- | --- |
-| `headless-engine-mcp` | The native engine: every operation of the bundle (rename, generate, inspections, fix-all) as a CLI subcommand and an MCP tool — the crate, its platform matrix, per-platform VSIX, signing and fuzzing, the auth model, what never leaves the machine | phase 6 (delegates exist to wrap) |
-| `server-run-step-kinds` | Orchestrated runs *and* the servers that motivate them: ordered steps with readiness probes and reverse stop in `launch.json`, then Tomcat, Jetty, WildFly, Karaf / Equinox as managed-process kinds | phase 4 (run editor), and a real acceptance run to satisfy |
+| `headless-engine-mcp` — [RFC 0002](/rfc/0002-headless-engine-mcp) | The native engine: every operation of the bundle (rename, generate, inspections, fix-all) as a CLI subcommand and an MCP tool — the crate, its platform matrix, per-platform VSIX, signing and fuzzing, the auth model, what never leaves the machine | phase 6 (delegates exist to wrap) |
+| `server-run-step-kinds` — [RFC 0003](/rfc/0003-server-run-step-kinds) | Orchestrated runs — ordered steps with readiness probes and reverse stop in `launch.json` — and the managed process everything long-lived starts through (§7.1). Revision 7: the Tomcat, Jetty, WildFly and Karaf kinds are split into [RFC 0017](/rfc/0017-server-kinds), parked | phase 4 (run editor); Spring Boot and Quarkus need it first |
 | `jdk-direct-download` | Downloading a JDK without a manager: vendor choice, checksums, archive validation, mirror settings, the air-gapped guide | a user with no `mise` and no `sdkman` asking for it |
 | `java-satellites-split` | Splitting Maven and Gradle out of the core: `packages/java-api`, the release cadence, the contract tests that guard it — if phase 9 needs more than a paragraph | one of the two needing its own release |
-| `intellij-import-full` | Beyond phase 4's run configurations: code style, live templates, file templates, keymap customisations, inspection profiles | phase 4 import proven, phase 6 for the profiles |
+| `intellij-import-full` — [RFC 0007](/rfc/0007-intellij-import-full) | Beyond phase 4's run configurations: code style, live templates, file templates, keymap customisations, inspection profiles | phase 4 import proven, phase 6 for the profiles |
 
 ### Satellites — languages and frameworks
 
 | Slug (proposed) | Settles | Trigger |
 | --- | --- | --- |
-| `kotlin-satellite` | A Kotlin language server (JetBrains' official LSP vs `fwcd`), Gradle Kotlin DSL, mixed Java + Kotlin modules on the core's project model | core v0.3 (explorer) |
-| `scala-satellite` | Metals integration with the core's JDK, explorer and run configs | core v0.3 |
-| `spring-boot-satellite` | Detection, properties completion, bean navigation, dashboard; relationship with `vmware.vscode-spring-boot` | core v0.4, `server-run-step-kinds` |
-| `quarkus-satellite` | Dev mode as a managed process, properties, extensions; relationship with `redhat.vscode-quarkus` | same |
+| `kotlin-satellite` — [RFC 0008](/rfc/0008-kotlin-satellite) | A Kotlin language server (JetBrains' official LSP vs `fwcd`), Gradle Kotlin DSL, mixed Java + Kotlin modules on the core's project model | core v0.3 (explorer) |
+| `scala-satellite` — [RFC 0009](/rfc/0009-scala-satellite) | Metals integration with the core's JDK, explorer and run configs | core v0.3 |
+| `spring-boot-satellite` — [RFC 0010](/rfc/0010-spring-boot-satellite) | Detection, properties completion, bean navigation, dashboard; relationship with `vmware.vscode-spring-boot` | core v0.4, `server-run-step-kinds` |
+| `quarkus-satellite` — [RFC 0011](/rfc/0011-quarkus-satellite) | Dev mode as a managed process, properties, extensions; relationship with `redhat.vscode-quarkus` | same |
 | `jakarta-microprofile-satellite` | Jakarta EE / MicroProfile support; relationship with `redhat.vscode-microprofile` | same |
 | `jpa-hibernate-satellite` | Entity navigation, JPQL completion, an ER view — how much of an Ultimate feature is worth building | inspections bundle (phase 6) |
 | `test-frameworks-awareness` | AssertJ / Mockito / Spock-aware completion, inspections and templates beyond running tests | phase 6, `java-groovy` |
@@ -1016,7 +1236,7 @@ cut out of this RFC, with the trigger that brings each one back.
 
 | Slug (proposed) | Settles | Trigger |
 | --- | --- | --- |
-| `run-config-sources` | Reading devfile commands (never writing), `Taskfile`, Makefile targets as run-configuration templates | phase 4 |
+| `run-config-sources` — [RFC 0004](/rfc/0004-run-config-sources) | Reading devfile commands (never writing), `Taskfile`, Makefile targets as run-configuration templates | phase 4 |
 | `jdk-matrix-runs` | One configuration, several JDKs (17 / 21 / 25), results side by side | JDK manager + run editor |
 | `jfr-profiler` | Java Flight Recorder start / stop / open from a run, flame view or hand-off to an external viewer | run editor |
 | `stream-collection-debugger` | Stream trace and collection views in the debugger — feasibility on `vscode-java-debug` | phase 4 |
@@ -1026,18 +1246,183 @@ cut out of this RFC, with the trigger that brings each one back.
 
 | Slug (proposed) | Settles | Trigger |
 | --- | --- | --- |
-| `shared-inspection-profiles` | Team profiles as committed files, every disabled rule carrying its rationale, precedence with user overrides | phase 6 |
-| `shared-project-config` | Everything under `.batlehub/java/` : schema, precedence with `settings.json`, what is committed and what is not (the overlay never is) | phase 4 |
-| `chain-completion` | Chained-call completion in the bundle, cost and ranking | phase 6 |
+| `shared-inspection-profiles` — [RFC 0005](/rfc/0005-shared-inspection-profiles) | Team profiles as committed files, every disabled rule carrying its rationale, precedence with user overrides | phase 6 |
+| `shared-project-config` — [RFC 0006](/rfc/0006-shared-project-config) | Everything under `.batlehub/java/` : schema, precedence with `settings.json`, what is committed and what is not (the overlay never is) | phase 4 |
+| `chain-completion` — [RFC 0012](/rfc/0012-chain-completion) | Chained-call completion in the bundle, cost and ranking | phase 6 |
 | `navigation-plus` | Structure view, Search everywhere, Find usages grouped by kind, bytecode viewer | after v0.4 |
-| `spell-checking` | Identifiers and comments spell-check inside the inspections flow, or a bridge to an existing extension | phase 6 |
+| `spell-checking` — [RFC 0013](/rfc/0013-spell-checking) | Identifiers and comments spell-check inside the inspections flow, or a bridge to an existing extension | phase 6 |
+| `generate-shortcuts` — [RFC 0015](/rfc/0015-generate-shortcuts) | What A.8 still owes after phase 6: the Builder pattern, `with` methods, surround-with — each a bundle delegate, the list taken from Team A's diary | Team A's list |
+| `inspections-growth` — [RFC 0016](/rfc/0016-inspections-growth) | SonarLint bridged for breadth, the bundle grown only where a diary names a missing rule or a fix; type-aware rules and the admission policy | phase 6, the teams' lists |
+| `rust-syntactic-tier` — [RFC 0018](/rfc/0018-rust-syntactic-tier) | A small Rust language server for the time before indexing, beside the Red Hat server and never instead of it | **Parked**: decision 1's memory measurement, or three diary entries |
 
 ### Product
 
 | Slug (proposed) | Settles | Trigger |
 | --- | --- | --- |
-| `batlehub-theme` | A BatleHub colour theme extension (dark, light, high-contrast), derived from BatleHub's `DESIGN.md` (that repository, not this one), recommended by the pack | any time; independent |
+| `batlehub-theme` — [RFC 0014](/rfc/0014-batlehub-theme) | A BatleHub colour theme extension (dark, light, high-contrast), derived from BatleHub's `DESIGN.md` (that repository, not this one); on the gallery, neither installed nor recommended by the pack (revision 7) | any time; independent |
 | `parked-ultimate-review` | Revisit A.14: database tools, HTTP client, remote deployment — build, bridge, or keep parked | after v1 |
+
+---
+
+## 15. Implementation notes (revisions 4–8)
+
+Written from the implementation of phases 0–8 (2026-09-17/18). It was kept as
+a running log (`todo.md`) while there was something owed; with revision 8
+there is not, so this section is the whole of it — what a reader of the RFC
+needs, and the only place it is now written.
+
+### 15.1 What the real editor found that nothing else could
+
+Every item below was invisible to the unit layer and found by the `java`
+heavy half (§10 layer 4), which is the argument for that layer being the
+gate rather than a nightly:
+
+- **The hard dependency on `redhat.java`** (§4.1, decision 41).
+- **The language server's own JDK** (§4.2): half of §2 point 1 was missing.
+- **A UMD bundle in the extension host.** `jsonc-parser`'s `main` is a
+  UMD whose wrapper finds the host's AMD `define` and throws at load;
+  esbuild's node platform prefers `main`. `mainFields: ["module", "main"]`.
+- **A command registered twice fails the activation after most of it ran**:
+  the status bar and commands registered before the throw keep working, so
+  the symptom is "the panel never loads" and "the satellite never registers".
+  Layer 2 asserts activation and would have seen it.
+- **A webview bundle's path depends on esbuild's `outbase`**: cutting the
+  second webview entry moved the first one's output and the VSIX shipped a
+  stale placeholder in its place.
+- **The registry link needed a real hub** (the `registry` heavy half,
+  revision 5): revision 3's `<server>` password would have gone out as HTTP
+  Basic, which BatleHub refuses (§4.2's Bearer header), and the derived
+  mirror URL lacked `/maven2` — twenty 404s before a dependency resolved
+  through the hub.
+- **The build tool needed the JDK's treatment** (revision 5): the first
+  `maven compile` task ran `mvn` from `PATH` and got `mise`'s "No version
+  is set for shim"; detection now resolves the manager's Maven and Gradle
+  the way it resolves its JDKs (§4.2).
+- **`serverRunning()` answers a promise, and it settles late** (revision 8).
+  Two findings in one line, both invisible to the unit layer. Read as a
+  boolean it is *always* true, which silently killed one branch of the rule
+  above: the core would have written `java.jdt.ls.java.home` only on a
+  rejected activation, never on an activation that resolved no JDK. Nothing
+  failed — both heavy steps passed — and what showed it was the log line
+  printing `running [object Promise]`. Awaiting it then moved activation from
+  1.8 s to 9.3 s, because the promise settles when the *server* does: the
+  `PERF-GATE` of §4.2 failed the run, which is the first time that gate has
+  earned its keep. So the fact is asked last, and only when it decides
+  (§15.7 item 1) — an ordering that is now inside the tested function rather
+  than in the caller's head.
+
+### 15.2 Measured (this repository's Che workspace, VS Code 1.136.1 web)
+
+Activation about 1.1 s; the first detection tens of milliseconds once the
+manager's answer is warm (400 ms cold); the status bar item 1–3 s after
+the page loads; Standard mode about 2.1 s after the reload with an imported
+workspace. The gate of §4.2 (`PERF-GATE` in `tests/heavy/view.sh`) is five
+times those; `HEAVY_PERF_FACTOR` widens it on a slower runner.
+
+### 15.3 The suite inside the container's budget
+
+§2 point 7 was measured on the suite that tests it: in a 16 GiB tools
+container that also runs the workspace's own editor and its language
+servers, three runs were killed for memory — the editor under test, a 2 GiB
+JDT.LS and a Groovy JVM with the JDK's default quarter-of-RAM heap. The
+suite starts JDT.LS at `-Xmx1G` and every other JVM the editor spawns at
+6 % of the container through `JAVA_TOOL_OPTIONS`; the Groovy satellite
+starts its server at `-Xmx512m` itself (revision 5).
+
+### 15.4 Smaller than revision 3 said, with the trigger to grow
+
+- The run-configuration form is the editor's multi-step quick input, not
+  a webview (`media/run-editor/` does not exist): native, themed and
+  accessible for free. A webview returns the day a field needs layout the
+  quick input cannot give.
+- Run/Debug gutter lenses are the debugger's and the test runner's own.
+- The panel's screenshots in the three themes are kept as artifacts; no
+  `pixelmatch` gate — a renderer-dependent gate nobody stood behind.
+- Everything else the RFC names has been through a real client (revision
+  5): the registry link against a BatleHub release with the Postgres
+  sidecar (`task heavy:view:registry`, a real Maven resolving a profile-only
+  dependency through the hub), the Groovy hover through the driver, and a
+  `batlehub-java` task run to `BUILD SUCCESS` in the terminal; layer 2 and
+  the `java` heavy half green on a GitHub runner (revision 6). What is not:
+  the nightly matrix, which waits for its schedule.
+
+### 15.5 What the runner found (revision 6)
+
+The first CI runs of the branch failed five times before going green,
+each on something this workspace could not show:
+
+- **A local exclude rule had hidden a third of the work.** A `core`
+  core-dump pattern in `.git/info/exclude` matched every directory of that
+  name: the bundle's sources (`…/batlehub/jdt/core/`) and both fixtures'
+  `core` module were in the tree, in every heavy run, and in no commit.
+- **A test flake that needs contention.** che-clipboard's shims test wrote
+  stdin to children that never read it; two more vitest processes on the
+  runner made the child exit first and the `EPIPE` unhandled.
+- **The heavy job had no `task`** for `view.sh`'s `jdt:*` and `groovy:fetch`.
+- **The audit gate**: serialize-javascript under mocha, pinned below its
+  advisory by the mocha 11 line; a workspace override.
+- **A runner is not a newcomer's workspace.** ubuntu-latest ships Temurin
+  under `/usr/lib/jvm`, one of the two directories `redhat.java`'s own JDK
+  discovery scans. The first session started a JDT.LS on it before the
+  core's `java.jdt.ls.java.home` write; the reload started a second server
+  on the same `jdt_ws`; the bundle ping then sat in `serverReady()` for
+  ten minutes, because `ServiceReady` never came — and the "Standard" the
+  status bar showed was only the launch mode. The heavy job moves
+  `/usr/lib/jvm` away, the bridge logs each ping stage, and `view.sh`
+  prints the extension host, JDT.LS and client logs on any failure. §2
+  point 1's "no JDK but a manager" is a precondition the suite must
+  create, not assume.
+  **Revision 8 split the two halves of that sentence.** The race itself is
+  fixed in the product (§4.2): the core asks `redhat.java` whether *it* found
+  a JDK, so a `/usr/lib/jvm` it never scanned can no longer make it write
+  under a starting server. The `/usr/lib/jvm` move stays, because it is what
+  *creates* the newcomer, not what avoids the race — and the opposite
+  precondition now has its own step, `DESKTOP`: a second, short session
+  (four phases, `--stop-after reload`) where `JAVA_HOME` hands `redhat.java`
+  a JDK of its own and the suite asserts that the core wrote nothing and
+  reloaded nothing.
+
+### 15.6 Phase 9
+
+Not earned: no satellite has needed its own release cadence (decision 31),
+and the one consumer of the contract (`java-groovy`) is held to it by
+`tests/contract`. The split waits for its trigger.
+
+### 15.7 What revision 7 owed in code, and where it landed (revision 8)
+
+Revision 7 changed six rules on paper and left them owed. They are written,
+and with them the RFC has nothing outstanding:
+
+1. **The server's JDK is read off `redhat.java`** (§4.2, §15.5). `serverNeedsJdk`
+   is a pure function of three facts — activation failed, it resolved a
+   `javaRequirement`, it is running — in that order, the last one a thunk it
+   calls only when the first two have not decided (§15.1). The unit table has
+   a row each, and asserts that the thunk is *not* called otherwise; the
+   core's own scan no longer votes. `ServerTracker` exposes it, and the
+   JDK the server runs on reaches the panel and the tooltip. The heavy half
+   keeps both preconditions: `NEWCOMER-OK` (no JDK, the write happens) and
+   `DESKTOP-OK` (`JAVA_HOME` set, nothing is written and nothing reloaded).
+2. **A file's mode is a write** (red line 1). The manifest's `file` and
+   `block` entries carry the permission bits the file had before the core
+   touched them; `~/.m2/settings.xml` that was `0644` before the token block
+   went in is `0644` again after `Remove BatleHub settings`, and the removal
+   dialog says so in words.
+3. **The workspace `settings.json` is a shared file too.** Every foreign and
+   coexistence setting write goes through the same `withLock` as
+   `~/.m2/settings.xml`, and so does m2e's `org.eclipse.m2e.core.prefs` — two
+   windows on one workspace were the one case `src/lock.ts` did not cover.
+4. **`registry.token()` is deprecated in 1.0** and documented as gone in 1.1
+   (§5.2, red line 2), in `api-types.ts` and the generated `api.d.ts`.
+   `java-groovy` never called it; the two callers are inside the core, which
+   is what makes the removal a minor bump rather than a coordinated release.
+5. **"Tested up to"** (§7.1 Distribution): above the newest `redhat.java` the
+   nightly matrix has passed, the status bar turns ⚠ with both versions
+   named. It never blocks — only the minimum of decision 8 does.
+6. **The home probes answer before trust** (§7.1's gate, decision 40): `mise
+   ls … --json`, `mise --version` and `sdk version` run from the home
+   directory through one `homeIo()`, so Restricted Mode can still name the
+   developer's JDKs, and no workspace `mise.toml` is ever the configuration
+   the probe reads. Everything the workspace controls stays behind `trusted`.
 
 ---
 
@@ -1058,11 +1443,11 @@ they are found.
 | --- | --- | --- |
 | Detect installed JDKs (mise, sdkman, jabba, asdf, distro paths) | `java.configuration.runtimes` by hand; `JAVA_HOME` only | phase 2 (extension host) |
 | Install a JDK from the editor by delegating to mise / sdkman | none | phase 2, P1 |
-| Install a JDK with no manager present (direct download, checksums, mirrors) | none | own RFC (`jdk-direct-download`) |
+| Install a JDK with no manager present (direct download, checksums, mirrors) | none | own RFC (unopened) (`jdk-direct-download`) |
 | Pick the JDK the project asks for (`release`, toolchains, Gradle toolchain) | one default runtime for everything | phase 2, P1 |
 | Show which JDK the language server, the build and the run use, separately | Java output channel | phase 2 (status bar) |
 | Per-module language level | JDT reads it from the build; no UI | phase 4 explorer |
-| Attach JDK sources / javadoc automatically | works when the JDK ships `src.zip`; no fetch | exists for manager-installed JDKs; fetching them → own RFC (`jdk-direct-download`) |
+| Attach JDK sources / javadoc automatically | works when the JDK ships `src.zip`; no fetch | exists for manager-installed JDKs; fetching them → own RFC (unopened) (`jdk-direct-download`) |
 
 ### A.2 Project model
 
@@ -1104,12 +1489,12 @@ they are found.
 | Run with coverage | `vscode-java-test` supports JaCoCo since 2024 | phase 4 (run editor exposes it) |
 | Attach to a remote JVM with a saved config | `launch.json` `attach` | phase 4 (template) |
 | Evaluate expression / watches with completion | works | exists |
-| Stream / collection debugger views (IDEA's "Stream Trace") | none | own RFC (needs a JDT-side implementation) |
+| Stream / collection debugger views (IDEA's "Stream Trace") | none | own RFC (unopened) (needs a JDT-side implementation) |
 | Run dashboard for several services (Spring Boot dashboard) | `vmware.vscode-spring-boot` | framework RFC |
-| Acceptance runs with a server or OSGi runtime started, ready, then tests, then stopped | `compounds` start in parallel, no readiness, no stop order | own RFC (`server-run-step-kinds`: the engine and the server kinds together) |
-| Application server configurations (Tomcat, Jetty, WildFly, Karaf) | none (Ultimate) | own RFC (`server-run-step-kinds`) |
+| Acceptance runs with a server or OSGi runtime started, ready, then tests, then stopped | `compounds` start in parallel, no readiness, no stop order | own RFC — [RFC 0003](/rfc/0003-server-run-step-kinds) (`server-run-step-kinds`: the engine and the server kinds together) |
+| Application server configurations (Tomcat, Jetty, WildFly, Karaf) | none (Ultimate) | own RFC — the orchestrator in [RFC 0003](/rfc/0003-server-run-step-kinds), the four kinds in [RFC 0017](/rfc/0017-server-kinds), parked — (`server-run-step-kinds`) |
 | Import run configurations from `.idea/` | none | phase 4 (flagged); SDK, code style, templates, profiles → `intellij-import-full` |
-| Profiler (CPU, allocation) integrated | none | own RFC (JFR) |
+| Profiler (CPU, allocation) integrated | none | own RFC (unopened) (JFR) |
 
 ### A.5 Testing
 
@@ -1126,7 +1511,7 @@ they are found.
 | Gap | VS Code today | Handled |
 | --- | --- | --- |
 | Completion, imports on completion, postfix completion | JDT.LS, good | exists |
-| Chain completion (`foo.getBar().get…` suggested as one item) | none | own RFC (completion extensions in the bundle) |
+| Chain completion (`foo.getBar().get…` suggested as one item) | JDT.LS 1.61 ships `ChainCompletionProposalComputer` behind `java.completion.chain.enabled`, off by default (found writing RFC 0012; revision 6 of this row said "none") | [RFC 0012](/rfc/0012-chain-completion): turn it on through the manifest, gate its latency, extend it only if measured |
 | Parameter hints, inlay hints | exist | exists |
 | Type / call hierarchy | exist | phase 3 (Go to submenu) |
 | Structure view with members, sorted, filtered | outline, unsorted | P2 |
@@ -1134,11 +1519,11 @@ they are found.
 | Go to implementation, super method | exist | phase 3 (Go to submenu) |
 | Find usages with grouping by kind (read / write / import) | references, flat | P2 |
 | Decompiler for library classes | JDT.LS has a fernflower-based decompiler since 1.x, enabled | exists; core turns it on |
-| Bytecode viewer | none | own RFC |
+| Bytecode viewer | none | own RFC (unopened) |
 | Local history | Timeline view, per file | exists (Timeline) |
 | Sticky scroll, breadcrumbs, folding | exist | exists |
 | Javadoc rendering with links, external javadoc | hover renders it | exists |
-| Spell-checking in identifiers and comments | external extension | own RFC |
+| Spell-checking in identifiers and comments | external extension | own RFC — [RFC 0013](/rfc/0013-spell-checking) |
 
 ### A.7 Refactoring
 
@@ -1159,10 +1544,10 @@ they are found.
 | Gap | VS Code today | Handled |
 | --- | --- | --- |
 | Getters / setters with prefix, fluent, final handling, position | field picker only | phase 3 (Red Hat's, grouped in the menu, no options); phase 6 (options, bundle) |
-| Constructor with super choice, Builder pattern | constructor exists; builder does not | phase 3 (constructor, no options); phase 6 (options + builder) |
+| Constructor with super choice, Builder pattern | constructor exists; builder does not | phase 3 (constructor, no options); phase 6 landed the accessors delegate only — options + builder are [RFC 0015](/rfc/0015-generate-shortcuts) |
 | `equals` / `hashCode` / `toString` with style options | exist, options only in settings | phase 3 (as-is); phase 6 (options, bundle) |
 | Override / implement, delegate methods | exist | phase 3 (reused) |
-| Live templates (`psvm`, `sout`, `fori`, `iter`, surround-with) | snippets, no surround-with | phase 6 (snippets + surround-with) |
+| Live templates (`psvm`, `sout`, `fori`, `iter`, surround-with) | snippets, no surround-with | phase 6 did not build it — [RFC 0015](/rfc/0015-generate-shortcuts) |
 | Generate test class | none | phase 6 |
 | Implement missing abstract methods as a quick fix | exists | exists |
 | Create class / interface / enum / record from a file template with package resolved | `vscode-java-dependency` "New Java file"; templates fixed | phase 4 |
@@ -1184,9 +1569,9 @@ they are found.
 | Gap | VS Code today | Handled |
 | --- | --- | --- |
 | Groovy: completion, navigation, diagnostics, Gradle DSL, Jenkinsfile, Spock | colours only | phase 8 |
-| Kotlin: language server, Kotlin DSL for Gradle | `fwcd.kotlin`, unmaintained; JetBrains' official LSP in preview | own RFC |
-| Scala | Metals, good | own RFC (mostly integration with the core's JDK and explorer) |
-| Mixed Java + Kotlin modules | none | own RFC |
+| Kotlin: language server, Kotlin DSL for Gradle | `fwcd.kotlin`, unmaintained; JetBrains' official LSP in preview | own RFC — [RFC 0008](/rfc/0008-kotlin-satellite) |
+| Scala | Metals, good | own RFC — [RFC 0009](/rfc/0009-scala-satellite) (mostly integration with the core's JDK and explorer) |
+| Mixed Java + Kotlin modules | none | own RFC — [RFC 0008](/rfc/0008-kotlin-satellite) |
 
 ### A.11 Frameworks (each under its own RFC)
 
@@ -1197,7 +1582,7 @@ they are found.
 | Jakarta EE / MicroProfile | `redhat.vscode-microprofile` | framework RFC |
 | JPA / Hibernate: entity navigation, JPQL completion, ER view | none (Ultimate) | framework RFC, scope to decide |
 | Lombok | supported in `redhat.java` since 1.x | exists |
-| JUnit / AssertJ / Mockito awareness beyond running tests | none | own RFC |
+| JUnit / AssertJ / Mockito awareness beyond running tests | none | own RFC (unopened) |
 
 ### A.12 Ergonomics
 
@@ -1210,27 +1595,27 @@ they are found.
 | One place to configure everything, instead of settings keys and status bar items | scattered | phase 3 (Java panel with tabs) |
 | Environment settings detected instead of typed (JDKs, Maven settings files, wrappers, homes) | every key by hand | phase 2 (detect + override); phase 3 (origin shown in the panel) |
 | The workspace's own limits explained (container memory vs JDT.LS `-Xmx`, what gets `OOMKilled` first) | nothing; the pod dies | phase 2 (resource diagnostic + devfile guide) |
-| Project-wide settings shared in the repo (`.idea` equivalent) | `.vscode/settings.json`, partial | own RFC (shared project config) |
+| Project-wide settings shared in the repo (`.idea` equivalent) | `.vscode/settings.json`, partial | own RFC — [RFC 0006](/rfc/0006-shared-project-config) (shared project config) |
 
 ### A.13 Beyond parity (not in IDEA or Eclipse)
 
 | Feature | Handled |
 | --- | --- |
-| Headless engine: rename, generate, inspections, fix-all as CLI subcommands and MCP tools | own RFC (`headless-engine-mcp`), triggered by phase 6 |
+| Headless engine: rename, generate, inspections, fix-all as CLI subcommands and MCP tools | own RFC — [RFC 0002](/rfc/0002-headless-engine-mcp) (`headless-engine-mcp`), triggered by phase 6 |
 | Project config as committed files, no `.idea` | phase 4 |
 | Usable before indexing (the extension host answers JDK, structure and build files; JDT.LS when ready) | phase 2 |
 | The container's resource limits diagnosed against what the workspace runs | phase 2 |
 | Supply-chain verdicts, signatures, provenance in the dependency tree | phase 5 / 6 |
 | Git-forge dependencies with mutable-ref warning | phase 5 / 6 |
-| Devfile commands as run-configuration templates (read-only, never written) | own RFC |
-| Run tests on a JDK matrix from one configuration | own RFC |
-| Shared inspection profile where every disabled rule carries its rationale | own RFC |
+| Devfile commands as run-configuration templates (read-only, never written) | own RFC — [RFC 0004](/rfc/0004-run-config-sources) |
+| Run tests on a JDK matrix from one configuration | own RFC (unopened) |
+| Shared inspection profile where every disabled rule carries its rationale | own RFC — [RFC 0005](/rfc/0005-shared-inspection-profiles) |
 
 ### A.14 Parked — to be reviewed later (IDEA Ultimate territory)
 
 | Gap | Why parked |
 | --- | --- |
 | Database tools, HTTP client, Docker/Kubernetes panels | not Java tooling; good VS Code extensions exist |
-| Application servers as a *deployment target* (remote WildFly, cloud) | the local server step kinds have their own RFC; remote deployment stays parked |
+| Application servers as a *deployment target* (remote WildFly, cloud) | the local server step kinds are [RFC 0017](/rfc/0017-server-kinds), parked; remote deployment stays parked |
 | Collaborative editing, remote development | VS Code already owns these |
 

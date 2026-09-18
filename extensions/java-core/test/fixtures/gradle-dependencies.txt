@@ -1,0 +1,9 @@
+
+------------------------------------------------------------
+Project ':app'
+------------------------------------------------------------
+
+runtimeClasspath - Runtime classpath of source set 'main'.
+\--- project :core
+
+A web-based, searchable dependency report is available by adding the --scan option.
