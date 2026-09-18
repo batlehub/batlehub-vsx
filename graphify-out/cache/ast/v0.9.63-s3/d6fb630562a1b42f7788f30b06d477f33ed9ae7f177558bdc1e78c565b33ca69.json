@@ -1,0 +1,1 @@
+{"nodes": [{"id": "$graphify-root$_tests_heavy_fixtures_gradle_multi_core_build_gradle", "label": "build.gradle", "file_type": "code", "source_file": "tests/heavy/fixtures/gradle-multi/core/build.gradle", "source_location": "L1"}], "edges": [], "raw_calls": []}

@@ -2,7 +2,7 @@
 /**
  * The RFC bookkeeping: a new document, the two listings, and the state of play.
  *
- *   node build/rfc.mjs new --title "…" [--short …] [--settles …] [--bis NNNN]
+ *   node build/rfc.mjs new --title "…" [--short …] [--settles …] [--closes …] [--status Parked] [--bis NNNN]
  *   node build/rfc.mjs index [--check]
  *   node build/rfc.mjs status [--json]
  *
@@ -31,7 +31,7 @@ import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { RFC_SHELVES, readRfcs } from "./rfc-meta.mjs";
+import { RFC_SHELVES, closesProblems, readRfcs } from "./rfc-meta.mjs";
 
 const DOCS = fileURLToPath(new URL("..", import.meta.url));
 const RFC_DIR = join(DOCS, "rfc");
@@ -92,6 +92,7 @@ function summary(rfcs) {
     [by("Accepted"), "accepted"],
     [by("In review"), "in review"],
     [by("Draft"), (n) => (n === 1 ? "a draft" : "drafts")],
+    [by("Parked"), "parked"],
     [by("Rejected"), "rejected"],
     [by("Superseded"), "superseded"],
   ]
@@ -120,11 +121,11 @@ function indexBlock(rfcs) {
     if (!rows.length) continue;
     parts.push(
       "",
-      "| RFC | Status | What it settles |",
-      "| --- | --- | --- |",
+      "| RFC | Status | Closes | What it settles |",
+      "| --- | --- | --- | --- |",
       ...rows.map(
         (r) =>
-          `| [${r.id} — ${r.short}](/rfc/${r.slug}) | ${r.status.state} | ${r.settles} |`,
+          `| [${r.id} — ${r.short}](/rfc/${r.slug}) | ${r.status.state} | ${r.closes ?? "—"} | ${r.settles} |`,
       ),
     );
   }
@@ -210,6 +211,11 @@ function renderNav(rfcs) {
 
 function cmdIndex({ check }) {
   const rfcs = readRfcs(RFC_DIR);
+  const problems = closesProblems(rfcs, readFileSync(join(RFC_DIR, rfcs[0].file), "utf8"));
+  if (problems.length) {
+    console.error(problems.join("\n"));
+    process.exit(1);
+  }
   const targets = [
     ["docs/rfc/index.md", INDEX, renderIndex(rfcs)],
     ["docs/.vitepress/config.ts", NAV_EN, renderNav(rfcs)],
@@ -434,7 +440,9 @@ function cmdNew(opts) {
   // The instructions for copying the form are not part of the copy.
   doc = doc.replace(/^<!--[\s\S]*?-->\n+/, "");
   doc = doc.replace(/^# RFC NNNN — <Title>$/m, `# RFC ${id} — ${opts.title}`);
-  doc = setRow(doc, "Status", "Draft");
+  // Born Parked when the idea is kept and no trigger has fired (`--status Parked`).
+  doc = setRow(doc, "Status", opts.status || "Draft");
+  if (opts.closes) doc = setRow(doc, "Closes", opts.closes);
   doc = setRow(doc, "Short", opts.short || opts.title);
   doc = setRow(
     doc,

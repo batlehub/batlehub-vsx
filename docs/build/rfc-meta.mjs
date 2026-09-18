@@ -30,6 +30,7 @@ export const RFC_STATUSES = [
   /^Implemented\b/,
   /^Accepted\b/,
   /^Rejected\b/,
+  /^Parked\b/,
   /^Draft\b/,
 ];
 
@@ -59,6 +60,12 @@ export const RFC_SHELVES = [
     text: "Ready to build",
     what: "accepted and waiting to be built",
     test: /^Accepted/,
+  },
+  {
+    key: "parked",
+    text: "Parked",
+    what: "kept so the idea is not lost, waiting for the trigger each one names — not promises",
+    test: /^Parked/,
   },
   {
     key: "settled",
@@ -95,7 +102,7 @@ export function parseStatus(value, where = "an RFC") {
   if (!pattern) {
     throw new Error(
       `${where}: status "${value}" is not in the template's vocabulary ` +
-        `(Draft, In review, Accepted, Implemented, Rejected, Superseded by NNNN).`,
+        `(Draft, In review, Accepted, Implemented, Rejected, Parked, Superseded by NNNN).`,
     );
   }
   const [state] = value.match(pattern);
@@ -336,9 +343,43 @@ export function readRfcs(rfcDir) {
       short: require_("Short"),
       settles: require_("Settles"),
       status: parseStatus(require_("Status"), file),
+      // What the RFC is for: the Appendix A sections of RFC 0001 it closes
+      // ("A.4 — acceptance runs"), or "Product". Optional here, required of a
+      // proposal by `closesProblems` — a parked or settled document owes none.
+      closes: headerField(raw, "Closes"),
       openQuestions,
       deferrals: readDeferrals(raw),
     });
   }
   return rfcs.sort((a, b) => a.num - b.num || Number(a.bis) - Number(b.bis));
+}
+
+/**
+ * The traceability rule (RFC 0001 §7.1): a proposal says which gap it closes.
+ *
+ * A Draft or In review RFC names the Appendix A section(s) of RFC 0001 it
+ * serves — the switching friction it removes or the newcomer step it shortens —
+ * or declares itself `Product` (BatleHub's identity; exempt from tracing, never
+ * from the red lines). One that can do neither is `Parked`, not `Draft`. And the
+ * other direction: an Appendix A row handed to "own RFC" links the RFC, or says
+ * `(unopened)`, so a gap cannot sit behind a document that does not exist.
+ */
+export function closesProblems(rfcs, appendixRaw) {
+  const problems = [];
+  for (const r of rfcs) {
+    if (!/^(Draft|In review)/.test(r.status.state) || r.num === 1) continue;
+    if (!r.closes || !/^(A\.\d+|Product\b)/.test(r.closes)) {
+      problems.push(
+        `${r.file}: "| Closes | … |" must start with an Appendix A section of RFC 0001 ` +
+          `(A.4 — …) or "Product"; a draft that closes nothing is Parked.`,
+      );
+    }
+  }
+  const appendix = appendixRaw.split(/^## Appendix A\b/m)[1] ?? "";
+  for (const line of appendix.split(/\r?\n/)) {
+    if (!line.startsWith("|") || !/\bown RFC\b/.test(line)) continue;
+    if (/\/rfc\/\d{4}|\(unopened\)/.test(line)) continue;
+    problems.push(`0001 Appendix A: row handed to "own RFC" links none and is not "(unopened)": ${line.slice(0, 90)}…`);
+  }
+  return problems;
 }

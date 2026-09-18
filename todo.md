@@ -10,13 +10,34 @@
 
 ## Still owed (the honest list)
 
-- **layer 2** (`@vscode/test-cli`) runs only in CI's `host` job — no display here;
+- **layer 2** (`@vscode/test-cli`) runs only in CI's `host` job — no display
+  here; **green on a runner** (PR #7, 2026-09-18), as is the `java` heavy half;
 - the panel's **golden screenshots / pixelmatch** of §10: screenshots are
   taken in the three themes and kept as artifacts; no pixel comparison
   (a renderer-dependent gate nobody stood behind yet);
 - the **nightly matrix** and the **registry half in CI** are written, never
   run on a runner (this workspace cannot run GitHub Actions);
 - **phase 9** (the split) deliberately not done: no trigger.
+
+### Owed by revision 7 (2026-09-18, the series reviewed against its goal)
+
+Written in the RFC (§4.2, §5.2, §7.1), **not yet in the code**:
+
+- **the double-server race, fixed in the product**: write
+  `java.jdt.ls.java.home` only when `redhat.java` itself found no JDK
+  (activation failed, or not running with no `javaRequirement`); never reload
+  a running server. Then drop the heavy job's `/usr/lib/jvm` move and add a
+  heavy step that keeps the directory — a desktop has it;
+- **file modes in the manifest** (red line 1): `~/.m2/settings.xml` and
+  `init.d/batlehub.gradle` are set `0600`; record the previous mode and
+  restore it on removal;
+- **the m2e prefs and `java.jdt.ls.java.home` writes under the lock**
+  (`src/lock.ts` covers the shared files only; two windows on one workspace);
+- **`registry.token()` off the contract** (red line 2): deprecate in 1.0,
+  `java-groovy` does not use it; `writeCredential(target)` lands with 1.1;
+- **"tested up to" warning** above the newest `redhat.java` the nightly passed;
+- **detection before trust**: `mise ls --json` run from the home directory,
+  no workspace argument (§7.1's gate).
 
 Everything else the RFC names has been driven by a real client: the `java`
 half (run 19, 2026-09-18 06:57, sixteen steps green including a Maven task
@@ -346,7 +367,7 @@ Nothing to do; recorded here so the phase is not read as forgotten.
 
 ## Feedback — where implementing it corrected the design
 
-(Carried into RFC §15 — revision 4 for 1–19, revision 5 for 20–23.)
+(Carried into RFC §15 — revision 4 for 1–19, revision 5 for 20–23, revision 6 for 24–25.)
 
 1. **Decision 8 pins a version that is not on the gallery.** `1.57.0` exists
    on `main` and on the Microsoft marketplace; Open VSX — what che-code and a
@@ -507,3 +528,21 @@ Nothing to do; recorded here so the phase is not read as forgotten.
    shim on `PATH` *fails* rather than being absent — a `PATH` scan that
    trusts the shim gets an error, not a JDK. Detection reads
    `mise ls java --json` and never the shim.
+24. **The first CI run of PR #7 found four things this workspace could not**
+    (2026-09-18, all fixed on the branch): a local `core` core-dump rule in
+    `.git/info/exclude` had hidden the JDT bundle's sources
+    (`…/batlehub/jdt/core/`) and both fixtures' `core` module from every
+    commit; che-clipboard's shims test wrote stdin to children that never
+    read it, an unhandled `EPIPE` once two more vitest processes competed
+    for the runner; the heavy job had no `task` binary for `view.sh`;
+    and `pnpm audit --audit-level high` failed on serialize-javascript under
+    mocha (a workspace override, like vite and esbuild).
+25. **A GitHub runner is not a newcomer's workspace: `/usr/lib/jvm` exists.**
+    ubuntu-latest ships Temurin there, one of the two directories
+    `redhat.java`'s own JDK discovery scans. The first session started a
+    JDT.LS on it before the core's `java.jdt.ls.java.home` write, the reload
+    started a second server on the same `jdt_ws`, and the bundle ping sat in
+    `serverReady()` for ten minutes: `ServiceReady` never came, while the
+    status bar's "Standard" was only the launch mode. The heavy job moves
+    `/usr/lib/jvm` away; the bridge now logs each ping stage and `view.sh`
+    prints the extension host, JDT.LS and client logs on any failure.

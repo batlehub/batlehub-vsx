@@ -30,6 +30,11 @@ STATUS VOCABULARY
   Accepted         — agreed; implementation may start
   Implemented      — merged; link the PRs/commits in the header
   Rejected         — decided against; keep the file, it records why
+  Parked           — kept so the idea is not lost; not a promise. A draft that
+                     closes no Appendix A gap (see `Closes`) is Parked, and a
+                     parked RFC names the trigger that un-parks it: a request
+                     from a user, or three dated entries in a team diary
+                     (docs/diary/). Never "it would be nice".
   Superseded by NNNN
 -->
 
@@ -40,6 +45,7 @@ STATUS VOCABULARY
 | Status      | Draft                                                         |
 | Short       | <How this is listed: a few words, no number>                  |
 | Settles     | <One line: what this settles, for the /rfc/ table>            |
+| Closes      | <A.n — the gap of RFC 0001's Appendix A this closes: the switching friction it removes or the newcomer step it shortens. Or `Product`: BatleHub's identity, exempt from tracing, never on the path of a traced row> |
 | Author      | Name <email>                                                  |
 | Co-author   | —                                                             |
 | Created     | YYYY-MM-DD                                                    |
@@ -213,6 +219,28 @@ and why, rather than deleting the section.
 -->
 
 - **<Property>.** <Statement, and the reason it holds.>
+
+### Red lines
+
+<!--
+RFC 0001 §7.1. The two red lines and the memory rule are answered by every RFC,
+in a sentence each; "does not apply, because …" is an answer. The three defaults
+are crossed only with the reason written here.
+-->
+
+- **Every write is in the manifest.** <What this RFC writes outside the
+  extension's own storage — settings, files, file modes — and that each write
+  is recorded in the core's one manifest and undone by `Java: Remove BatleHub
+  settings`. Source edits are the editor's undo and git's, not the manifest's.>
+- **The token is the core's.** <Whether a registry credential is involved. A
+  satellite never holds it: it asks the core to write a credential target.>
+- **Memory.** <Every long-lived process this RFC starts, its declared cap, and
+  that it starts through the core's managed process (RFC 0003) — or "none".>
+- **Defaults crossed.** <Bridge rather than rebuild · nothing downloaded at
+  runtime · a foreign setting written by default only at workspace scope, in
+  the manifest, shown once with its undo, never over the user's value · no
+  source or comment text sent to a third party. Name the one crossed and why,
+  or "none".>
 
 ---
 
