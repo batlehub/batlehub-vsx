@@ -1,13 +1,12 @@
 # RFC 0001 — Java for VS Code: implementation, findings, state of play
 
-**Started** 2026-09-17 · branch `main` · RFC status at start: **Draft, revision 3
+**Started** 2026-09-17 · branch `feat-java` (from `main`) · RFC status at start: **Draft, revision 3
 — ready to implement from §12 phase 0**. **RFC status now: Accepted** (revision
 4, 2026-09-18, reviewed with the user). **State on 2026-09-18 02:43:** phases
 0–8 landed and the whole `java` heavy half is green in the real editor
 (`task heavy:view:java`, run 16: `JAVA-OK`, sixteen steps from `STATUS-OK` to
-`REMOVE-OK` and the performance gate); phase 9 deliberately not done. Nothing
-is committed — the commit message is at
-`/tmp/claude-1234/-projects-batlehub-vsx/1fb20f0f-eb9e-46a7-8b30-7dcbbeffdfb7/scratchpad/commit-message.txt`.
+`REMOVE-OK` and the performance gate); phase 9 deliberately not done. Committed on `feat-java` (`17c541a`,
+`5dce7a7`); the RFC is at revision 5 with the findings below carried into §15.
 
 ## Still owed (the honest list)
 
@@ -25,7 +24,10 @@ run to `BUILD SUCCESS` in the terminal, the Groovy hover and the status bar
 toggle) and the `registry` half (run 3, 06:35, against BatleHub release
 binaries and the Postgres sidecar).
 
---- | --- | --- |
+## Phases
+
+| Phase | Scope | State |
+| --- | --- | --- |
 | 0 | spikes (a) m2e profiles, (b) `redhat.java` API, (c) cgroup | ✅ all three answered — (a) positive in the real editor (run 10): the m2e preference works, no overlay |
 | 1 | skeleton: `java-core`, `java-pack`, layers 1–2, fixtures, `rfc:*`, CI | ✅ landed (layer 2 written, CI-only) |
 | 2 | `java-core` v0.1 — the newcomer story | ✅ landed; **proven in the real editor** (`STATUS-OK`, `DETECT-OK`, `NEWCOMER-OK`, `SERVER-OK`, `PICK-OK`, `REMOVE-OK`, `PERF-GATE`) |
@@ -247,49 +249,6 @@ a default Che `memoryLimit` and silent here.
       `batlehub` as the serving repository. Two findings on the way (feedback
       20, 21): Bearer not Basic, and the `/maven2` suffix
 
-## 7. v0.6 — Gradle
-
-- [x] provider (`src/build/gradle/provider.ts`): subprojects from
-      `settings.gradle`, toolchain requirement, `tasks --all` and
-      `dependencies` parsed (`tasks.ts`, with Gradle's `-> 2.0.9` conflict
-      arrows and `(*)` duplicates), `init.d/batlehub.gradle` registry link
-      (mirror + bearer header) as an owned file
-- [x] driven with a real Gradle (2026-09-18, allowed by the user):
-      `mise use gradle@8` → 8.14.5 in `mise.toml`; `gradle build` on
-      `gradle-multi` green (both jars, the JUnit test); its real
-      `tasks --all` and `:app:dependencies` (runtime and test classpaths)
-      captured under `test/fixtures/gradle-*.txt` and parsed by
-      `test/gradle-real.test.ts` (project references, `(c)` constraints,
-      `(*)` repeats, task groups) — 47 vitest tests
-
-## 3. v0.2 — the surface
-
-- [ ] Java panel (JDK · Build · Run), keyboard + ARIA, detection origin, Detect, Clear override
-- [ ] rename keybinding + preview threshold
-- [ ] grouped Generate menu over Red Hat's generators
-- [ ] Run/Debug CodeLens, degrading without the debugger
-- [ ] IDEA-style context menu
-- [ ] `batlehub-java` task provider
-- [ ] coexistence prompt
-- [ ] `Report a problem`
-- [ ] shared-file locks
-- [ ] `l10n`
-- [ ] performance gate, nightly matrix workflow
-
-## 4. v0.3
-
-- [ ] project explorer
-- [ ] run-configuration editor + templates
-- [ ] IntelliJ run-configuration import (flag)
-
-## 5. v0.4 — Maven
-
-- [ ] named configurations, active configuration → `java.configuration.maven.userSettings`
-- [ ] profiles: goals `-P`, LS import through m2e prefs (or the overlay, per spike a)
-- [ ] lifecycle, dependency tree with conflicts, effective POM
-- [ ] registry link: `settings.xml` fenced block, `batlehub-vsx` `token()` / `url()` export
-- [ ] verdicts on dependency nodes (`GET /api/v1/verdicts/{registry}/{name}/{version}`)
-
 ## 6. v0.5 — the JDT bundle (a fork's work, its notes merged here)
 
 - [x] `jdt/batlehub-jdt-core/`: Maven `packaging: bundle` (maven-bundle-plugin /
@@ -332,7 +291,18 @@ a default Che `memoryLimit` and silent here.
 
 ## 7. v0.6 — Gradle
 
-- [ ] tasks, dependency insight, `init.gradle` registry link
+- [x] provider (`src/build/gradle/provider.ts`): subprojects from
+      `settings.gradle`, toolchain requirement, `tasks --all` and
+      `dependencies` parsed (`tasks.ts`, with Gradle's `-> 2.0.9` conflict
+      arrows and `(*)` duplicates), `init.d/batlehub.gradle` registry link
+      (mirror + bearer header) as an owned file
+- [x] driven with a real Gradle (2026-09-18, allowed by the user):
+      `mise use gradle@8` → 8.14.5 in `mise.toml`; `gradle build` on
+      `gradle-multi` green (both jars, the JUnit test); its real
+      `tasks --all` and `:app:dependencies` (runtime and test classpaths)
+      captured under `test/fixtures/gradle-*.txt` and parsed by
+      `test/gradle-real.test.ts` (project references, `(c)` constraints,
+      `(*)` repeats, task groups) — 47 vitest tests
 
 ## 8. `java-groovy` (a fork's work, its notes merged here)
 
@@ -376,7 +346,7 @@ Nothing to do; recorded here so the phase is not read as forgotten.
 
 ## Feedback — where implementing it corrected the design
 
-(Carried into RFC §13 at the next revision.)
+(Carried into RFC §15 — revision 4 for 1–19, revision 5 for 20–23.)
 
 1. **Decision 8 pins a version that is not on the gallery.** `1.57.0` exists
    on `main` and on the Microsoft marketplace; Open VSX — what che-code and a
@@ -501,8 +471,8 @@ Nothing to do; recorded here so the phase is not read as forgotten.
     and a Groovy JVM with the JDK's default quarter-of-RAM heap on top. The
     suite now starts JDT.LS at `-Xmx1G` and every other JVM the editor spawns
     at `-XX:MaxRAMPercentage=6` through `JAVA_TOOL_OPTIONS` — §2 point 7,
-    measured on the suite that tests it. The Groovy satellite should cap its
-    server's heap itself (follow-up: an `-Xmx` in its launch argv).
+    measured on the suite that tests it. The Groovy satellite caps its own:
+    `-Xmx512m` in `server.ts`'s argv.
 19. **A webview bundle path is only as stable as esbuild's `outbase`.** With
     two entry points esbuild wrote `dist/webview/panel/main.js`; when the
     run-editor webview was cut to one, the same config wrote

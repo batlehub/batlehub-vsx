@@ -2,13 +2,13 @@
 
 | Field       | Value                                                        |
 | ----------- | ------------------------------------------------------------ |
-| Status      | Accepted — revision 4, 2026-09-18; phases 0–8 implemented and proven in a real editor, the split (phase 9) not earned |
+| Status      | Accepted — revision 5, 2026-09-18; phases 0–8 implemented and proven in a real editor, the split (phase 9) not earned |
 | Short       | Java extensions                                               |
 | Settles     | How BatleHub closes the gap between VS Code and IntelliJ IDEA for Java: one core extension that orchestrates the Red Hat language stack and adds what it lacks, the contract a later satellite plugs into, and what is deliberately deferred to its own RFC |
 | Author      | Max Batleforc <maxleriche.60@gmail.com>                       |
 | Co-author   | —                                                             |
 | Created     | 2026-09-17                                                    |
-| Revised     | 2026-09-17 — revision 2, the v1 scope cut (§8, §11 decisions 3, 19, 21, 31). Same day, revision 3, read against the tree: the registry token asked from `batlehub-vsx` instead of a second contract-file reader (decision 38), the Java heavy half without a BatleHub (decision 39), m2e's profile preference tried before the credential-bearing overlay (decision 14), v0.1 shrunk to the newcomer story (decision 37), untrusted means nothing runs (decision 40), `fr` and the `.batlehub/java/*.toml` files dropped, `.forgejo` mirror and Sonar removed, diagrams rendered by the docs site. 2026-09-18, revision 4, written from the implementation (`todo.md` of this repository): `redhat.java` a soft dependency (§4.1, decision 41), the language server's own JDK written by the core (§4.2), decisions 8 and 14 answered, Maven + bnd instead of Tycho (§6.2), the scope notes of §15 |
+| Revised     | 2026-09-17 — revision 2, the v1 scope cut (§8, §11 decisions 3, 19, 21, 31). Same day, revision 3, read against the tree: the registry token asked from `batlehub-vsx` instead of a second contract-file reader (decision 38), the Java heavy half without a BatleHub (decision 39), m2e's profile preference tried before the credential-bearing overlay (decision 14), v0.1 shrunk to the newcomer story (decision 37), untrusted means nothing runs (decision 40), `fr` and the `.batlehub/java/*.toml` files dropped, `.forgejo` mirror and Sonar removed, diagrams rendered by the docs site. 2026-09-18, revision 4, written from the implementation (`todo.md` of this repository): `redhat.java` a soft dependency (§4.1, decision 41), the language server's own JDK written by the core (§4.2), decisions 8 and 14 answered, Maven + bnd instead of Tycho (§6.2), the scope notes of §15. Same day, revision 5, after the last real-editor runs: the registry link driven against a real BatleHub (`/maven2`, §4.2), the build tool resolved through the manager like the JDK (§4.2), the Groovy heap capped, §15 brought up to date |
 | Supersedes  | —                                                             |
 | Depends on  | BatleHub RFC 0011 (the credential `batlehub-vsx` holds; the optional registry link asks that extension for it and never reads the file); BatleHub RFC 0018 (verdicts the dependency views may surface); BatleHub RFC 0023 (the che-code the extensions are exercised in). BatleHub RFCs live in `batleforc/batlehub/docs/rfc/`; this series is the extensions' own. |
 | Touches     | `extensions/java-core`, `java-groovy`, `java-pack`; `jdt/` (phase 6); `tests/heavy` (a `java` half); `docs/rfc/` (this series), `docs/guide/java/`; `extensions/batlehub-vsx` (one exported method, phase 5) |
@@ -240,7 +240,11 @@ hand.
   describes the environment rather than a taste — JDK sources and the active
   runtime, `installVia`, Maven configurations (every `~/.m2/settings*.xml`,
   `mvnw`, `MAVEN_HOME`), the profiles declared, Gradle wrapper and home, the
-  registry URL — is *absent* by default and computed by detection. A key the
+  registry URL — is *absent* by default and computed by detection. The build
+  tool gets the JDK's treatment (revision 5): `MAVEN_HOME`/`GRADLE_HOME`,
+  then `mise ls maven|gradle --json`, and tasks run that home before `PATH`
+  — in the newcomer's workspace a `mise` shim with no version set *fails*
+  rather than being absent, for `mvn` exactly as for `java`. A key the
   user writes is an override and wins until removed. Detection runs at
   activation and on demand: `Java: Detect environment` (everything) and a
   `Detect` button on each panel tab (that domain only). Detected values are
@@ -487,7 +491,8 @@ hand.
   `registry.enabled: "ask"`, one notification proposes to route the build
   through BatleHub; "Never" writes `false` to workspace settings. Enabled, the
   core writes a mirror into `~/.m2/settings.xml` (Maven, in a
-  `<!-- batlehub -->` fenced block it owns) or `~/.gradle/init.d/batlehub.gradle`
+  `<!-- batlehub -->` fenced block it owns; the hub serves Maven under
+  `/proxy/<name>/maven2`, revision 5) or `~/.gradle/init.d/batlehub.gradle`
   and injects the token `batlehub-vsx` hands it — as an `Authorization:
   Bearer` header in both (revision 4: BatleHub reads Bearer and no Basic
   scheme, and Maven's `<server><configuration><httpHeaders>` sends one); disabled, it removes only its
@@ -1123,6 +1128,15 @@ gate rather than a nightly:
 - **A webview bundle's path depends on esbuild's `outbase`**: cutting the
   second webview entry moved the first one's output and the VSIX shipped a
   stale placeholder in its place.
+- **The registry link needed a real hub** (the `registry` heavy half,
+  revision 5): revision 3's `<server>` password would have gone out as HTTP
+  Basic, which BatleHub refuses (§4.2's Bearer header), and the derived
+  mirror URL lacked `/maven2` — twenty 404s before a dependency resolved
+  through the hub.
+- **The build tool needed the JDK's treatment** (revision 5): the first
+  `maven compile` task ran `mvn` from `PATH` and got `mise`'s "No version
+  is set for shim"; detection now resolves the manager's Maven and Gradle
+  the way it resolves its JDKs (§4.2).
 
 ### 15.2 Measured (this repository's Che workspace, VS Code 1.136.1 web)
 
@@ -1139,8 +1153,8 @@ container that also runs the workspace's own editor and its language
 servers, three runs were killed for memory — the editor under test, a 2 GiB
 JDT.LS and a Groovy JVM with the JDK's default quarter-of-RAM heap. The
 suite starts JDT.LS at `-Xmx1G` and every other JVM the editor spawns at
-6 % of the container through `JAVA_TOOL_OPTIONS`. The Groovy satellite
-should cap its server's heap itself (a follow-up).
+6 % of the container through `JAVA_TOOL_OPTIONS`; the Groovy satellite
+starts its server at `-Xmx512m` itself (revision 5).
 
 ### 15.4 Smaller than revision 3 said, with the trigger to grow
 
@@ -1151,11 +1165,13 @@ should cap its server's heap itself (a follow-up).
 - Run/Debug gutter lenses are the debugger's and the test runner's own.
 - The panel's screenshots in the three themes are kept as artifacts; no
   `pixelmatch` gate — a renderer-dependent gate nobody stood behind.
-- Not driven by a real client yet: the registry link against a BatleHub with
-  a Maven registry (its scenario belongs to the marketplace heavy half,
-  decision 39), the Groovy hover through the driver (the server answers
-  hover in its own smoke), and a `batlehub-java` task run to completion in
-  the terminal (the picker lists them; the command line is unit-tested).
+- Everything else the RFC names has been through a real client (revision
+  5): the registry link against a BatleHub release with the Postgres
+  sidecar (`task heavy:view:registry`, a real Maven resolving a profile-only
+  dependency through the hub), the Groovy hover through the driver, and a
+  `batlehub-java` task run to `BUILD SUCCESS` in the terminal. What is not:
+  layer 2 and the nightly matrix, written for CI and never run on a runner
+  from this workspace.
 
 ### 15.5 Phase 9
 
