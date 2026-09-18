@@ -42,6 +42,28 @@ path = "extensions/che-clipboard"
 public_api = true
 pre_bump_hooks = ["pnpm pkg set version={{version}}"]
 
+[monorepo.packages.che-notify]
+path = "extensions/che-notify"
+public_api = true
+pre_bump_hooks = ["pnpm pkg set version={{version}}"]
+
+# RFC 0001: the Java family. Each is its own release (§12: "each phase is a
+# release of the extensions it names").
+[monorepo.packages.java-core]
+path = "extensions/java-core"
+public_api = true
+pre_bump_hooks = ["pnpm pkg set version={{version}}"]
+
+[monorepo.packages.java-pack]
+path = "extensions/java-pack"
+public_api = true
+pre_bump_hooks = ["pnpm pkg set version={{version}}"]
+
+[monorepo.packages.java-groovy]
+path = "extensions/java-groovy"
+public_api = true
+pre_bump_hooks = ["pnpm pkg set version={{version}}"]
+
 
 [git_hooks]
 

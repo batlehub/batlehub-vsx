@@ -39,3 +39,24 @@ tasks:
     desc: "Build and package every extension as a .vsix (extensions/<name>/<name>.vsix)"
     cmds:
       - pnpm -r --filter './extensions/*' run package
+
+  host:
+    desc: "Layer 2 of RFC 0001 §10: java-core in a real extension host (@vscode/test-cli; needs a display — CI, or xvfb-run)"
+    dir: extensions/java-core
+    cmds:
+      - pnpm run test:host
+
+  settings:check:
+    desc: "Fail when a batlehub.java.* setting is in package.json but not in docs/guide/java/settings.md, or the reverse (RFC 0001 §13 lint)"
+    cmds:
+      - node scripts/check-settings-doc.mjs
+
+  l10n:check:
+    desc: "Fail on a user-visible string that bypasses package.nls.json or vscode.l10n.t (RFC 0001 §13 lint)"
+    cmds:
+      - node scripts/check-l10n.mjs
+
+  licenses:
+    desc: "Write THIRD-PARTY.md per extension: every bundled dependency and its licence (decision 22)"
+    cmds:
+      - node scripts/third-party.mjs

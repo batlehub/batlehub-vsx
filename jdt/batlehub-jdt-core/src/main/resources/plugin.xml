@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?eclipse version="3.4"?>
+<!-- The delegate JDT.LS routes `workspace/executeCommand` to (RFC 0001 §6.2). -->
+<plugin>
+  <extension point="org.eclipse.jdt.ls.core.delegateCommandHandler">
+    <delegateCommandHandler class="batlehub.jdt.core.Handler">
+      <command id="batlehub.ping"/>
+      <command id="batlehub.generate.accessors"/>
+      <command id="batlehub.inspections.list"/>
+      <command id="batlehub.inspections.fixAll"/>
+    </delegateCommandHandler>
+  </extension>
+</plugin>

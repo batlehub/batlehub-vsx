@@ -1,0 +1,998 @@
+{
+  "name": "java-core",
+  "displayName": "BatleHub Java",
+  "description": "One core for Java in VS Code: the JDK that runs, the container's memory, run configurations, the Maven and Gradle integration and an IDEA-style menu — over the Red Hat language stack (RFC 0001).",
+  "version": "0.1.0",
+  "publisher": "batlehub",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/batleforc/batlehub-vsx"
+  },
+  "homepage": "https://github.com/batleforc/batlehub-vsx/tree/main/extensions/java-core",
+  "icon": "media/java.png",
+  "engines": {
+    "vscode": "^1.96.0"
+  },
+  "categories": [
+    "Programming Languages",
+    "Other"
+  ],
+  "keywords": [
+    "java",
+    "jdk",
+    "maven",
+    "gradle",
+    "batlehub",
+    "intellij"
+  ],
+  "extensionKind": [
+    "workspace"
+  ],
+  "main": "./dist/extension.js",
+  "l10n": "./l10n",
+  "activationEvents": [
+    "workspaceContains:pom.xml",
+    "workspaceContains:*/pom.xml",
+    "workspaceContains:build.gradle",
+    "workspaceContains:*/build.gradle",
+    "workspaceContains:build.gradle.kts",
+    "workspaceContains:*/build.gradle.kts",
+    "workspaceContains:settings.gradle",
+    "workspaceContains:settings.gradle.kts",
+    "workspaceContains:.classpath",
+    "onLanguage:java"
+  ],
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": "limited",
+      "description": "%capabilities.untrusted%",
+      "restrictedConfigurations": [
+        "batlehub.java.jdk.installVia",
+        "batlehub.java.maven.configurations",
+        "batlehub.java.registry.enabled",
+        "batlehub.java.registry.url"
+      ]
+    },
+    "virtualWorkspaces": false
+  },
+  "contributes": {
+    "configuration": {
+      "title": "BatleHub Java",
+      "properties": {
+        "batlehub.java.jdk.sources": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "mise",
+              "sdkman",
+              "env",
+              "wellKnown"
+            ]
+          },
+          "default": [
+            "mise",
+            "sdkman",
+            "env",
+            "wellKnown"
+          ],
+          "markdownDescription": "%config.jdk.sources%",
+          "scope": "machine-overridable"
+        },
+        "batlehub.java.jdk.installVia": {
+          "type": "string",
+          "enum": [
+            "auto",
+            "mise",
+            "sdkman",
+            "none"
+          ],
+          "markdownDescription": "%config.jdk.installVia%",
+          "scope": "machine-overridable"
+        },
+        "batlehub.java.jdk.matchProject": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "%config.jdk.matchProject%",
+          "scope": "resource"
+        },
+        "batlehub.java.generate.getterPrefix": {
+          "type": "string",
+          "default": "get",
+          "markdownDescription": "%config.generate.getterPrefix%",
+          "scope": "resource"
+        },
+        "batlehub.java.generate.booleanPrefix": {
+          "type": "string",
+          "default": "is",
+          "markdownDescription": "%config.generate.booleanPrefix%",
+          "scope": "resource"
+        },
+        "batlehub.java.generate.fluentSetters": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "%config.generate.fluentSetters%",
+          "scope": "resource"
+        },
+        "batlehub.java.generate.finalFields": {
+          "type": "string",
+          "enum": [
+            "keepSetters",
+            "skipSetters"
+          ],
+          "default": "keepSetters",
+          "markdownDescription": "%config.generate.finalFields%",
+          "scope": "resource"
+        },
+        "batlehub.java.report.url": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "%config.report.url%",
+          "scope": "machine-overridable"
+        },
+        "batlehub.java.log.level": {
+          "type": "string",
+          "enum": [
+            "error",
+            "warn",
+            "info",
+            "debug",
+            "trace"
+          ],
+          "default": "info",
+          "markdownDescription": "%config.log.level%",
+          "scope": "machine-overridable"
+        },
+        "batlehub.java.statusBar.items": {
+          "type": "object",
+          "default": {},
+          "additionalProperties": {
+            "type": "boolean"
+          },
+          "markdownDescription": "%config.statusBar.items%",
+          "scope": "machine-overridable"
+        },
+        "batlehub.java.resources.warnBelow": {
+          "type": "string",
+          "default": "2Gi",
+          "markdownDescription": "%config.resources.warnBelow%",
+          "scope": "machine-overridable"
+        },
+        "batlehub.java.inspections.enabled": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "%config.inspections.enabled%",
+          "scope": "resource"
+        },
+        "batlehub.java.inspections.severityOverrides": {
+          "type": "object",
+          "default": {},
+          "additionalProperties": {
+            "type": "string",
+            "enum": [
+              "error",
+              "warning",
+              "info",
+              "hint",
+              "off"
+            ]
+          },
+          "markdownDescription": "%config.inspections.severityOverrides%",
+          "scope": "resource"
+        },
+        "batlehub.java.maven.configurations": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "name"
+            ],
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "settingsFile": {
+                "type": "string"
+              },
+              "toolchainsFile": {
+                "type": "string"
+              },
+              "mavenHome": {
+                "type": "string"
+              },
+              "env": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              },
+              "profiles": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "additionalProperties": false
+          },
+          "markdownDescription": "%config.maven.configurations%",
+          "scope": "machine-overridable"
+        },
+        "batlehub.java.maven.activeConfiguration": {
+          "type": "string",
+          "markdownDescription": "%config.maven.activeConfiguration%",
+          "scope": "resource"
+        },
+        "batlehub.java.maven.activeProfiles": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "markdownDescription": "%config.maven.activeProfiles%",
+          "scope": "resource"
+        },
+        "batlehub.java.registry.enabled": {
+          "type": "string",
+          "enum": [
+            "ask",
+            "true",
+            "false"
+          ],
+          "default": "ask",
+          "markdownDescription": "%config.registry.enabled%",
+          "scope": "resource"
+        },
+        "batlehub.java.registry.url": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "%config.registry.url%",
+          "scope": "machine-overridable"
+        },
+        "batlehub.java.coexistence": {
+          "type": "object",
+          "default": {},
+          "markdownDescription": "%config.coexistence%",
+          "scope": "resource"
+        },
+        "batlehub.java.experimental": {
+          "type": "object",
+          "default": {},
+          "properties": {
+            "intellijImport": {
+              "type": "boolean"
+            }
+          },
+          "markdownDescription": "%config.experimental%",
+          "scope": "resource"
+        }
+      }
+    },
+    "commands": [
+      {
+        "command": "batlehub.java.detect",
+        "title": "%cmd.detect%",
+        "category": "Java",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "batlehub.java.pickJdk",
+        "title": "%cmd.pickJdk%",
+        "category": "Java",
+        "icon": "$(symbol-misc)"
+      },
+      {
+        "command": "batlehub.java.installJdk",
+        "title": "%cmd.installJdk%",
+        "category": "Java",
+        "icon": "$(cloud-download)"
+      },
+      {
+        "command": "batlehub.java.switchMode",
+        "title": "%cmd.switchMode%",
+        "category": "Java"
+      },
+      {
+        "command": "batlehub.java.removeSettings",
+        "title": "%cmd.removeSettings%",
+        "category": "Java"
+      },
+      {
+        "command": "batlehub.java.showLog",
+        "title": "%cmd.showLog%",
+        "category": "Java",
+        "icon": "$(output)"
+      },
+      {
+        "command": "batlehub.java.showResources",
+        "title": "%cmd.showResources%",
+        "category": "Java"
+      },
+      {
+        "command": "batlehub.java.dumpClasspath",
+        "title": "%cmd.dumpClasspath%",
+        "category": "Java"
+      },
+      {
+        "command": "batlehub.java.reimport",
+        "title": "%cmd.reimport%",
+        "category": "Java",
+        "icon": "$(sync)"
+      },
+      {
+        "command": "batlehub.java.openPanel",
+        "title": "%cmd.openPanel%",
+        "category": "Java",
+        "icon": "$(settings-gear)"
+      },
+      {
+        "command": "batlehub.java.runGoal",
+        "title": "%cmd.runGoal%",
+        "category": "Java",
+        "icon": "$(play)"
+      },
+      {
+        "command": "batlehub.java.report",
+        "title": "%cmd.report%",
+        "category": "Java",
+        "icon": "$(bug)"
+      },
+      {
+        "command": "batlehub.java.run.new",
+        "title": "%cmd.run.new%",
+        "category": "Java",
+        "icon": "$(add)"
+      },
+      {
+        "command": "batlehub.java.run.edit",
+        "title": "%cmd.run.edit%",
+        "category": "Java",
+        "icon": "$(edit)"
+      },
+      {
+        "command": "batlehub.java.run.start",
+        "title": "%cmd.run.start%",
+        "category": "Java",
+        "icon": "$(play)"
+      },
+      {
+        "command": "batlehub.java.importIdea",
+        "title": "%cmd.importIdea%",
+        "category": "Java"
+      },
+      {
+        "command": "batlehub.java.generate.accessors",
+        "title": "%gen.accessors%",
+        "category": "Java"
+      },
+      {
+        "command": "batlehub.java.generate.getters",
+        "title": "%gen.getters%",
+        "category": "Java"
+      },
+      {
+        "command": "batlehub.java.generate.setters",
+        "title": "%gen.setters%",
+        "category": "Java"
+      },
+      {
+        "command": "batlehub.java.generate.constructors",
+        "title": "%gen.constructors%",
+        "category": "Java"
+      },
+      {
+        "command": "batlehub.java.generate.toString",
+        "title": "%gen.toString%",
+        "category": "Java"
+      },
+      {
+        "command": "batlehub.java.generate.hashCodeEquals",
+        "title": "%gen.hashCodeEquals%",
+        "category": "Java"
+      },
+      {
+        "command": "batlehub.java.generate.delegates",
+        "title": "%gen.delegates%",
+        "category": "Java"
+      },
+      {
+        "command": "batlehub.java.generate.override",
+        "title": "%gen.override%",
+        "category": "Java"
+      },
+      {
+        "command": "batlehub.java.refactor.rename",
+        "title": "%ref.rename%",
+        "category": "Java"
+      },
+      {
+        "command": "batlehub.java.refactor.extractMethod",
+        "title": "%ref.extractMethod%",
+        "category": "Java"
+      },
+      {
+        "command": "batlehub.java.refactor.extractVariable",
+        "title": "%ref.extractVariable%",
+        "category": "Java"
+      },
+      {
+        "command": "batlehub.java.refactor.extractConstant",
+        "title": "%ref.extractConstant%",
+        "category": "Java"
+      },
+      {
+        "command": "batlehub.java.refactor.extractField",
+        "title": "%ref.extractField%",
+        "category": "Java"
+      },
+      {
+        "command": "batlehub.java.refactor.inline",
+        "title": "%ref.inline%",
+        "category": "Java"
+      },
+      {
+        "command": "batlehub.java.refactor.changeSignature",
+        "title": "%ref.changeSignature%",
+        "category": "Java"
+      },
+      {
+        "command": "batlehub.java.refactor.organizeImports",
+        "title": "%ref.organizeImports%",
+        "category": "Java"
+      },
+      {
+        "command": "batlehub.java.goto.definition",
+        "title": "%goto.definition%",
+        "category": "Java"
+      },
+      {
+        "command": "batlehub.java.goto.typeDefinition",
+        "title": "%goto.typeDefinition%",
+        "category": "Java"
+      },
+      {
+        "command": "batlehub.java.goto.implementations",
+        "title": "%goto.implementations%",
+        "category": "Java"
+      },
+      {
+        "command": "batlehub.java.goto.references",
+        "title": "%goto.references%",
+        "category": "Java"
+      },
+      {
+        "command": "batlehub.java.goto.superImplementation",
+        "title": "%goto.superImplementation%",
+        "category": "Java"
+      },
+      {
+        "command": "batlehub.java.goto.typeHierarchy",
+        "title": "%goto.typeHierarchy%",
+        "category": "Java"
+      },
+      {
+        "command": "batlehub.java.goto.symbol",
+        "title": "%goto.symbol%",
+        "category": "Java"
+      },
+      {
+        "command": "batlehub.java.goto.workspaceSymbol",
+        "title": "%goto.workspaceSymbol%",
+        "category": "Java"
+      },
+      {
+        "command": "batlehub.java.explorer.refresh",
+        "title": "%cmd.explorer.refresh%",
+        "category": "Java",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "batlehub.java.maven.switchConfiguration",
+        "title": "%cmd.maven.switchConfiguration%",
+        "category": "Java"
+      },
+      {
+        "command": "batlehub.java.maven.profiles",
+        "title": "%cmd.maven.profiles%",
+        "category": "Java"
+      },
+      {
+        "command": "batlehub.java.maven.applyProfilesOverlay",
+        "title": "%cmd.maven.applyProfilesOverlay%",
+        "category": "Java"
+      },
+      {
+        "command": "batlehub.java.maven.effectivePom",
+        "title": "%cmd.maven.effectivePom%",
+        "category": "Java"
+      },
+      {
+        "command": "batlehub.java.dependencyTree",
+        "title": "%cmd.dependencyTree%",
+        "category": "Java"
+      },
+      {
+        "command": "batlehub.java.registry.toggle",
+        "title": "%cmd.registry.toggle%",
+        "category": "Java"
+      },
+      {
+        "command": "batlehub.java.inspections.fixAll",
+        "title": "%cmd.inspections.fixAll%",
+        "category": "Java",
+        "icon": "$(wand)"
+      },
+      {
+        "command": "batlehub.java.inspections.refresh",
+        "title": "%cmd.inspections.refresh%",
+        "category": "Java",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "batlehub.java.restartServer",
+        "title": "%cmd.restartServer%",
+        "category": "Java"
+      },
+      {
+        "command": "batlehub.java.showJdtLog",
+        "title": "%cmd.showJdtLog%",
+        "category": "Java",
+        "icon": "$(output)"
+      }
+    ],
+    "menus": {
+      "commandPalette": [
+        {
+          "command": "batlehub.java.dumpClasspath",
+          "when": "batlehub.java.active"
+        },
+        {
+          "command": "batlehub.java.run.start",
+          "when": "false"
+        },
+        {
+          "command": "batlehub.java.generate.accessors",
+          "when": "editorLangId == java"
+        },
+        {
+          "command": "batlehub.java.generate.getters",
+          "when": "editorLangId == java"
+        },
+        {
+          "command": "batlehub.java.generate.setters",
+          "when": "editorLangId == java"
+        },
+        {
+          "command": "batlehub.java.generate.constructors",
+          "when": "editorLangId == java"
+        },
+        {
+          "command": "batlehub.java.generate.toString",
+          "when": "editorLangId == java"
+        },
+        {
+          "command": "batlehub.java.generate.hashCodeEquals",
+          "when": "editorLangId == java"
+        },
+        {
+          "command": "batlehub.java.generate.delegates",
+          "when": "editorLangId == java"
+        },
+        {
+          "command": "batlehub.java.generate.override",
+          "when": "editorLangId == java"
+        },
+        {
+          "command": "batlehub.java.refactor.rename",
+          "when": "editorLangId == java"
+        },
+        {
+          "command": "batlehub.java.refactor.extractMethod",
+          "when": "editorLangId == java"
+        },
+        {
+          "command": "batlehub.java.refactor.extractVariable",
+          "when": "editorLangId == java"
+        },
+        {
+          "command": "batlehub.java.refactor.extractConstant",
+          "when": "editorLangId == java"
+        },
+        {
+          "command": "batlehub.java.refactor.extractField",
+          "when": "editorLangId == java"
+        },
+        {
+          "command": "batlehub.java.refactor.inline",
+          "when": "editorLangId == java"
+        },
+        {
+          "command": "batlehub.java.refactor.changeSignature",
+          "when": "editorLangId == java"
+        },
+        {
+          "command": "batlehub.java.refactor.organizeImports",
+          "when": "editorLangId == java"
+        },
+        {
+          "command": "batlehub.java.goto.definition",
+          "when": "editorLangId == java"
+        },
+        {
+          "command": "batlehub.java.goto.typeDefinition",
+          "when": "editorLangId == java"
+        },
+        {
+          "command": "batlehub.java.goto.implementations",
+          "when": "editorLangId == java"
+        },
+        {
+          "command": "batlehub.java.goto.references",
+          "when": "editorLangId == java"
+        },
+        {
+          "command": "batlehub.java.goto.superImplementation",
+          "when": "editorLangId == java"
+        },
+        {
+          "command": "batlehub.java.goto.typeHierarchy",
+          "when": "editorLangId == java"
+        },
+        {
+          "command": "batlehub.java.goto.symbol",
+          "when": "editorLangId == java"
+        },
+        {
+          "command": "batlehub.java.goto.workspaceSymbol",
+          "when": "editorLangId == java"
+        }
+      ],
+      "editor/context": [
+        {
+          "submenu": "batlehub.java.generateMenu",
+          "group": "1_batlehub@1",
+          "when": "resourceLangId == java && batlehub.java.active"
+        },
+        {
+          "submenu": "batlehub.java.refactorMenu",
+          "group": "1_batlehub@2",
+          "when": "resourceLangId == java && batlehub.java.active"
+        },
+        {
+          "submenu": "batlehub.java.gotoMenu",
+          "group": "1_batlehub@3",
+          "when": "resourceLangId == java && batlehub.java.active"
+        }
+      ],
+      "batlehub.java.generateMenu": [
+        {
+          "command": "batlehub.java.generate.accessors",
+          "group": "1_accessors@0",
+          "when": "batlehub.java.standard"
+        },
+        {
+          "command": "batlehub.java.generate.getters",
+          "group": "1_accessors@1",
+          "when": "batlehub.java.standard"
+        },
+        {
+          "command": "batlehub.java.generate.setters",
+          "group": "1_accessors@2",
+          "when": "batlehub.java.standard"
+        },
+        {
+          "command": "batlehub.java.generate.constructors",
+          "group": "2_members@3",
+          "when": "batlehub.java.standard"
+        },
+        {
+          "command": "batlehub.java.generate.toString",
+          "group": "2_members@4",
+          "when": "batlehub.java.standard"
+        },
+        {
+          "command": "batlehub.java.generate.hashCodeEquals",
+          "group": "2_members@5",
+          "when": "batlehub.java.standard"
+        },
+        {
+          "command": "batlehub.java.generate.delegates",
+          "group": "2_members@6",
+          "when": "batlehub.java.standard"
+        },
+        {
+          "command": "batlehub.java.generate.override",
+          "group": "2_members@7",
+          "when": "batlehub.java.standard"
+        }
+      ],
+      "batlehub.java.refactorMenu": [
+        {
+          "command": "batlehub.java.refactor.rename",
+          "group": "1_rename@0",
+          "when": "batlehub.java.standard"
+        },
+        {
+          "command": "batlehub.java.refactor.extractMethod",
+          "group": "2_extract@1",
+          "when": "batlehub.java.standard"
+        },
+        {
+          "command": "batlehub.java.refactor.extractVariable",
+          "group": "2_extract@2",
+          "when": "batlehub.java.standard"
+        },
+        {
+          "command": "batlehub.java.refactor.extractConstant",
+          "group": "2_extract@3",
+          "when": "batlehub.java.standard"
+        },
+        {
+          "command": "batlehub.java.refactor.extractField",
+          "group": "2_extract@4",
+          "when": "batlehub.java.standard"
+        },
+        {
+          "command": "batlehub.java.refactor.inline",
+          "group": "2_extract@5",
+          "when": "batlehub.java.standard"
+        },
+        {
+          "command": "batlehub.java.refactor.changeSignature",
+          "group": "2_extract@6",
+          "when": "batlehub.java.standard"
+        },
+        {
+          "command": "batlehub.java.refactor.organizeImports",
+          "group": "3_imports@7",
+          "when": "batlehub.java.standard"
+        }
+      ],
+      "batlehub.java.gotoMenu": [
+        {
+          "command": "batlehub.java.goto.definition",
+          "group": "1_editor@0"
+        },
+        {
+          "command": "batlehub.java.goto.typeDefinition",
+          "group": "1_editor@1"
+        },
+        {
+          "command": "batlehub.java.goto.implementations",
+          "group": "1_editor@2"
+        },
+        {
+          "command": "batlehub.java.goto.references",
+          "group": "1_editor@3"
+        },
+        {
+          "command": "batlehub.java.goto.superImplementation",
+          "group": "2_java@4"
+        },
+        {
+          "command": "batlehub.java.goto.typeHierarchy",
+          "group": "2_java@5"
+        },
+        {
+          "command": "batlehub.java.goto.symbol",
+          "group": "1_editor@6"
+        },
+        {
+          "command": "batlehub.java.goto.workspaceSymbol",
+          "group": "1_editor@7"
+        }
+      ],
+      "view/title": [
+        {
+          "command": "batlehub.java.detect",
+          "when": "view == batlehub.java.panel",
+          "group": "navigation@1"
+        },
+        {
+          "command": "batlehub.java.runGoal",
+          "when": "view == batlehub.java.panel",
+          "group": "navigation@2"
+        },
+        {
+          "command": "batlehub.java.showLog",
+          "when": "view == batlehub.java.panel",
+          "group": "navigation@3"
+        },
+        {
+          "command": "batlehub.java.explorer.refresh",
+          "when": "view == batlehub.java.explorer",
+          "group": "navigation@1"
+        },
+        {
+          "command": "batlehub.java.dependencyTree",
+          "when": "view == batlehub.java.explorer",
+          "group": "navigation@2"
+        },
+        {
+          "command": "batlehub.java.inspections.fixAll",
+          "when": "view == batlehub.java.inspections && batlehub.java.bundle",
+          "group": "navigation@1"
+        },
+        {
+          "command": "batlehub.java.inspections.refresh",
+          "when": "view == batlehub.java.inspections",
+          "group": "navigation@2"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "batlehub.java.inspections.fixAll",
+          "when": "view == batlehub.java.inspections && viewItem =~ /^(rule|file)$/",
+          "group": "inline@1"
+        }
+      ]
+    },
+    "submenus": [
+      {
+        "id": "batlehub.java.generateMenu",
+        "label": "%menu.generate%"
+      },
+      {
+        "id": "batlehub.java.refactorMenu",
+        "label": "%menu.refactor%"
+      },
+      {
+        "id": "batlehub.java.gotoMenu",
+        "label": "%menu.goto%"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "batlehub.java.refactor.rename",
+        "key": "shift+f6",
+        "when": "editorTextFocus && editorLangId == java"
+      },
+      {
+        "command": "batlehub.java.generate.accessors",
+        "key": "alt+insert",
+        "when": "editorTextFocus && editorLangId == java"
+      },
+      {
+        "command": "batlehub.java.goto.superImplementation",
+        "key": "ctrl+u",
+        "mac": "cmd+u",
+        "when": "editorTextFocus && editorLangId == java"
+      },
+      {
+        "command": "batlehub.java.goto.typeHierarchy",
+        "key": "ctrl+h",
+        "when": "editorTextFocus && editorLangId == java"
+      }
+    ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "batlehub-java",
+          "title": "%view.container%",
+          "icon": "media/java.svg"
+        }
+      ]
+    },
+    "views": {
+      "batlehub-java": [
+        {
+          "id": "batlehub.java.explorer",
+          "name": "%view.explorer%",
+          "icon": "media/java.svg",
+          "contextualTitle": "%view.explorer%",
+          "when": "batlehub.java.active"
+        },
+        {
+          "type": "webview",
+          "id": "batlehub.java.panel",
+          "name": "%view.panel%",
+          "icon": "media/java.svg",
+          "contextualTitle": "%view.panel%",
+          "when": "batlehub.java.active"
+        },
+        {
+          "id": "batlehub.java.inspections",
+          "name": "%view.inspections%",
+          "icon": "media/java.svg",
+          "contextualTitle": "%view.inspections%",
+          "when": "batlehub.java.active"
+        }
+      ]
+    },
+    "viewsWelcome": [
+      {
+        "view": "batlehub.java.panel",
+        "contents": "%view.welcome%",
+        "when": "!batlehub.java.active"
+      },
+      {
+        "view": "batlehub.java.inspections",
+        "contents": "%view.inspections.welcome%",
+        "when": "batlehub.java.active && !batlehub.java.bundle"
+      }
+    ],
+    "taskDefinitions": [
+      {
+        "type": "batlehub-java",
+        "required": [
+          "tool",
+          "goal"
+        ],
+        "properties": {
+          "tool": {
+            "type": "string",
+            "enum": [
+              "maven",
+              "gradle"
+            ],
+            "description": "%task.tool%"
+          },
+          "goal": {
+            "type": "string",
+            "description": "%task.goal%"
+          },
+          "profiles": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "%task.profiles%"
+          },
+          "args": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "%task.args%"
+          }
+        }
+      }
+    ],
+    "problemMatchers": [
+      {
+        "name": "batlehub-maven",
+        "owner": "java",
+        "fileLocation": [
+          "absolute"
+        ],
+        "pattern": {
+          "regexp": "^\\[(ERROR|WARNING)\\]\\s+(.+?\\.java):\\[(\\d+),(\\d+)\\]\\s+(.*)$",
+          "severity": 1,
+          "file": 2,
+          "line": 3,
+          "column": 4,
+          "message": 5
+        }
+      }
+    ],
+    "javaExtensions": [
+      "./jdt/batlehub-jdt-core.jar"
+    ]
+  },
+  "scripts": {
+    "build": "node esbuild.mjs && npm run api",
+    "watch": "node esbuild.mjs --watch",
+    "api": "tsc -p tsconfig.api.json && mv api-types.d.ts api.d.ts",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "lint": "oxlint src test media && prettier --check \"src/**/*.ts\" \"test/**/*.ts\" \"media/**/*.ts\" esbuild.mjs",
+    "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\" \"media/**/*.ts\" esbuild.mjs",
+    "test": "vitest run",
+    "test:host": "tsc -p test-host/tsconfig.json && vscode-test",
+    "package": "node esbuild.mjs && vsce package --no-dependencies --skip-license -o java-core.vsix"
+  },
+  "devDependencies": {
+    "@types/mocha": "^10.0.10",
+    "@types/node": "^24.0.0",
+    "@types/vscode": "^1.96.0",
+    "@vscode/test-cli": "^0.0.11",
+    "@vscode/test-electron": "^2.5.2",
+    "@vscode/vsce": "^3.6.0",
+    "esbuild": "^0.25.0",
+    "jsonc-parser": "^3.3.1",
+    "mocha": "^11.7.1",
+    "oxlint": "^1.0.0",
+    "prettier": "^3.6.0",
+    "typescript": "^5.9.0",
+    "vitest": "^3.2.0"
+  }
+}

@@ -12,6 +12,9 @@ includes:
   heavy: ./.tasks/heavy.yaml
   hub: ./.tasks/hub.yaml
   browser: ./.tasks/browser.yaml
+  rfc: ./.tasks/rfc.yaml
+  jdt: ./.tasks/jdt.yaml
+  groovy: ./.tasks/groovy.yaml
 
 vars:
   # The kubectl hop into the browser sidecar (see .tasks/browser.yaml). Both
@@ -35,9 +38,11 @@ tasks:
       - task ext:build
 
   lint:
-    desc: "Type-check, lint and format-check every extension"
+    desc: "Type-check, lint and format-check every extension; the settings-doc and l10n checks of RFC 0001"
     cmds:
       - task ext:lint
+      - task ext:settings:check
+      - task ext:l10n:check
 
   test:
     desc: "Unit tests of every extension"
@@ -54,5 +59,8 @@ tasks:
     cmds:
       - task lint
       - task test
+      - task jdt:build
+      - task groovy:fetch
       - task ext:package
+      - task rfc:index:check
       - task docs:build

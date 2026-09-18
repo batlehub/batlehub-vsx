@@ -1,0 +1,52 @@
+{
+  "name": "java-groovy",
+  "displayName": "BatleHub Java: Groovy",
+  "description": "Groovy, Gradle DSL and Jenkinsfile in VS Code through the Prominic Groovy language server, on the JDK and classpath BatleHub Java resolved (RFC 0001 phase 8).",
+  "version": "0.1.0",
+  "publisher": "batlehub",
+  "license": "Apache-2.0",
+  "repository": { "type": "git", "url": "https://github.com/batleforc/batlehub-vsx" },
+  "homepage": "https://github.com/batleforc/batlehub-vsx/tree/main/extensions/java-groovy",
+  "icon": "media/java.png",
+  "engines": { "vscode": "^1.96.0" },
+  "categories": ["Programming Languages"],
+  "keywords": ["groovy", "gradle", "jenkinsfile", "batlehub", "java"],
+  "extensionKind": ["workspace"],
+  "extensionDependencies": ["batlehub.java-core"],
+  "main": "./dist/extension.js",
+  "l10n": "./l10n",
+  "activationEvents": ["onLanguage:groovy", "workspaceContains:**/*.groovy", "workspaceContains:Jenkinsfile", "workspaceContains:build.gradle"],
+  "capabilities": {
+    "untrustedWorkspaces": { "supported": "limited", "description": "%capabilities.untrusted%" },
+    "virtualWorkspaces": false
+  },
+  "contributes": {
+    "languages": [
+      { "id": "groovy", "extensions": [".gradle", ".gvy", ".gy", ".gsh"], "filenames": ["Jenkinsfile"] }
+    ],
+    "commands": [
+      { "command": "batlehub.java.groovy.restart", "title": "%cmd.restart%", "category": "Java" },
+      { "command": "batlehub.java.groovy.showLog", "title": "%cmd.showLog%", "category": "Java", "icon": "$(output)" }
+    ]
+  },
+  "scripts": {
+    "build": "node esbuild.mjs",
+    "watch": "node esbuild.mjs --watch",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "lint": "oxlint src test && prettier --check \"src/**/*.ts\" \"test/**/*.ts\" esbuild.mjs",
+    "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\" esbuild.mjs",
+    "test": "vitest run",
+    "package": "node esbuild.mjs && test -s server/groovy-language-server-all.jar || { echo 'java-groovy: no server jar — run task groovy:fetch first' >&2; exit 1; } && vsce package --no-dependencies --skip-license -o java-groovy.vsix"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "@types/vscode": "^1.96.0",
+    "@vscode/vsce": "^3.6.0",
+    "esbuild": "^0.25.0",
+    "oxlint": "^1.0.0",
+    "prettier": "^3.6.0",
+    "typescript": "^5.9.0",
+    "vitest": "^3.2.0",
+    "vscode-languageclient": "^9.0.1"
+  }
+}

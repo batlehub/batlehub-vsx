@@ -1,0 +1,10 @@
+**
+!dist/**/*.js
+!media/**
+!l10n/**
+!server/groovy-language-server-all.jar
+!server/NOTICE.md
+!package.nls.json
+!README.md
+!CHANGELOG.md
+!LICENSE.md

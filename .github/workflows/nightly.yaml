@@ -1,0 +1,77 @@
+name: Nightly
+
+# RFC 0001 §10 layer 6, §13 `nightly`: the Java heavy half against a matrix —
+# VS Code stable × previous, redhat.java pinned × previous × pre-release —
+# so the dependency this RFC chose to depend on drifts visibly. A failure
+# opens or updates one issue per (dependency, version). The che-code image
+# row needs the image's server tarball, which che-code does not publish as
+# one; it joins when BatleHub RFC 0023's build produces it.
+on:
+  schedule:
+    - cron: "17 3 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  heavy-java:
+    name: java · vscode ${{ matrix.vscode }} · redhat.java ${{ matrix.redhat }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        vscode: ["1.136.1", "1.96.4"]
+        redhat: ["1.56.0", "1.55.0", "pre-release"]
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: pnpm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+      - uses: jdx/mise-action@v2
+        with:
+          install: false
+      - run: pnpm install --frozen-lockfile
+      - name: Resolve the pre-release version
+        id: redhat
+        run: |
+          v="${{ matrix.redhat }}"
+          if [ "$v" = "pre-release" ]; then v="$(curl -fsSL https://open-vsx.org/api/redhat/java/pre-release | python3 -c 'import json,sys;print(json.load(sys.stdin)["version"])')"; fi
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+      - name: A Chrome with its DevTools port
+        run: |
+          google-chrome --headless=new --no-sandbox --disable-gpu --remote-debugging-port=9222 --user-data-dir=/tmp/chrome about:blank >/tmp/chrome.log 2>&1 &
+          for _ in $(seq 1 30); do curl -sf http://127.0.0.1:9222/json/version >/dev/null && break; sleep 1; done
+      - run: mise use -g "java@temurin-21" || true
+      - name: Run
+        env:
+          HEAVY_ONLY: java
+          CDP_URL: http://127.0.0.1:9222
+          VSCODE_VERSION: ${{ matrix.vscode }}
+          REDHAT_JAVA_VERSION: ${{ steps.redhat.outputs.version }}
+        run: bash tests/heavy/view.sh
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: heavy-java-${{ matrix.vscode }}-${{ matrix.redhat }}
+          path: tests/heavy/work/last/
+          if-no-files-found: ignore
+      - name: One issue per (dependency, version) on failure
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const title = `nightly: java half fails on vscode ${{ matrix.vscode }} × redhat.java ${{ steps.redhat.outputs.version }}`;
+            const { data: open } = await github.rest.issues.listForRepo({ owner: context.repo.owner, repo: context.repo.repo, state: "open", labels: "drift" });
+            const body = `Run: ${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}\n\nRFC 0001 §13 nightly: the Java heavy half failed against this dependency version. Artifacts carry the suite log and screenshots.`;
+            const existing = open.find((i) => i.title === title);
+            if (existing) await github.rest.issues.createComment({ owner: context.repo.owner, repo: context.repo.repo, issue_number: existing.number, body });
+            else await github.rest.issues.create({ owner: context.repo.owner, repo: context.repo.repo, title, body, labels: ["drift", "java"] });

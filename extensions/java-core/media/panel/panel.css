@@ -1,0 +1,143 @@
+/* The Java panel lives with the editor's theme: every colour, font and
+   control comes from the --vscode-* tokens (RFC 0001 decision 18). */
+body {
+  font-family: var(--vscode-font-family);
+  font-size: var(--vscode-font-size);
+  color: var(--vscode-foreground);
+  background: var(--vscode-sideBar-background);
+  padding: 0 8px 8px;
+  margin: 0;
+}
+h2 {
+  font-size: 1em;
+  font-weight: 600;
+  margin: 12px 0 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--vscode-sideBarSectionHeader-foreground);
+}
+.tabs {
+  display: flex;
+  gap: 2px;
+  border-bottom: 1px solid var(--vscode-panel-border);
+  margin-bottom: 4px;
+  position: sticky;
+  top: 0;
+  background: var(--vscode-sideBar-background);
+}
+[role="tab"] {
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--vscode-panelTitle-inactiveForeground);
+  padding: 6px 8px;
+  cursor: pointer;
+  font: inherit;
+}
+[role="tab"][aria-selected="true"] {
+  color: var(--vscode-panelTitle-activeForeground);
+  border-bottom-color: var(--vscode-panelTitle-activeBorder);
+}
+[role="tab"]:focus-visible,
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+a:focus-visible {
+  outline: 1px solid var(--vscode-focusBorder);
+  outline-offset: 1px;
+}
+button {
+  background: var(--vscode-button-secondaryBackground);
+  color: var(--vscode-button-secondaryForeground);
+  border: 1px solid var(--vscode-button-border, transparent);
+  border-radius: 2px;
+  padding: 3px 10px;
+  cursor: pointer;
+  font: inherit;
+}
+button:hover {
+  background: var(--vscode-button-secondaryHoverBackground);
+}
+button[disabled] {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+button.link {
+  background: none;
+  border: none;
+  color: var(--vscode-textLink-foreground);
+  padding: 0 4px;
+}
+input[type="text"],
+input:not([type]),
+select {
+  background: var(--vscode-input-background);
+  color: var(--vscode-input-foreground);
+  border: 1px solid var(--vscode-input-border, transparent);
+  padding: 3px 6px;
+  font: inherit;
+  min-width: 12em;
+}
+table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 4px 0;
+}
+th,
+td {
+  text-align: left;
+  padding: 3px 6px;
+  border-bottom: 1px solid var(--vscode-panel-border);
+  vertical-align: top;
+}
+th {
+  color: var(--vscode-descriptionForeground);
+  font-weight: 600;
+}
+tr.resolved td {
+  background: var(--vscode-list-activeSelectionBackground);
+  color: var(--vscode-list-activeSelectionForeground);
+}
+td.path {
+  font-family: var(--vscode-editor-font-family);
+  font-size: 0.9em;
+  word-break: break-all;
+}
+.row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+  margin: 6px 0;
+}
+.field {
+  margin: 6px 0;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.origin {
+  color: var(--vscode-descriptionForeground);
+  font-size: 0.9em;
+  border: 1px solid var(--vscode-panel-border);
+  border-radius: 8px;
+  padding: 0 6px;
+}
+.muted {
+  color: var(--vscode-descriptionForeground);
+}
+.warn {
+  color: var(--vscode-editorWarning-foreground);
+}
+a {
+  color: var(--vscode-textLink-foreground);
+}
+ul {
+  padding-left: 1.2em;
+  margin: 4px 0;
+}
+ul.checks {
+  list-style: none;
+  padding: 0;
+}

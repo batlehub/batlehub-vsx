@@ -22,3 +22,16 @@ coverage/
 tests/heavy/work/
 docs/.vitepress/cache/
 docs/.vitepress/dist/
+
+# Layer 2 compiled tests
+extensions/*/test-host/out/
+
+extensions/*/.vscode-test/
+extensions/*/THIRD-PARTY.md
+
+# The Groovy language server jar: fetched by task groovy:fetch, shipped in the VSIX, never committed
+extensions/java-groovy/server/*.jar
+
+# The JDT bundle (task jdt:build); built, never committed
+extensions/*/jdt/*.jar
+jdt/*/target/

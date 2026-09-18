@@ -20,7 +20,18 @@ import { Ledger } from "./marketplace/ledger";
 import { ExtensionNode, MarketplaceTree } from "./marketplace/tree";
 import { decideMode, ModeDecision, readProduct } from "./mode";
 
-export function activate(context: vscode.ExtensionContext): void {
+/**
+ * What this extension exports (RFC 0001 phase 5, decision 38 — its only
+ * change): the registry it is signed into and a token for it, so
+ * `batlehub.java-core` never opens the contract file. The token is the
+ * chain's, resolved non-interactively; `null` when signed out or unset.
+ */
+export interface VsxExports {
+  token(): Promise<string | null>;
+  url(): Promise<string | null>;
+}
+
+export function activate(context: vscode.ExtensionContext): VsxExports {
   let settings = readSettings();
   const auth = new BatleHubAuthProvider(context.secrets, () => settings.origin);
   const broker = new Broker(settings, auth, () => settings);
@@ -239,6 +250,11 @@ export function activate(context: vscode.ExtensionContext): void {
       );
     }),
   );
+
+  return {
+    token: async () => (await broker.chainOf()?.resolve({ interactive: false }))?.token ?? null,
+    url: async () => settings.registry || null,
+  };
 }
 
 export function deactivate(): void {}

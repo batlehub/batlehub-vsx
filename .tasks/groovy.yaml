@@ -1,0 +1,33 @@
+version: "3"
+
+# java-groovy (RFC 0001 phase 8): the Prominic Groovy language server jar the
+# VSIX ships, fetched from the Open VSX extension that carries a prebuilt
+# one, verified by checksum, never committed; the smoke that proves decision
+# 7's condition; the contract test of §10 layer 5.
+vars:
+  GROOVY_VSIX_URL: https://open-vsx.org/api/DontShaveTheYak/groovy-guru/0.6.0/file/DontShaveTheYak.groovy-guru-0.6.0.vsix
+  GROOVY_VSIX: "{{.HOME}}/.cache/batlehub-heavy/DontShaveTheYak.groovy-guru-0.6.0.vsix"
+  GROOVY_JAR: extensions/java-groovy/server/groovy-language-server-all.jar
+  GROOVY_JAR_SHA256: febdd9c63380a36ff1a814fbb40b86102df6cde9692ac815328e91b8516bce05
+
+tasks:
+  fetch:
+    desc: "Put the Groovy language server jar in extensions/java-groovy/server (from the groovy-guru VSIX on Open VSX, sha256 pinned here)"
+    status:
+      - test -s {{.GROOVY_JAR}} && echo "{{.GROOVY_JAR_SHA256}}  {{.GROOVY_JAR}}" | sha256sum -c --quiet
+    cmds:
+      - mkdir -p "$(dirname "{{.GROOVY_VSIX}}")"
+      - test -s "{{.GROOVY_VSIX}}" || curl -fsSL --proto '=https' -o "{{.GROOVY_VSIX}}" "{{.GROOVY_VSIX_URL}}"
+      - unzip -p "{{.GROOVY_VSIX}}" extension/bin/groovy-language-server-all.jar > "{{.GROOVY_JAR}}"
+      - echo "{{.GROOVY_JAR_SHA256}}  {{.GROOVY_JAR}}" | sha256sum -c --quiet
+
+  smoke:
+    desc: "Start the Groovy language server jar on the mise JDK 21 and check it answers initialize, hover, completion and symbols over LSP (decision 7)"
+    deps: [fetch]
+    cmds:
+      - node extensions/java-groovy/test/smoke.mjs
+
+  contract:
+    desc: "Layer 5 of RFC 0001 §10: java-groovy type-checked against the current core's api.d.ts, and the last tagged VSIX of each installed against the other's PR build when releases exist"
+    cmds:
+      - bash tests/contract/run.sh
