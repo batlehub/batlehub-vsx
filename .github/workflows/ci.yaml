@@ -135,6 +135,13 @@ jobs:
         run: |
           mise use -g "java@temurin-21" || true
           mise ls java
+      - name: No system JDK, as a Che workspace has none
+        # ubuntu-latest ships Temurin under /usr/lib/jvm, the one directory
+        # redhat.java scans on its own. Left there, the first session starts
+        # a JDT.LS on it before the core's newcomer write, and the reload
+        # starts a second one on the same workspace. setup-java's JDK lives
+        # under /opt/hostedtoolcache and keeps serving mvn through JAVA_HOME.
+        run: sudo mv /usr/lib/jvm /usr/lib/jvm.hidden
       - name: task, for view.sh's jdt:* and groovy:fetch
         run: curl -fsSL https://raw.githubusercontent.com/go-task/task/main/install-task.sh | sh -s -- -d -b /usr/local/bin >/dev/null
       - name: Run
