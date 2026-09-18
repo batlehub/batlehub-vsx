@@ -14,7 +14,9 @@ const run = (file: string, args: string[], input = "") =>
     const p = execFile(file, args, { encoding: "utf8" }, (err, stdout, stderr) =>
       resolve({ code: typeof err?.code === "number" ? err.code : err ? 1 : 0, stdout, stderr }),
     );
-    p.stdin!.end(input);
+    // A shim that never reads stdin (paste, or a dead socket) may exit before
+    // the write lands; the EPIPE is expected, not a failure.
+    p.stdin!.on("error", () => {}).end(input);
   });
 
 let dir: string;
