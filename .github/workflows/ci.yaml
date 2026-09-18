@@ -130,6 +130,8 @@ jobs:
         run: |
           mise use -g "java@temurin-21" || true
           mise ls java
+      - name: task, for view.sh's jdt:* and groovy:fetch
+        run: curl -fsSL https://raw.githubusercontent.com/go-task/task/main/install-task.sh | sh -s -- -d -b /usr/local/bin >/dev/null
       - name: Run
         env:
           HEAVY_ONLY: java
