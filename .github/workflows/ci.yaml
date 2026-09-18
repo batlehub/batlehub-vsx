@@ -115,6 +115,11 @@ jobs:
         with:
           distribution: temurin
           java-version: "21"
+          cache: maven
+      - name: Warm ~/.m2 with the fixture, as the workspace it was proven in had it
+        # JDT.LS's m2e import and the driver's `maven compile` task resolve
+        # plugins and the `dev` profile's dependency from this repository.
+        run: mvn -q -B -f tests/heavy/fixtures/maven-multi/pom.xml -Pdev -DskipTests package
       - uses: jdx/mise-action@v2
         with:
           install: false

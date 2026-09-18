@@ -293,8 +293,10 @@ try {
   emit({ phase: "log2", lines: lines2 });
   perf.activationMs = Number(/activated in (\d+) ms/.exec(lines2.join(" "))?.[1] ?? -1);
 
-  // 4b. The bundle's ping, in the JDT channel (it is probed after serverReady).
-  const jdt = await settle(() => outputLines(page, "Java: Show the JDT log"), (l) => l.some((x) => /bundle loaded|ping failed/.test(x)), 60000, 3000);
+  // 4b. The bundle's ping, in the JDT channel: it is probed after serverReady,
+  // which on a cold ~/.m2 (a CI runner) waits for m2e to fetch the fixture's
+  // plugins from Central — the same budget as the import above.
+  const jdt = await settle(() => outputLines(page, "Java: Show the JDT log"), (l) => l.some((x) => /bundle loaded|ping failed/.test(x)), 300000, 3000);
   emit({ phase: "bundle", lines: jdt.value.slice(-8), loaded: jdt.value.some((x) => /bundle loaded/.test(x)) });
 
   // 5. The quick pick behind the status bar item.
