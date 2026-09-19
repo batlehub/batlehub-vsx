@@ -28,6 +28,7 @@ export default withMermaid(
             { text: "Broker mode", link: "/guide/broker" },
             { text: "Marketplace mode", link: "/guide/marketplace" },
             { text: "Settings and commands", link: "/guide/settings" },
+            { text: "The BatleHub theme", link: "/guide/theme" },
           ],
         },
         {
@@ -106,10 +107,6 @@ export default withMermaid(
               link: "/rfc/0013-spell-checking",
             },
             {
-              text: "0014 — BatleHub theme",
-              link: "/rfc/0014-batlehub-theme",
-            },
-            {
               text: "0015 — Generate shortcuts",
               link: "/rfc/0015-generate-shortcuts",
             },
@@ -138,6 +135,10 @@ export default withMermaid(
             {
               text: "0001 — Java extensions",
               link: "/rfc/0001-java-env",
+            },
+            {
+              text: "0014 — BatleHub theme",
+              link: "/rfc/0014-batlehub-theme",
             },
           ],
         },

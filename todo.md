@@ -223,7 +223,15 @@ written here is the first step and what blocks it.
       what Coursier sends.
 
 **Outside the order:** [RFC 0014](docs/rfc/0014-batlehub-theme.md), the colour
-theme — a Product RFC, independent, built whenever someone wants to.
+theme — a Product RFC, independent, built whenever someone wants to. **Done**
+(revision 3): `extensions/batlehub-theme`, three variants derived from
+`DESIGN.md` and held by `test/contrast.test.ts`, the nightly drift job, and
+the `THEME-*` steps of the java heavy half — `ALL-OK` on 2026-09-19. One
+thing left, and it is taste rather than code: **keywords are dim ink. The
+screenshot is in §11 open question 1; decide whether ink+bold reads better
+and record it.** Fixing the suite's `setTheme` to actually apply a
+theme (it typed the name into the command palette) also means RFC 0001's
+three-theme panel screenshots are three different themes for the first time.
 
 **Parked, each with its named trigger:**
 [0017](docs/rfc/0017-server-kinds.md) (a team deploys to Tomcat/Jetty/WildFly/Karaf),

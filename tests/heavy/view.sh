@@ -443,7 +443,14 @@ if [[ "$ONLY" == "all" || "$ONLY" == "java" ]]; then
   [[ -s "$JAVA_GROOVY_VSIX" ]] || fail "no $JAVA_GROOVY_VSIX"
   REDHAT_VSIX="$HEAVY_CACHE/redhat.java-$REDHAT_JAVA_VERSION.vsix"
   [[ -s "$REDHAT_VSIX" ]] || { log "Downloading redhat.java $REDHAT_JAVA_VERSION from Open VSX"; fetch -o "$REDHAT_VSIX" "https://open-vsx.org/api/redhat/java/$REDHAT_JAVA_VERSION/file/redhat.java-$REDHAT_JAVA_VERSION.vsix"; }
-  log "PACKAGE-OK (java-core $(stat -c %s "$JAVA_CORE_VSIX") bytes with the bundle, java-groovy $(stat -c %s "$JAVA_GROOVY_VSIX") bytes, redhat.java $REDHAT_JAVA_VERSION)"
+  # RFC 0014: the theme is not in the pack and not recommended, so it is not
+  # part of the Java story — it is installed here because a theme is only
+  # proven by a real client rendering it (§10 heavy).
+  (cd "$REPO/extensions/batlehub-theme" && pnpm run package >>"$HEAVY_WORK/package.log" 2>&1) \
+    || { tail -20 "$HEAVY_WORK/package.log" >&2; fail "packaging batlehub-theme failed"; }
+  THEME_VSIX="$REPO/extensions/batlehub-theme/batlehub-theme.vsix"
+  [[ -s "$THEME_VSIX" ]] || fail "no $THEME_VSIX"
+  log "PACKAGE-OK (java-core $(stat -c %s "$JAVA_CORE_VSIX") bytes with the bundle, java-groovy $(stat -c %s "$JAVA_GROOVY_VSIX") bytes, batlehub-theme $(stat -c %s "$THEME_VSIX") bytes, redhat.java $REDHAT_JAVA_VERSION)"
   J="$HEAVY_WORK/editor-java"
   JWS="$HEAVY_WORK/java-ws"
   rm -rf "$JWS" && cp -r "$REPO/tests/heavy/fixtures/maven-multi" "$JWS"
@@ -454,7 +461,7 @@ if [[ "$ONLY" == "all" || "$ONLY" == "java" ]]; then
   # only a manager. `mise` stays reachable; its `java` shim answers nothing
   # without a global version, which is what a fresh Che workspace has.
   JAVA_ENV_PATH="$(printf '%s' "$PATH" | tr ':' '\n' | grep -v -E '/java|/jdk|/jvm' | paste -sd: -)"
-  INSTALL_VSIX=("$REDHAT_VSIX" "$JAVA_CORE_VSIX" "$JAVA_GROOVY_VSIX")
+  INSTALL_VSIX=("$REDHAT_VSIX" "$JAVA_CORE_VSIX" "$JAVA_GROOVY_VSIX" "$THEME_VSIX")
   EDITOR_FOLDER="$JWS"
   T_START=$SECONDS
   # The suite lives inside the container's memory budget (§2 point 7 is not
@@ -476,7 +483,7 @@ d['batlehub.java.statusBar.items'] = {'groovy.server': True}
 json.dump(d, open(p, 'w'), indent=2)
 print('toggle: groovy.server shown', file=sys.stderr)
 PY"
-  node tests/heavy/java.mjs --url "http://127.0.0.1:$EDITOR_PORT/?folder=$JWS" --shots "$HEAVY_WORK/shots" --cdp "$CDP_URL" \
+  BATLEHUB_THEME=1 node tests/heavy/java.mjs --url "http://127.0.0.1:$EDITOR_PORT/?folder=$JWS" --shots "$HEAVY_WORK/shots" --cdp "$CDP_URL" \
     --workspace "$JWS" --after-baseline "$GIVE_PROFILE" --after-groovy "$SHOW_GROOVY_ITEM" >"$HEAVY_WORK/java.jsonl" 2>"$HEAVY_WORK/java.jsonl.err" \
     || { cat "$HEAVY_WORK/java.jsonl.err" >&2; cat "$HEAVY_WORK/java.jsonl" >&2; fail "the java driver failed"; }
   stop_editor
@@ -505,6 +512,39 @@ PY"
   assert_json "$J_" panel "d['found'] and len(d['tabs'])>=4 and 'tab' in d['roles'] and 'tabpanel' in d['roles'] and 'tablist' in d['roles'] and d['arrowMoved'] and d['tabs'][0]['tabindex']=='0'" \
     "the Java panel is missing tabs, ARIA roles or keyboard navigation: $(field "$J_" panel | cut -c1-300)"
   log "PANEL-OK (tabs $(field "$J_" panel | python3 -c 'import json,sys;print(",".join(t["text"] for t in json.load(sys.stdin)["tabs"]))'), ARIA tabs pattern, ArrowRight moves the selection; light/dark/high-contrast screenshots taken; first paint $(num perf panelPaintMs) ms after activation)"
+  # ── RFC 0014: the three BatleHub themes, as the editor painted them ──
+  # The expected values come from the theme files themselves, so a palette
+  # bump moves the assertion with the derivation instead of against it.
+  THEME_DIR="$REPO/extensions/batlehub-theme/themes"
+  tcol() { python3 -c "import json,sys;print(json.load(open(sys.argv[1]))['colors'][sys.argv[2]])" "$THEME_DIR/batlehub-$1.json" "$2"; }
+  assert_json "$J_" theme "d['dark']['chrome']['editor-background']=='$(tcol dark editor.background)' and d['dark']['chrome']['ground']=='$(tcol dark editor.background)' and d['dark']['chrome']['focusBorder']=='$(tcol dark focusBorder)'" \
+    "BatleHub Dark did not paint DESIGN.md's ground and amber focus ring: $(field "$J_" theme | cut -c1-300)"
+  log "THEME-DARK-OK (the workbench ground is $(tcol dark editor.background), --vscode-focusBorder is the amber token $(tcol dark focusBorder); screenshot kept)"
+  assert_json "$J_" theme "d['dark']['found'] and d['dark']['panel']['tabUnderline']=='$(tcol dark panelTitle.activeBorder)' and d['dark']['panel']['tabForeground']=='$(tcol dark panelTitle.activeForeground)' and not (set(d['dark']['panel']['used']) - set(json.load(open('$THEME_DIR/batlehub-dark.json'))['colors'].values()))" \
+    "the Java panel under BatleHub Dark renders a colour the theme does not name: $(field "$J_" theme | python3 -c 'import json,sys;t=set(json.load(open("'"$THEME_DIR"'/batlehub-dark.json"))["colors"].values());print(sorted(set(json.load(sys.stdin)["dark"]["panel"]["used"])-t))' | cut -c1-400)"
+  log "THEME-PANEL-OK (the selected tab's edge is the crimson token, its text is ink, and every colour the panel renders comes from the theme's own map)"
+  assert_json "$J_" theme "d['light']['chrome']['editor-background']=='$(tcol light editor.background)' and d['light']['panel']['tabUnderline']=='$(tcol light panelTitle.activeBorder)'" \
+    "BatleHub Light did not paint the paper ground and the light crimson edge: $(field "$J_" theme | cut -c1-300)"
+  python3 -c '
+import json, sys
+d = json.loads(sys.argv[1])["light"]["chrome"]
+def lum(h):
+    c = [int(h[i:i+2], 16) / 255 for i in (1, 3, 5)]
+    c = [x / 12.92 if x <= 0.04045 else ((x + 0.055) / 1.055) ** 2.4 for x in c]
+    return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]
+a, b = sorted((lum(d["foreground"]), lum(d["editor-background"])), reverse=True)
+r = (a + 0.05) / (b + 0.05)
+assert r >= 16, f"foreground on editor.background is {r:.2f}:1, under the 16:1 floor"
+print(f"{r:.2f}")' "$(field "$J_" theme)" >"$HEAVY_WORK/theme-light.txt" || fail "BatleHub Light: ink on paper is under 16:1"
+  log "THEME-LIGHT-OK (paper ground, the light crimson edge, ink on paper $(cat "$HEAVY_WORK/theme-light.txt"):1 as measured in the browser)"
+  assert_json "$J_" theme "d['hc']['chrome']['contrastBorder']=='$(tcol hc contrastBorder)' and d['hc']['chrome']['contrastActiveBorder']=='$(tcol hc contrastActiveBorder)' and d['hc']['panel']['ringColor']=='$(tcol hc focusBorder)' and d['hc']['panel']['ringWidth'] not in ('', '0px')" \
+    "BatleHub High Contrast does not set the two contrast borders, or the panel's focus ring is not the amber token: $(field "$J_" theme | cut -c1-400)"
+  log "THEME-HC-OK (contrastBorder and contrastActiveBorder set, the keyboard-focused tab outlined in the amber token; screenshot kept)"
+  voice() { python3 -c "import json,sys;v=json.load(open(sys.argv[1]))['semanticTokenColors'][sys.argv[2]];print(v['foreground'] if isinstance(v,dict) else v)" "$THEME_DIR/batlehub-dark.json" "$1"; }
+  assert_json "$J_" theme-tokens "d['pick'].get('class')=='$(voice class)' and d['pick'].get('method')=='$(voice method)' and d['pick'].get('keyword')=='$(voice keyword)' and d['pick'].get('string')=='$(voice string)' and d['pick'].get('annotation')=='$(voice annotation)' and '$(tcol dark button.background)' not in d['all']" \
+    "the Java voices are not the theme's, or crimson reached a token colour: $(field "$J_" theme-tokens | cut -c1-400)"
+  log "THEME-TOKENS-OK (the class in ink, the method and the keyword in dim ink, the string and the annotation in copper; crimson in no rendered token colour — the One Synthetic Rule on screen)"
+
   assert_json "$J_" explorer "any('JDK JavaSE-21' in r for r in d['rows']) and any(r.startswith('maven-multi') for r in d['rows'])" \
     "the Projects explorer does not show the JDK and the module: $(field "$J_" explorer | cut -c1-300)"
   log "EXPLORER-OK (folder → JDK → modules)"

@@ -17,6 +17,8 @@
 //   bundle     the "BatleHub Java: JDT" channel: the bundle's ping
 //   pick       the rows of "Java: Pick the JDK"
 //   panel      the Java panel: its tabs, the accessibility roles, arrow keys, three themes
+//   theme      RFC 0014: the three BatleHub themes, the chrome tokens and the panel under each
+//   theme-tokens the rendered Java token colours under BatleHub Dark
 //   explorer   the Projects view's rows
 //   tasks      "Tasks: Run Task" → the batlehub-java rows
 //   inspections the Problems panel on Greeter.java, then "Fix all" and the buffer after
@@ -261,13 +263,135 @@ async function panelFrame(page) {
   return null;
 }
 
+/** rgb(…)/rgba(…) as the theme files write it; a #hex passes through. */
+function hexOf(value) {
+  const m = /rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*([\d.]+))?\)/.exec(value ?? "");
+  if (!m) return (value ?? "").trim().toLowerCase();
+  const hex = (n) => Number(n).toString(16).padStart(2, "0");
+  const alpha = m[4] === undefined || Number(m[4]) === 1 ? "" : hex(Math.round(Number(m[4]) * 255));
+  return `#${hex(m[1])}${hex(m[2])}${hex(m[3])}${alpha}`;
+}
+
+/** The --vscode-* tokens RFC 0014 §4.2 puts a BatleHub value on. */
+const THEME_TOKENS = [
+  "foreground",
+  "focusBorder",
+  "editor-background",
+  "editor-foreground",
+  "panelTitle-activeBorder",
+  "button-background",
+  "button-foreground",
+  "textLink-foreground",
+  "editorError-foreground",
+  "editorWarning-foreground",
+  "contrastBorder",
+  "contrastActiveBorder",
+];
+
+/**
+ * One BatleHub theme: the workbench ground as painted, the chrome tokens, and
+ * the Java panel under it — its selected tab, every colour it renders, and
+ * the focus ring on a keyboard-focused tab (RFC 0014 §2.1).
+ */
+async function themeProbe(page, label, shotName) {
+  await setTheme(page, label);
+  await clickActivity(page, "Java");
+  await sleep(1200);
+  const chrome = await page.evaluate((names) => {
+    // The editor declares --vscode-* on the workbench, not on :root; custom
+    // properties inherit, so reading them there works either way.
+    const workbench = document.querySelector(".monaco-workbench") ?? document.documentElement;
+    const cs = getComputedStyle(workbench);
+    const out = { ground: cs.backgroundColor };
+    for (const n of names) out[n] = cs.getPropertyValue(`--vscode-${n}`).trim();
+    return out;
+  }, THEME_TOKENS);
+  const frame = await panelFrame(page);
+  let panel = null;
+  if (frame) {
+    // A keyboard interaction, so :focus-visible really applies to the ring.
+    await (await frame.$('[role="tab"]'))?.focus();
+    await page.keyboard.press("ArrowRight");
+    await sleep(400);
+    panel = await frame.evaluate(() => {
+      const selected = document.querySelector('[role="tab"][aria-selected="true"]');
+      const sel = selected && getComputedStyle(selected);
+      // Every colour the panel's own stylesheet renders. Native form
+      // controls are left out: a radio or a select is painted by the user
+      // agent, not by a --vscode-* token, so it is not the theme's to answer
+      // for (RFC 0001 decision 18 is about the panel's own rules).
+      const used = new Set();
+      for (const el of document.querySelectorAll("body, body *")) {
+        if (/^(INPUT|SELECT|TEXTAREA|OPTION)$/.test(el.tagName)) continue;
+        const cs = getComputedStyle(el);
+        for (const prop of ["color", "backgroundColor", "borderTopColor", "borderBottomColor", "borderLeftColor", "borderRightColor"]) {
+          const v = cs[prop];
+          if (v && v !== "rgba(0, 0, 0, 0)") used.add(v);
+        }
+      }
+      const active = document.activeElement;
+      const ring = active && active !== document.body ? getComputedStyle(active) : null;
+      return {
+        tabForeground: sel ? sel.color : "",
+        tabUnderline: sel ? sel.borderBottomColor : "",
+        used: [...used],
+        ringColor: ring ? ring.outlineColor : "",
+        ringWidth: ring ? ring.outlineWidth : "",
+      };
+    });
+    await page.keyboard.press("Home");
+    await sleep(300);
+  }
+  await snap(page, shotName);
+  const asHex = (o) => Object.fromEntries(Object.entries(o).map(([k, v]) => [k, Array.isArray(v) ? v.map(hexOf) : hexOf(v)]));
+  return { label, found: !!frame, chrome: asHex(chrome), panel: panel ? asHex(panel) : null };
+}
+
+/**
+ * What the editor really painted the Java tokens: the four voices of §4.2 read
+ * off the rendered spans, and every distinct colour in the buffer so the One
+ * Synthetic Rule can be checked against the screen rather than against the
+ * theme file.
+ */
+async function tokenColours(page, wanted) {
+  const found = await page.evaluate((want) => {
+    const spans = [...document.querySelectorAll(".view-lines span")].filter((s) => /(^|\s)mtk\d/.test(s.className));
+    const out = { all: [], pick: {} };
+    const all = new Set();
+    for (const s of spans) if (s.textContent.trim()) all.add(getComputedStyle(s).color);
+    out.all = [...all];
+    for (const [name, text] of Object.entries(want)) {
+      const at = text.startsWith("@");
+      const wanted = at ? text.slice(1) : text;
+      const hit = spans.find((s, i) => {
+        const t = s.textContent.trim();
+        if (!at) return t === text;
+        // The grammar may give "@Test" one span or split off the "@";
+        // either way, `Test` in an import is a type and not the annotation.
+        return t === text || (t === wanted && spans[i - 1] && spans[i - 1].textContent.trim().endsWith("@"));
+      });
+      if (hit) out.pick[name] = getComputedStyle(hit).color;
+    }
+    return out;
+  }, wanted);
+  return { all: found.all.map(hexOf), pick: Object.fromEntries(Object.entries(found.pick).map(([k, v]) => [k, hexOf(v)])) };
+}
+
+/**
+ * `Preferences: Color Theme` really applied. The command has to be *run* —
+ * with `enter: false` the palette never opens the theme picker and the name
+ * is typed into the command query instead, which is why the suite's three
+ * "themes" used to be three screenshots of the same one.
+ */
 async function setTheme(page, name) {
-  await runCommand(page, "Preferences: Color Theme", false);
-  await sleep(600);
+  await runCommand(page, "Preferences: Color Theme");
+  const input = await page.waitForSelector(".quick-input-widget input", { timeout: 20000 });
+  await input.focus();
+  await chord(page, "Control", "a");
   await page.keyboard.type(name);
-  await sleep(800);
+  await sleep(1000);
   await page.keyboard.press("Enter");
-  await sleep(1500);
+  await sleep(1800);
 }
 
 /** The Problems panel's rows for the active file. */
@@ -389,6 +513,33 @@ try {
   await setTheme(page, "Dark Modern");
   perf.panelPaintMs = Number(/panel first paint (\d+) ms/.exec((await outputLines(page)).join(" "))?.[1] ?? -1);
   emit({ phase: "panel", found: !!frame, tabs, roles, labelled, arrowMoved, paintMs: perf.panelPaintMs });
+
+  // 6b. RFC 0014: the same panel under the three BatleHub themes, with the
+  // chrome tokens read from the workbench rather than from the theme file.
+  // Only when the theme VSIX is installed beside the core (view.sh).
+  if (process.env.BATLEHUB_THEME === "1") {
+    const dark = await themeProbe(page, "BatleHub Dark", "panel-batlehub-dark");
+    const light = await themeProbe(page, "BatleHub Light", "panel-batlehub-light");
+    const hc = await themeProbe(page, "BatleHub High Contrast", "panel-batlehub-hc");
+    emit({ phase: "theme", dark, light, hc });
+
+    // 6c. The four voices, as the editor painted them: Java under BatleHub
+    // Dark with JDT.LS in Standard mode, so the semantic tokens are the
+    // server's truth and not the grammar's guess.
+    await setTheme(page, "BatleHub Dark");
+    await openFile(page, "Greeter.java");
+    await sleep(2500);
+    // `greeting` is a call, so it is the `method` voice; `all` would be a
+    // declaration and ink+bold. The string is read from MainTest.java's
+    // "Ada": an empty literal is two punctuation quotes and no string span.
+    const code = await tokenColours(page, { class: "Greeter", method: "greeting", keyword: "public" });
+    await openFile(page, "MainTest.java");
+    await sleep(2500);
+    const rest = await tokenColours(page, { annotation: "@Test", string: "Ada" });
+    await snap(page, "batlehub-tokens");
+    emit({ phase: "theme-tokens", pick: { ...code.pick, ...rest.pick }, all: [...new Set([...code.all, ...rest.all])] });
+    await setTheme(page, "Dark Modern");
+  }
 
   // 7. The explorer's rows (what is expanded: folder → JDK, modules; plus the Inspections view).
   await clickActivity(page, "Java");

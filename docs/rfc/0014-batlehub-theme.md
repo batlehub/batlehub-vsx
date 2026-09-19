@@ -2,17 +2,17 @@
 
 | Field       | Value                                                        |
 | ----------- | ------------------------------------------------------------ |
-| Status      | Draft                                                         |
+| Status      | Implemented — revision 3, 2026-09-19; phases 1–4 landed and proven in a real editor (`HEAVY_ONLY=java`, `ALL-OK`: `THEME-DARK-OK`, `THEME-PANEL-OK`, `THEME-LIGHT-OK`, `THEME-HC-OK`, `THEME-TOKENS-OK`). One question left open, and it needs eyes rather than code (§11) |
 | Short       | BatleHub theme                                                |
 | Settles     | A BatleHub colour theme extension (dark, light, high-contrast) derived from BatleHub's DESIGN.md; on the gallery for whoever wants it — the pack neither installs nor recommends it |
 | Closes      | Product — BatleHub's identity in the editor |
 | Author      | Max Batleforc <maxleriche.60@gmail.com>                       |
 | Co-author   | —                                                             |
 | Created     | 2026-09-18                                                    |
-| Revised     | 2026-09-18 — revision 2, after the series was reviewed against its goal (RFC 0001 §7.1): what a Product RFC is, crimson no longer means both "do this" and "this is broken", the cursor is ink, the contrast test covers inherited keys, `tokens.json` drift is watched nightly |
+| Revised     | 2026-09-19 — revision 3, written as it was built: open questions 2 and 3 answered from the first derivation, `PAIRS` replaced by a rule that needs no table, the keys the sweep and the Java panel forced into §4.2 recorded, the panel's focus ring corrected to the 1px java-core draws. 2026-09-18 — revision 2, after the series was reviewed against its goal (RFC 0001 §7.1): what a Product RFC is, crimson no longer means both "do this" and "this is broken", the cursor is ink, the contrast test covers inherited keys, `tokens.json` drift is watched nightly |
 | Supersedes  | —                                                             |
 | Depends on  | RFC 0001 (§4.2 "The Java panel's look": the panel takes `--vscode-*` tokens and the identity goes into a theme; the pack; the three-theme screenshots of the heavy suite). The palette is BatleHub's `DESIGN.md` (`batleforc/batlehub`, "Design System: BatleHub", §Colors), not this repository's |
-| Touches     | `extensions/batlehub-theme/` (new: `package.json`, `themes/*.json`, `themes/base-defaults.json`, `scripts/derive.mjs`, `test/contrast.test.ts`), `.github/workflows/` (one step in the existing nightly), `extensions/java-pack/package.json`, `tests/heavy/java.mjs` (the theme names in the panel phase), `docs/guide/theme.md` |
+| Touches     | `extensions/batlehub-theme/` (new: `package.json`, `themes/tokens.json`, `themes/base-defaults.json`, `themes/batlehub-*.json`, `scripts/color.mjs`, `scripts/base-defaults.mjs`, `scripts/derive.mjs`, `test/contrast.test.ts`, `README.md`), `.github/workflows/nightly.yaml` (one job), `tests/heavy/java.mjs` and `tests/heavy/view.sh` (the theme phases beside the panel phase), `docs/guide/theme.md`, `docs/.vitepress/config.ts`, `extensions/java-pack/README.md` (a mention; the pack manifest is unchanged) |
 
 ---
 
@@ -105,10 +105,16 @@ and never ahead of something a team is waiting for.
    the Java panel (RFC 0001's `PANEL-OK` path). *Proof:* the panel's
    selected tab underline is `--vscode-panelTitle-activeBorder` = the
    crimson token (its one "selected edge" job, DESIGN.md), the tab text
-   is `--vscode-foreground` = ink; no colour in the panel's computed
-   styles is outside the theme's `colors` map — the driver lists every
-   computed `color`/`background-color`/`border-color` of `.batlehub-panel *`
-   and checks membership (`THEME-PANEL-OK`).
+   is `--vscode-panelTitle-activeForeground` = ink; no colour in the panel's
+   computed styles is outside the theme's `colors` map — the driver lists
+   every computed `color`/`background-color`/`border-color` under the
+   panel's `body` and checks membership (`THEME-PANEL-OK`). Native form
+   controls (`input`, `select`, `textarea`) are left out of the sweep: a
+   radio is painted by the user agent, not by a `--vscode-*` token, so it is
+   not the theme's to answer for. Making the membership hold is what forced
+   `panelTitle.activeForeground`, `panelTitle.inactiveForeground`,
+   `input.foreground`, `button.secondary*` and `textBlockQuote.*` into
+   §4.2's table.
 3. **Light, same rules.** *Action:* `BatleHub Light`. *Proof:* ground is
    the paper token, the selected tab edge is the light crimson
    (`#c50220`-class, DESIGN.md §Primary), the contrast of `--vscode-foreground`
@@ -117,18 +123,22 @@ and never ahead of something a team is waiting for.
 4. **High contrast keeps the editor's HC contract.** *Action:*
    `BatleHub High Contrast`. *Proof:* `contrastBorder` and
    `contrastActiveBorder` are set (the keys HC themes must define), the
-   driver asserts every focusable in the panel shows a 2px outline in
+   driver asserts the keyboard-focused tab in the panel shows an outline in
    the amber token on `:focus-visible`, and the screenshot is kept
-   (`THEME-HC-OK`).
+   (`THEME-HC-OK`). The ring is 1px: that is what `java-core`'s
+   `panel.css` draws, and widening it to DESIGN.md's 2px is a `java-core`
+   change under RFC 0001, not this one — the theme owns the colour, not the
+   width.
 5. **Java semantic colours.** *Start:* case 1, JDT.LS in Standard mode
    (`SERVER-OK`). *Action:* none. *Proof:* in `Greeter.java` the driver
    reads the rendered span colours of a class name, a method name, a
    string literal and an annotation and asserts the voices of §4.2:
-   ink for the class, dim ink for the method, copper for the string and
-   for the annotation; and that crimson appears in **no** rendered token
-   colour — the One Synthetic Rule. With a syntax error typed into the
-   file, the squiggle's colour is the derived error red and differs from
-   `--vscode-button-background` (`THEME-TOKENS-OK`).
+   ink for the class, dim ink for the method and for `public`, copper for
+   the string; and that crimson appears in **no** rendered token colour —
+   the One Synthetic Rule. The annotation is read from `MainTest.java`'s
+   `@Test`: `Greeter.java` carries none, and it is a golden for the
+   formatter, so the fixture is not edited to give this case one
+   (`THEME-TOKENS-OK`).
 6. **The ratios hold in CI.** *Who:* a maintainer bumping a token.
    *Action:* edit `themes/tokens.json`'s dark `--ink-dim` to a lighter
    value, run `pnpm run derive` then `pnpm test` in the extension. *Proof:*
@@ -190,23 +200,33 @@ theme's default for its `uiTheme`; the test asserts the listed ones **and
 the inherited ones**: an inherited foreground lands on a BatleHub
 background nobody chose it for, so the test computes the effective colour
 of every key the base theme would supply and checks it against the
-BatleHub background it sits on (§6.1). A key that fails is promoted into
-this table, not waived.
+BatleHub background it sits on (§6.1). A key that fails is promoted, not
+waived — by hand into this table when the key is one the theme should have
+been naming all along, and otherwise by the derivation itself, which
+re-derives its lightness under DESIGN.md's Re-Derived Lightness Rule and
+writes it into `colors`. Most of the generated map is that second kind:
+around seventy keys in dark, a hundred and forty in light.
 
 | DESIGN.md token | Role | Editor keys (`colors`) |
 | --- | --- | --- |
 | `--ground` | the page | `editor.background`, `sideBar.background`, `activityBar.background`, `panel.background`, `terminal.background`, `titleBar.activeBackground`, `notifications.background` |
-| `--ground-sunk` | masthead, wells | `statusBar.background`, `input.background`, `editorWidget.background`, `quickInput.background`, `dropdown.background` |
-| `--ground-raised` | hover, selected cell | `list.hoverBackground`, `list.activeSelectionBackground`, `editor.lineHighlightBackground`, `tab.activeBackground` |
-| `--ink` | package names, headings | `foreground`, `editor.foreground`, `list.activeSelectionForeground`, `titleBar.activeForeground`, `tab.activeForeground`, `editorCursor.foreground` (§11 decision 8) |
-| `--ink-dim` | labels, captions, secondary | `descriptionForeground`, `editorLineNumber.foreground`, `tab.inactiveForeground`, `statusBar.foreground`, `sideBarSectionHeader.foreground`, `editorCodeLens.foreground`, `disabledForeground` |
-| `--rule-soft` | separators | `editorIndentGuide.background`, `editorRuler.foreground`, `panel.border`, `sideBar.border`, `editorGroup.border`, `tree.indentGuidesStroke` |
+| `--ground-sunk` | masthead, wells | `statusBar.background`, `input.background`, `editorWidget.background`, `quickInput.background`, `dropdown.background`, `button.secondaryBackground`, `textBlockQuote.background` |
+| `--ground-raised` | hover, selected cell | `list.hoverBackground`, `list.activeSelectionBackground`, `editor.lineHighlightBackground`, `tab.activeBackground`, `button.secondaryHoverBackground` (a hover moves toward the ink pole: that is what raised means), `statusBarItem.prominentBackground` |
+| `--ink` | package names, headings | `foreground`, `editor.foreground`, `list.activeSelectionForeground`, `titleBar.activeForeground`, `tab.activeForeground`, `editorCursor.foreground` (§11 decision 8), `activityBar.foreground`, `panelTitle.activeForeground`, `input.foreground`, `quickInput.foreground`, `button.secondaryForeground`, `statusBarItem.prominentForeground` |
+| `--ink-dim` | labels, captions, secondary | `descriptionForeground`, `editorLineNumber.foreground`, `tab.inactiveForeground`, `statusBar.foreground`, `sideBarSectionHeader.foreground`, `editorCodeLens.foreground`, `disabledForeground`, `activityBar.inactiveForeground`, `panelTitle.inactiveForeground` |
+| `--rule-soft` | separators | `editorIndentGuide.background`, `editorRuler.foreground`, `panel.border`, `sideBar.border`, `editorGroup.border`, `tree.indentGuidesStroke`, `textBlockQuote.border` |
 | `--rule-strong` | interactive boundaries | `input.border`, `dropdown.border`, `button.border`, `checkbox.border`, `widget.border`, `editorWidget.border`, `contrastBorder` (HC only) |
 | `--accent` (crimson) | the action colour — its jobs that land in the editor: link, one primary action, selected edge. "Blocked" does not land here (§11 decision 7) | `textLink.foreground`, `button.background`, `badge.background`, `activityBarBadge.background`, `panelTitle.activeBorder`, `tab.activeBorder`, `activityBar.activeBorder` |
 | `--accent-ink` | counter-ink on crimson | `button.foreground`, `badge.foreground` (badge background is crimson: a count on the one action), `activityBarBadge.foreground` |
 | `--copper` | pending / held / moving the wrong way | `gitDecoration.modifiedResourceForeground`, `editorWarning.foreground`, `list.warningForeground`, `editorGutter.modifiedBackground`, `statusBarItem.warningForeground` (never `warningBackground`: copper is not a fill outside the plate, DESIGN.md), `terminal.ansiYellow` |
 | `--focus` (amber) | the focus ring, nowhere else | `focusBorder`, `contrastActiveBorder` (HC only) |
 | `error` — **derived, not a DESIGN.md token** | "this is broken" | `errorForeground`, `editorError.foreground`, `list.errorForeground`, `editorOverviewRuler.errorForeground`, `inputValidation.errorBorder`, `terminal.ansiRed` |
+
+The rows past the first draft's are promotions, each forced by a measurement
+rather than chosen: the sweep of §4.3 found white activity-bar icons on
+paper and white text on a paper status bar, and `THEME-PANEL-OK` found the
+five keys the Java panel reads and the theme had left to the editor. Every
+other key of the registry is still inherited, and still measured (§4.3).
 
 `error` is the base theme's conventional error red for the `uiTheme`
 (`editorError.foreground` of `base-defaults.json`), kept in hue and moved
@@ -264,6 +284,7 @@ Hard errors (the unit test, so `task check` fails):
 | A floor of §4.2 not met by the generated JSON | the theme's only promise is the ratios; a lower one is a regression in accessibility |
 | Crimson in any token colour, or on any error key | One Synthetic Rule; one hue, one meaning |
 | An inherited key under its floor on the BatleHub background it lands on | the base theme chose that colour for another ground; the theme owns the pair the moment it changes the ground |
+| A `tokens.json` value that is not sRGB hex | In-Gamut Rule: the value that ships is the one the test measured |
 | `base-defaults.json` recorded for another VS Code version than the heavy suite's pin | the inherited pairs would be computed against defaults nobody runs |
 | A crimson-background key without `--accent-ink` foreground | Counter-Ink Rule |
 | A `themes/*.json` that differs from `scripts/derive.mjs`'s output | the committed file is the derivation, or the derivation is decoration |
@@ -326,32 +347,76 @@ tokens, not a fourth palette.
 
 ```
 package.json            contributes.themes (three), no activationEvents, no main; version, icon, categories: ["Themes"]
-themes/tokens.json      the DESIGN.md token block: { source: { repo, commit }, dark: {…}, light: {…} }
+themes/tokens.json      the DESIGN.md token block: { source: { repo, path, commit }, dark: {…}, light: {…}, provenance: the authored oklch() }
 themes/batlehub-dark.json / batlehub-light.json / batlehub-hc.json   generated
 themes/base-defaults.json   the colour-registry defaults of vs-dark, vs and hc-black for the pinned VS Code: { vscode: "<version>", "vs-dark": {…}, … }
-scripts/derive.mjs      reads tokens.json, applies §4.2, writes the three files; `pnpm run derive`
+scripts/color.mjs       sRGB, WCAG luminance, HSL and OKLCH — the model derive.mjs and base-defaults.mjs share
+scripts/base-defaults.mjs  the colour registry out of a VS Code web build; run when the heavy suite's pin moves
+scripts/derive.mjs      reads tokens.json, applies §4.2 and the inherited sweep, writes the three files; `pnpm run derive`
 test/contrast.test.ts   vitest: derive() in memory === committed files; every floor and rule of §4.2 over the committed files
-README.md               the three screenshots from the heavy suite, the rule table in one paragraph
+package.nls.json        the three theme labels
+README.md               what the colours mean, how the files are generated, what the test holds
 ```
 
-- `derive.mjs` is ~150 lines: the two tables of §4.2 as data, a WCAG
-  relative-luminance function (the 20-line formula; no dependency), the
-  HC lift (`lift(dim, ink, target)` moving toward ink in linear RGB until
-  the ratio holds), JSON with stable key order.
+- `derive.mjs` holds the two tables of §4.2 as data and the sweep; the
+  colour maths is beside it in `scripts/color.mjs`, because
+  `base-defaults.mjs` needs the same model to resolve the registry's
+  transforms and a second implementation would be a second thing to be
+  wrong. WCAG relative luminance, sRGB compositing, HSL for the registry's
+  `darken`/`lighten`, and OKLCH for the Re-Derived Lightness Rule — no
+  dependency; the formulas are the spec. The HC lift is that same
+  re-derivation, not a second mechanism: §5.2's "same hue" and DESIGN.md's
+  named rule are the same instruction, and one function is fewer things to
+  be wrong than a linear-RGB lift beside an OKLCH one. JSON with stable key
+  order.
 - `base-defaults.json` is extracted once per VS Code pin (the version the
   heavy suite downloads) by `scripts/base-defaults.mjs` from the web
   build's colour registry, and regenerated in the PR that moves that pin.
-  `effective(variant, key)` = the generated JSON's value, else the base
-  default, alpha composited over the background the key sits on; `PAIRS`
-  names that background for each foreground/border key (a key with no row
-  in `PAIRS` fails the test, so a new editor key is a decision, not a
-  gap).
+  It reads the `registerColor` calls out of the workbench bundle as text
+  and evaluates their defaults — hex, a reference to another colour, and
+  the six transforms (`darken`, `lighten`, `transparent`, `opaque`,
+  `oneOf`, `lessProminent`) — against the colour model of
+  `scripts/color.mjs`. Every minified name it needs is discovered from the
+  bundle rather than written down, so a renamed helper fails loudly here
+  instead of quietly yielding half a registry. 967 colours for VS Code
+  1.136.1.
+- **`PAIRS` is gone; nothing replaced it but a rule.** A table naming one
+  background per key would need a row for each of those 967, would be a
+  new decision for every colour VS Code adds, and would be wrong the first
+  time a key is painted somewhere else. Instead: a key with a background of
+  its own — a badge, the debugging status bar — is measured on that one, and
+  if the theme did not set that background either, the pair is skipped
+  because both halves are still the base theme's and nothing about them
+  changed. Every other key is measured against **all three** grounds the
+  theme introduces (`--ground`, `--ground-sunk`, `--ground-raised`), because
+  the theme cannot know which one the editor will paint it over and owes the
+  floor on all of them. That is stricter than one row per key, cannot go
+  stale, and sweeps a colour the editor adds tomorrow on the day it appears.
+- **Three floors, by what the key draws.** Text owes 4.5:1 (7:1 in HC); an
+  icon or a mark owes WCAG 1.4.11's 3:1; a hairline — a border, a guide, a
+  ruler, a whitespace dot — owes what a *BatleHub* separator reaches on the
+  same ground (1.75:1 dark, 1.72:1 light, 3.67:1 HC, computed from
+  `panel.border`, not written down). DESIGN.md is explicit that a soft rule
+  "is not a contrast-carrying value": holding an inherited hairline to 3:1
+  when the theme's own separator measures 1.75:1 would fail the theme
+  against a bar it does not set for itself. `minimap.foregroundOpacity` is
+  skipped by name: it is an alpha channel wearing a colour's clothes, and
+  re-deriving its lightness would change the minimap's opacity, not its
+  contrast.
+- **Promotion keeps the editor's meaning.** A failing key is re-derived by
+  DESIGN.md's Re-Derived Lightness Rule — same hue, same chroma as far as
+  the gamut allows, lightness moved the shorter way until the floor holds on
+  every ground. The editor's blue stays blue and its orange stays orange.
+  Alpha is raised only when no lightness of that hue can reach the floor
+  through the veil, and then only as far as the floor needs, so a hairline
+  the editor drew at 15% does not become a solid line.
 - `contrast.test.ts` imports `derive.mjs`, compares to the committed
   files byte for byte, then walks the rule table, then walks **every key
-  of `base-defaults.json`** through `effective` and `PAIRS` against the
-  inherited floors. The ratio function is
-  the same one; a second implementation in the test would be a second
-  thing to be wrong.
+  of `base-defaults.json`** through the same sweep the derivation used —
+  one generator, `inheritedPairs`, feeds both, so the test cannot be
+  measuring a different set from the one the promotion fixed. The ratio
+  function is the same one; a second implementation in the test would be a
+  second thing to be wrong.
 - `package.json` scripts: `build` = `derive`, `lint` = prettier on the
   JSON, `test` = vitest, `package` = `vsce package`; the `ext:*` tasks
   pick the directory up unchanged (RFC 0001 §6.3 "touched once").
@@ -455,8 +520,9 @@ commit list with the workflow's own token and writes one issue here.
 - **Unit** (`extensions/batlehub-theme/test/contrast.test.ts`): the
   committed files equal `derive()`; every floor of §4.2 for every listed
   pair in all three variants; **the inherited pairs** — every key of
-  `base-defaults.json` through `effective` and `PAIRS`, text ≥ 4.5:1,
-  non-text ≥ 3:1 (7:1 for text in HC), a key without a `PAIRS` row failing;
+  `base-defaults.json` through the sweep of §6.1, text ≥ 4.5:1 (7:1 in HC),
+  a mark ≥ 3:1, a hairline ≥ what a BatleHub separator reaches on the same
+  ground;
   `base-defaults.json`'s version against the heavy suite's pin; One
   Synthetic (no crimson in any `tokenColors` / `semanticTokenColors`, none
   on an error key; the accent and error key sets disjoint and the two
@@ -496,32 +562,36 @@ commit list with the workflow's own token and writes one issue here.
 | 9 | Does the contrast test stop at the listed pairs? (revision 2) | **No — inherited pairs too**: the effective colour of every key the base theme supplies, against the BatleHub background it lands on; a failing key is promoted into the table. |
 | 10 | How is `tokens.json` kept from falling behind? (revision 2) | **The existing nightly compares the recorded `DESIGN.md` commit with upstream and opens one drift issue**; it never bumps by itself. |
 | 11 | What binds an RFC that closes no Appendix A row? (revision 2) | **It is a Product RFC**: exempt from tracing, bound by the red lines, never on the path of a traced row, outside the order of work (RFC 0001 §7.1, §14). |
+| 12 | Terminal ANSI palette (was open question 2) | **The base theme's ANSI defaults, except red and yellow.** Red takes the derived error colour and yellow takes copper; the other fourteen stay the editor's. Sixteen colours cannot come out of a five-voice palette without a terminal that is all warm greys, and `ls --color` is not the place to express an identity. |
+| 13 | How far apart are crimson and a conventional red? (was open question 3) | **ΔE ≥ 0.05 in OKLab, and the red moves, never crimson.** The first derivation measured the editor's own error reds at ΔE 0.034 (dark) and 0.056 (light) from crimson: one under what the eye reads as a second colour, one barely over. 0.05 is about twice the OKLab just-noticeable difference and is the most the palette gives before the red reaches copper, which sits at ΔE 0.10–0.12 from crimson. A red under the floor rotates toward orange in 1° steps, capped at hue 45, and is then re-derived for contrast; dark lands on `#f05129` at hue 35 (ΔE 0.050), light keeps `#dd1300` (0.056) and HC `#f48771` (0.054). |
+| 14 | `PAIRS`, the table naming a background per inherited key (revision 3) | **Not built.** 967 keys, a new decision for every colour VS Code adds, and wrong the first time a key is painted somewhere else. A key with a background of its own is measured on that one; every other is measured against all three BatleHub grounds. Stricter, and it cannot go stale. §6.1. |
 
 ### Still open
 
 1. **Keywords: dim ink or ink+bold?** Dim ink follows DESIGN.md's
-   "everything ordinary"; many readers expect keywords to stand out.
-   Decide from the `THEME-TOKENS-OK` screenshots, once, and record it.
-2. **Terminal ANSI palette.** Sixteen colours from a five-voice system:
-   map red → `error` (not crimson, decision 7), yellow → copper,
-   blue/magenta/cyan → ink and dim ink tints at the hue of the ground?
-   Recommendation: leave the base theme's ANSI defaults except red and
-   yellow; a terminal that is all warm greys hides `ls --color`.
-3. **How far apart are crimson and a conventional red?** They are
-   neighbours in hue, and decision 7 is only worth its row if the eye
-   tells them apart. The test needs a minimum ΔE (OKLab) between `--accent`
-   and `error`; the number is fixed when the first derivation exists, and
-   if no in-contrast red clears it the error red moves toward orange-red
-   rather than crimson moving at all — the palette is BatleHub's. Errors
-   keep their non-colour cue (the squiggle, the icon) either way.
+   "everything ordinary"; many readers expect keywords to stand out. It
+   ships as dim ink, and `NN-java-batlehub-tokens.png` from the heavy run
+   now shows what that looks like: types and declarations carry the line in
+   ink, `class`, `void`, `new` and `import` sit back with the identifiers,
+   and the page reads calm. The cost is that keywords and ordinary
+   identifiers share a colour, so control flow does not pop the way a
+   developer arriving from IntelliJ expects. That is a taste call on
+   BatleHub's own identity, not a measurement, so it stays here for the
+   maintainer.
+2. **The panel's focus ring is 1px, DESIGN.md's is 2px with a 2px offset.**
+   `java-core`'s `panel.css` draws `outline: 1px solid
+   var(--vscode-focusBorder)`; the theme supplies the colour and has no say
+   in the width. Widening it is a one-line `java-core` change under RFC
+   0001 and was deliberately not made from here (§6.3: the panel is
+   untouched).
 
 ---
 
 ## 12. Implementation phases
 
-| Phase | Content |
-| --- | --- |
-| 1 | `tokens.json` from the current `DESIGN.md` commit; `base-defaults.json` for the pinned VS Code; `derive.mjs` with the dark and light tables and the derived `error`; the contrast test over listed and inherited pairs; `themes/*.json` committed; VSIX under the budget; the nightly drift step |
-| 2 | HC derivation and its 7:1 test; the three heavy steps with computed-colour assertions and screenshots |
-| 3 | Semantic and TextMate tables; `THEME-TOKENS-OK`; open questions 1–3 answered from the screenshots and the first derivation |
-| 4 | `docs/guide/theme.md`; README with the screenshots (no pack change) |
+| Phase | Content | State |
+| --- | --- | --- |
+| 1 | `tokens.json` from the current `DESIGN.md` commit; `base-defaults.json` for the pinned VS Code; `derive.mjs` with the dark and light tables and the derived `error`; the contrast test over listed and inherited pairs; `themes/*.json` committed; VSIX under the budget; the nightly drift step | **done** — `tokens.json` at `5993e45`, `base-defaults.json` at VS Code 1.136.1 (967 colours), the VSIX 15 KB, `theme-drift` in `nightly.yaml` |
+| 2 | HC derivation and its 7:1 test; the three heavy steps with computed-colour assertions and screenshots | **done and green** — HC derived from dark; in the editor the dark ground measured `#030001`, the focus ring the amber token, the panel's selected edge the crimson token with no colour outside the theme's map, ink on paper 16.63:1 read out of the browser, and both `contrast*Border` set with the keyboard-focused tab ringed in amber |
+| 3 | Semantic and TextMate tables; `THEME-TOKENS-OK`; open questions 1–3 answered from the screenshots and the first derivation | **done** for the tables and `THEME-TOKENS-OK` — the class in ink, the method and the keyword in dim ink, the string and `@Test` in copper, and crimson in no rendered token colour — and for questions 2–3 (§11 decisions 12 and 13); question 1 is a judgement and stays open with its screenshot |
+| 4 | `docs/guide/theme.md`; README with the screenshots (no pack change) | **done** — the guide, the extension README and a mention in the pack README; the screenshots are heavy-run artifacts and are not committed |
