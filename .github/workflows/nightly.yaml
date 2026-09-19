@@ -58,7 +58,7 @@ jobs:
           VSCODE_VERSION: ${{ matrix.vscode }}
           REDHAT_JAVA_VERSION: ${{ steps.redhat.outputs.version }}
         run: bash tests/heavy/view.sh
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: heavy-java-${{ matrix.vscode }}-${{ matrix.redhat }}
@@ -121,7 +121,7 @@ jobs:
           BATLEHUB_BIN: /home/runner/.cache/batlehub-vsx/bin/batlehub
           BATLEHUB_CLI: /home/runner/.cache/batlehub-vsx/bin/batlehub-cli
         run: bash tests/heavy/view.sh
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: heavy-registry
