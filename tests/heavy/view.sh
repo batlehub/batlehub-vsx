@@ -543,7 +543,7 @@ print(f"{r:.2f}")' "$(field "$J_" theme)" >"$HEAVY_WORK/theme-light.txt" || fail
   voice() { python3 -c "import json,sys;v=json.load(open(sys.argv[1]))['semanticTokenColors'][sys.argv[2]];print(v['foreground'] if isinstance(v,dict) else v)" "$THEME_DIR/batlehub-dark.json" "$1"; }
   assert_json "$J_" theme-tokens "d['pick'].get('class')=='$(voice class)' and d['pick'].get('method')=='$(voice method)' and d['pick'].get('keyword')=='$(voice keyword)' and d['pick'].get('string')=='$(voice string)' and d['pick'].get('annotation')=='$(voice annotation)' and '$(tcol dark button.background)' not in d['all']" \
     "the Java voices are not the theme's, or crimson reached a token colour: $(field "$J_" theme-tokens | cut -c1-400)"
-  log "THEME-TOKENS-OK (the class in ink, the method and the keyword in dim ink, the string and the annotation in copper; crimson in no rendered token colour — the One Synthetic Rule on screen)"
+  log "THEME-TOKENS-OK (the class, the method and the keyword in the editor's own colours re-lit on the BatleHub ground, the string and the annotation in copper; crimson in no rendered token colour — the One Synthetic Rule on screen)"
 
   assert_json "$J_" explorer "any('JDK JavaSE-21' in r for r in d['rows']) and any(r.startswith('maven-multi') for r in d['rows'])" \
     "the Projects explorer does not show the JDK and the module: $(field "$J_" explorer | cut -c1-300)"

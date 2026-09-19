@@ -56,7 +56,7 @@ and never ahead of something a team is waiting for.
   warm near-black, links and the one primary action are Signal Crimson
   (errors are the editor's conventional red, not crimson), focus rings are
   Signal Amber, "pending" (modified files, warnings) is Aged Copper; Java
-  keywords, types and strings follow the same four voices
+  keywords, types and strings follow the same voices
 - the same file in Light: same hues, re-derived lightness (DESIGN.md's
   Re-Derived Lightness Rule), the same rule table
 - extensions/batlehub-theme/themes/*.json are generated, diffed in review,
@@ -133,8 +133,9 @@ and never ahead of something a team is waiting for.
    (`SERVER-OK`). *Action:* none. *Proof:* in `Greeter.java` the driver
    reads the rendered span colours of a class name, a method name, a
    string literal and an annotation and asserts the voices of §4.2:
-   ink for the class, dim ink for the method and for `public`, copper for
-   the string; and that crimson appears in **no** rendered token colour —
+   the editor's type colour for the class, its function colour for the
+   method (bold on the declaration), its keyword colour for `public`, and
+   copper for the string — each re-lit on the BatleHub ground; and that crimson appears in **no** rendered token colour —
    the One Synthetic Rule. The annotation is read from `MainTest.java`'s
    `@Test`: `Greeter.java` carries none, and it is a golden for the
    formatter, so the fixture is not edited to give this case one
@@ -159,7 +160,7 @@ and never ahead of something a team is waiting for.
   the base theme and lays on a BatleHub background.
 - One hue, one meaning: crimson is the action colour and never the error
   colour.
-- Java's semantic tokens coloured by the same four voices as the chrome.
+- Java's semantic tokens coloured by the same voices as the chrome.
 - No runtime code; the VSIX is JSON and an icon.
 - Proven by the heavy suite's screenshots. Not a pack member and not a
   pack recommendation: installed by whoever wants it.
@@ -254,26 +255,67 @@ Rules the script enforces, each a test:
   pairs raised with ink; `input` pairs sunk with `--rule-strong`).
 - **Floors.** ink on ground ≥ 16:1; dim ink on ground ≥ 5.28:1 (the
   raised-surface floor DESIGN.md gives), on raised ≥ 5.2:1; crimson on
-  ground ≥ 5.6:1; `error` on ground ≥ 4.5:1; amber on ground ≥ 13:1
+  ground ≥ 5.6:1; `error` on ground ≥ 4.5:1; every borrowed token colour on ground ≥ 4.5:1 (≥ 7:1 in HC); amber on ground ≥ 13:1
   (dark) / ≥ 4.4:1 (light); an inherited text key on its BatleHub
   background ≥ 4.5:1, an inherited non-text key ≥ 3:1;
   `--rule-strong` on ground ≥ 3.4:1 (non-text UI, WCAG 1.4.11).
 
-Syntax, through semantic tokens first (`semanticHighlighting: true`) and
-TextMate scopes as the fallback for the same roles:
+Syntax is borrowed (decision 18). `tokenColors` are not inherited — a
+theme that names none paints every buffer in `editor.foreground` — so the
+question was never "which of BatleHub's colours go on code" but "whose
+colours". Three revisions answered it with the palette's own and produced
+a buffer that could not be read: one accent hue and three warm greys do
+not carry six roles, and nine hand-named Java scopes left YAML, Markdown,
+shell and every unserved TypeScript file flat. The editor's own answer is
+taken instead, the trade decisions 12 and 13 already made for the error
+red and the ANSI palette: **the hue is the editor's, the lightness is
+BatleHub's.**
 
-| Voice | Semantic tokens (Java, from `redhat.java`) | TextMate scopes |
+`themes/base-tokens.json` is the committed copy of Dark+, Light+ and High
+Contrast Black for the pinned VS Code (`scripts/base-tokens.mjs`, the same
+shape and the same pin as `base-defaults.json`). What is borrowed from it
+is the **role map** — which scope means a call, which means a type, which
+means a key in a YAML file — because that is the half that made a buffer
+readable, and it is the product of more grammar-years than this theme will
+ever have.
+
+The hues are Dracula's, with red and purple traded (decisions 19 and 20).
+VS Code's blue-and-teal is no neighbour of a warm theme, so `HUES` answers
+every base colour with the colour Dracula spends on the same role, and the
+test fails if the pinned editor emits one the table does not answer. Then
+the lightness is re-derived on the BatleHub ground until it meets the token
+floor — 4.5:1, 7:1 in HC — because neither VS Code nor Dracula chose its
+lightness for this ground. A colour that lands within ΔE 0.05 of crimson
+rotates away from it: One Synthetic holds on screen, not only in the table,
+and Dracula's red `#ff5555` is the one colour that needs it — ΔE 0.043 from
+crimson, rotated to 0.051. Alucard's `#cb3a2a` is already clear at 0.054.
+
+Dracula and Alucard are the Dracula Theme's, MIT. Nothing of the theme is
+vendored: `HUES` is a table of colour values, credited here and in the
+extension's README.
+
+Three rows stay BatleHub's, appended after the borrowed list so they win:
+
+| Voice | Semantic tokens | TextMate scopes |
 | --- | --- | --- |
-| ink | `class`, `interface`, `enum`, `record`, `typeParameter`, `namespace` | `entity.name.type`, `entity.name.namespace` |
-| ink, bold | `method.declaration`, `class.declaration` | `entity.name.function` in a declaration |
-| dim ink | `method`, `property`, `parameter`, `variable`, `keyword`, `modifier`, `operator`, punctuation | `keyword`, `storage`, `variable`, `punctuation` |
-| dim ink, italic | `comment` | `comment` |
-| copper | `string`, `number`, `annotation`, `annotationMember`, `enumMember` | `string`, `constant.numeric`, `storage.type.annotation`, `constant.other.enum` |
-| `error` | — | `invalid`, `invalid.illegal` only |
+| copper | `string`, `annotation`, `annotationMember` | `string`, `storage.type.annotation` |
+| `error` | — | `invalid`, `invalid.illegal` |
+| the editor's comment green, *italic* | `comment` | `comment` |
 
-Keywords in dim ink is a deliberate choice (DESIGN.md: dim ink "carries
-everything ordinary"); §11 open 1 asks whether ink+bold for keywords
-reads better in the real editor, which is what the screenshots are for.
+The Java semantic tokens (`redhat.java`) are mapped by borrowing the
+editor's colour for the scope each one means: `class` and the other type
+tokens take `entity.name.type`, `method` and `function` take
+`entity.name.function` (a declaration bold), `keyword` and `modifier` take
+`keyword.control`, `variable`, `property` and `parameter` take `variable`,
+`operator` takes `keyword.operator`, `number` and `enumMember` take
+`constant.numeric`. The test measures every one on the ground and holds
+the four a line of Java shows at once — class, method, keyword, string —
+ΔE 0.05 apart.
+
+The identity is the chrome, which is where a developer reads it: the
+ground, the crimson action, the amber ring, the copper pending, the error
+red. A buffer is not where a design system is expressed — `ls --color` was
+not either (decision 12).
 
 ### 4.3 Validation
 
@@ -555,7 +597,7 @@ commit list with the workflow's own token and writes one issue here.
 | 2 | Where does the palette live? | **`themes/tokens.json` with the `DESIGN.md` commit hash**; CI has no BatleHub checkout. |
 | 3 | HC as a fourth palette? | **Derived from dark**: strong rules everywhere, text lifted to 7:1, the two `contrast*Border` keys. |
 | 4 | Crimson in syntax? | **Never** — revision 2: not even `invalid` scopes, which take the derived `error` red. |
-| 5 | Semantic tokens? | **On**, mapped to the four voices; TextMate as the fallback. |
+| 5 | Semantic tokens? | **On**, mapped to the voices of §4.2; TextMate as the fallback. |
 | 6 | Runtime code? | **None.** `contributes.themes` only. |
 | 7 | `--accent` on both `button.background` and the error foregrounds? (revision 2; revision 1 mapped both) | **No — one hue, one meaning.** Crimson stays the action colour (link, primary action, selected edge); errors take the editor's conventional red, derived in lightness to meet contrast. DESIGN.md's "blocked" job has no landing in the editor. |
 | 8 | The cursor (was open question 1) | **Ink.** Amber is "the focus ring, nowhere else"; `editorCursor.foreground` maps to `--ink` and §4.2's table says so. The screenshots only confirm visibility. |
@@ -565,20 +607,17 @@ commit list with the workflow's own token and writes one issue here.
 | 12 | Terminal ANSI palette (was open question 2) | **The base theme's ANSI defaults, except red and yellow.** Red takes the derived error colour and yellow takes copper; the other fourteen stay the editor's. Sixteen colours cannot come out of a five-voice palette without a terminal that is all warm greys, and `ls --color` is not the place to express an identity. |
 | 13 | How far apart are crimson and a conventional red? (was open question 3) | **ΔE ≥ 0.05 in OKLab, and the red moves, never crimson.** The first derivation measured the editor's own error reds at ΔE 0.034 (dark) and 0.056 (light) from crimson: one under what the eye reads as a second colour, one barely over. 0.05 is about twice the OKLab just-noticeable difference and is the most the palette gives before the red reaches copper, which sits at ΔE 0.10–0.12 from crimson. A red under the floor rotates toward orange in 1° steps, capped at hue 45, and is then re-derived for contrast; dark lands on `#f05129` at hue 35 (ΔE 0.050), light keeps `#dd1300` (0.056) and HC `#f48771` (0.054). |
 | 14 | `PAIRS`, the table naming a background per inherited key (revision 3) | **Not built.** 967 keys, a new decision for every colour VS Code adds, and wrong the first time a key is painted somewhere else. A key with a background of its own is measured on that one; every other is measured against all three BatleHub grounds. Stricter, and it cannot go stale. §6.1. |
+| 15 | Keywords: dim ink or ink+bold? (was open question 1) | **Bold, and the split goes further.** The real editor answered it: with `method`, `property`, `variable` and `keyword` all in plain dim ink, a class and a function call read as the same grey word and control flow did not exist. Calls join declarations in bold ink, keywords and modifiers take bold dim ink, and ordinary identifiers keep plain dim ink. The palette gives syntax three colours and no fourth, so the sixth voice is a weight, not a hue — and a weight moves no contrast ratio. |
+| 16 | A fourth syntax colour, when weight is not enough? | **Yes, but derived along lightness, not invented as a hue.** Long files of calls and identifiers still read as one grey mass: bold alone does not separate a call from the type that owns it. A fourth *hue* would have to be invented — the palette's three are spoken for — so `--ink-mid` takes dim ink's hue and chroma and sits halfway to ink in OKLab L (DESIGN.md's Re-Derived Lightness Rule, applied to a voice). Calls take it; a declaration keeps the full ink, so the place a name is
+defined still outranks every place it is used. It measures 10.1:1 (dark), 11.8:1 (light) and 11.7:1 (HC) on ground, and ≥ 0.12 in OKLab from both ink and dim ink — more than twice decision 13's floor. The test holds every voice pair against that floor, so a palette bump that collapses two voices fails. |
+| 17 | Which voice carries the body of the code? | **Ink — the brightest, not the dimmest.** The first three revisions gave `variable`, `property` and `parameter` dim ink, reading DESIGN.md's "dim ink carries everything ordinary" as a rule about code. It is a rule about chrome. In a buffer it put the mass of what is read at 5.6:1 while `editor.foreground` — every token no rule caught — stayed at 17:1, so one file showed two brightnesses for one meaning and the whole theme read as fog. Ink is the body; structure recedes into dim ink; types and calls sit one step under the body in mid ink. The same revision widened the scope lists from nine Java leaves to the families every grammar emits, which is the other half of why a non-Java file was unreadable: nothing matched, so nothing was coloured. |
+| 18 | Whose colours does code wear? (decisions 15–17 are its three failed attempts) | **The editor's, re-lit on BatleHub's ground.** Weight (15), a third ink tier (16) and giving the body the ink (17) each moved the needle and none made a buffer readable: the palette has one accent hue for code, and nine hand-named Java scopes leave most file types unpainted. `tokenColors` are not inherited, so naming none is not an option either. The theme takes Dark+, Light+ and HC Black from the pinned VS Code as a committed copy, re-lights every foreground on the BatleHub ground to 4.5:1 (7:1 in HC), and rotates any that lands within ΔE 0.05 of crimson. Strings and annotations keep copper, `invalid` keeps the error red, comments keep their italic. Decisions 12 and 13 made this trade twice already; the identity is the chrome. |
+| 19 | Which hues, once the roles are borrowed? | **Tokyo Night's.** Decision 18 borrowed two things at once — the editor's role map and the editor's hues — and only the first was load-bearing. VS Code's blue-and-teal against a warm near-black ground reads as two themes in one window. `TOKYO` substitutes the Tokyo Night colour for each base colour before the lightness is re-derived, so the scope coverage of decision 18 is kept whole and only the palette changes. The table has to be total: a base colour with no answer would reach a buffer as VS Code's own, and a pin bump is exactly how that would arrive unnoticed, so the test holds every colour of the committed copy against it. Tokyo Night / Tokyo Night Day are Enkia's, MIT, read as a colour scheme and credited; no file of theirs is vendored. |
+| 20 | Which hues, once the candidates were seen side by side? | **Dracula's, with red and purple traded.** Decision 19 shipped Tokyo Night on reasoning alone; a page holding the same `Greeter.java` in four palettes at once settled it by eye instead, and the measurements went with it. Dracula keeps its voices further apart than Tokyo Night (mean ΔE 0.270 against 0.198 across the eight voices a line of Java shows). The trade sends Dracula's purple to the regex classes and its red to the numbers, constants and storage. One cost is recorded rather than hidden: Dracula paints keywords and operators the same pink, so that pair measures ΔE 0 — the editor's own table does the same, and separating them is a line of `HUES`, open if it ever grates. |
 
 ### Still open
 
-1. **Keywords: dim ink or ink+bold?** Dim ink follows DESIGN.md's
-   "everything ordinary"; many readers expect keywords to stand out. It
-   ships as dim ink, and `NN-java-batlehub-tokens.png` from the heavy run
-   now shows what that looks like: types and declarations carry the line in
-   ink, `class`, `void`, `new` and `import` sit back with the identifiers,
-   and the page reads calm. The cost is that keywords and ordinary
-   identifiers share a colour, so control flow does not pop the way a
-   developer arriving from IntelliJ expects. That is a taste call on
-   BatleHub's own identity, not a measurement, so it stays here for the
-   maintainer.
-2. **The panel's focus ring is 1px, DESIGN.md's is 2px with a 2px offset.**
+1. **The panel's focus ring is 1px, DESIGN.md's is 2px with a 2px offset.**
    `java-core`'s `panel.css` draws `outline: 1px solid
    var(--vscode-focusBorder)`; the theme supplies the colour and has no say
    in the width. Widening it is a one-line `java-core` change under RFC
@@ -593,5 +632,5 @@ commit list with the workflow's own token and writes one issue here.
 | --- | --- | --- |
 | 1 | `tokens.json` from the current `DESIGN.md` commit; `base-defaults.json` for the pinned VS Code; `derive.mjs` with the dark and light tables and the derived `error`; the contrast test over listed and inherited pairs; `themes/*.json` committed; VSIX under the budget; the nightly drift step | **done** — `tokens.json` at `5993e45`, `base-defaults.json` at VS Code 1.136.1 (967 colours), the VSIX 15 KB, `theme-drift` in `nightly.yaml` |
 | 2 | HC derivation and its 7:1 test; the three heavy steps with computed-colour assertions and screenshots | **done and green** — HC derived from dark; in the editor the dark ground measured `#030001`, the focus ring the amber token, the panel's selected edge the crimson token with no colour outside the theme's map, ink on paper 16.63:1 read out of the browser, and both `contrast*Border` set with the keyboard-focused tab ringed in amber |
-| 3 | Semantic and TextMate tables; `THEME-TOKENS-OK`; open questions 1–3 answered from the screenshots and the first derivation | **done** for the tables and `THEME-TOKENS-OK` — the class in ink, the method and the keyword in dim ink, the string and `@Test` in copper, and crimson in no rendered token colour — and for questions 2–3 (§11 decisions 12 and 13); question 1 is a judgement and stays open with its screenshot |
+| 3 | Semantic and TextMate tables; `THEME-TOKENS-OK`; open questions 1–3 answered from the screenshots and the first derivation | **done** for the tables and `THEME-TOKENS-OK` — the class in ink, the method and the keyword in dim ink, the string and `@Test` in copper, and crimson in no rendered token colour — and for questions 2–3 (§11 decisions 12 and 13); question 1 was answered by the real editor and closed as decision 15 — the voices the row describes are the pre-decision-15 ones |
 | 4 | `docs/guide/theme.md`; README with the screenshots (no pack change) | **done** — the guide, the extension README and a mention in the pack README; the screenshots are heavy-run artifacts and are not committed |

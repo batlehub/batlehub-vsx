@@ -7,6 +7,8 @@ import { describe, expect, it } from "vitest";
 import { composite, contrast, deltaE, parseHex } from "../scripts/color.mjs";
 import {
   baseDefaults,
+  baseTokens,
+  huesOf,
   colorsOf,
   derive,
   ERROR_KEYS,
@@ -14,6 +16,7 @@ import {
   HC_ONLY,
   listedColorsOf,
   MIN_ACCENT_ERROR_DELTA_E,
+  MIN_VOICE_DELTA_E,
   PARTNER_TOKENS,
   palette,
   inheritedPairs,
@@ -29,9 +32,10 @@ type Theme = {
   colors: Record<string, string>;
   semanticTokenColors: Record<string, string | { foreground: string }>;
   tokenColors: {
-    name: string;
-    scope: string[];
-    settings: { foreground: string };
+    name?: string;
+    // A borrowed rule carries the base theme's own shape: one scope or many.
+    scope: string | string[];
+    settings: { foreground?: string; fontStyle?: string };
   }[];
 };
 const themeOf = (variant: string) =>
@@ -166,7 +170,7 @@ describe.each(variants)("%s", (variant) => {
       expect(fg, token).not.toBe(p.accent);
     }
     for (const rule of theme.tokenColors) {
-      expect(rule.settings.foreground, rule.scope.join(",")).not.toBe(p.accent);
+      expect(rule.settings.foreground, String(rule.scope)).not.toBe(p.accent);
     }
   });
 
@@ -284,37 +288,149 @@ describe("high contrast", () => {
   });
 });
 
-describe("the four voices", () => {
+describe("the voices", () => {
+  // Decision 18: the hues are the editor's, the lightness is BatleHub's. What
+  // the test can hold is the second half — every colour a buffer can show
+  // measures on the ground this theme put under it — plus the two rows
+  // BatleHub keeps for itself and the One Synthetic Rule, which is asserted
+  // per variant above.
   it.each(variants)(
-    "%s colours Java by the same voices as the chrome",
+    "%s measures every token colour on its ground",
     (variant) => {
       const theme = themeOf(variant);
       const p = palette(variant);
+      const floor = FLOORS[variant].token;
       expect(theme.semanticHighlighting).toBe(true);
-      for (const row of VOICES) {
-        for (const token of row.semantic as string[]) {
-          const style = (theme.semanticTokenColors as Record<string, unknown>)[
-            token
-          ];
-          const fg =
-            typeof style === "string"
-              ? style
-              : (style as { foreground: string }).foreground;
-          expect(fg, token).toBe(p[row.voice]);
-        }
-      }
-      // Every syntax colour is a text pair on the editor's own ground.
-      for (const row of VOICES) {
-        expect(on(p[row.voice], p.ground), row.voice).toBeGreaterThanOrEqual(
-          variant === "hc" ? 7 : 4.5,
-        );
+      const seen: string[] = [];
+      for (const rule of theme.tokenColors)
+        if (rule.settings.foreground) seen.push(rule.settings.foreground);
+      for (const style of Object.values(theme.semanticTokenColors))
+        seen.push(typeof style === "string" ? style : style.foreground);
+      expect(seen.length).toBeGreaterThan(60);
+      for (const fg of seen) {
+        expect(on(fg, p.ground), fg).toBeGreaterThanOrEqual(floor);
+        expect(
+          deltaE(parseHex(fg), parseHex(p.accent)),
+          `${fg} vs crimson`,
+        ).toBeGreaterThanOrEqual(MIN_VOICE_DELTA_E);
       }
     },
   );
 
-  it("gives the invalid scopes the error red and nothing else", () => {
-    const invalid = VOICES.find((v: { voice: string }) => v.voice === "error")!;
+  // The voices Java reads through `redhat.java`: each is the editor's colour
+  // for the scope it borrows, or BatleHub's own where the theme kept the row.
+  it.each(variants)("%s maps the Java semantic tokens", (variant) => {
+    const theme = themeOf(variant);
+    const p = palette(variant) as Record<string, string>;
+    for (const row of VOICES as {
+      semantic: string[];
+      voice?: string;
+      style?: string;
+    }[]) {
+      for (const token of row.semantic) {
+        const style = theme.semanticTokenColors[token];
+        const fg = typeof style === "string" ? style : style.foreground;
+        if (row.voice) expect(fg, token).toBe(p[row.voice]);
+        else expect(fg, token).toMatch(/^#[0-9a-f]{6}$/);
+        if (row.style)
+          expect(style, token).toHaveProperty(row.style as string, true);
+      }
+    }
+    // The four the eye has to tell apart in one line of Java.
+    const four = ["class", "method", "keyword", "string"].map((t) => {
+      const v = theme.semanticTokenColors[t];
+      return typeof v === "string" ? v : v.foreground;
+    });
+    for (let i = 0; i < four.length; i++)
+      for (let j = i + 1; j < four.length; j++)
+        expect(
+          deltaE(parseHex(four[i]), parseHex(four[j])),
+          `${four[i]} vs ${four[j]}`,
+        ).toBeGreaterThanOrEqual(MIN_VOICE_DELTA_E);
+  });
+
+  // Decision 17, now held by the borrowed list: one scope per language the
+  // repository holds, and a rule has to catch each or that file type is
+  // painted in one flat ink.
+  it("catches the scope families a grammar actually emits", () => {
+    const rules = themeOf("dark").tokenColors;
+    const caught = (s: string) =>
+      rules.some((r) =>
+        (Array.isArray(r.scope) ? r.scope : [r.scope]).some(
+          (x: string) => s === x || s.startsWith(x + "."),
+        ),
+      );
+    for (const s of [
+      "keyword.control.flow.ts",
+      "variable.other.readwrite.ts",
+      "entity.name.function.ts",
+      "support.type.property-name.json",
+      "entity.other.attribute-name.html",
+      "entity.name.tag.yaml",
+      "comment.line.number-sign.shell",
+      "string.quoted.double.yaml",
+      "constant.numeric.decimal.rust",
+      "markup.heading.markdown",
+      "markup.inline.raw.markdown",
+      "constant.language.boolean.yaml",
+    ])
+      expect(caught(s), s).toBe(true);
+  });
+
+  it("keeps strings, annotations and invalid for BatleHub", () => {
+    const copper = VOICES.find(
+      (v: { voice?: string }) => v.voice === "copper",
+    )!;
+    expect(copper.scopes).toContain("string");
+    expect(copper.scopes).toContain("storage.type.annotation");
+    const invalid = VOICES.find(
+      (v: { voice?: string }) => v.voice === "error",
+    )!;
     expect(invalid.scopes).toEqual(["invalid", "invalid.illegal"]);
     expect(invalid.semantic).toEqual([]);
+    for (const variant of variants) {
+      const theme = themeOf(variant);
+      const p = palette(variant);
+      const last = (scope: string) =>
+        theme.tokenColors
+          .filter((r) =>
+            (Array.isArray(r.scope) ? r.scope : [r.scope]).includes(scope),
+          )
+          .at(-1)!.settings.foreground;
+      expect(last("string"), variant).toBe(p.copper);
+      expect(last("invalid"), variant).toBe(p.error);
+    }
+  });
+
+  // Decision 20: the roles are the editor's, the hues are Dracula's. A base
+  // colour with no answer in the table would reach a buffer as VS Code's own
+  // blue — which is exactly what a pin bump can introduce unnoticed.
+  it.each(variants)(
+    "%s answers every base colour with a Dracula hue",
+    (variant) => {
+      const ui = VARIANTS[variant].uiTheme as keyof typeof baseTokens;
+      const table = huesOf(variant) as Record<string, string>;
+      const seen = new Set<string>();
+      for (const rule of (
+        baseTokens[ui] as {
+          tokenColors: { settings: { foreground?: string } }[];
+        }
+      ).tokenColors)
+        if (rule.settings.foreground)
+          seen.add(rule.settings.foreground.toLowerCase());
+      for (const v of Object.values(
+        (baseTokens[ui] as { semanticTokenColors: Record<string, string> })
+          .semanticTokenColors,
+      ))
+        if (typeof v === "string") seen.add(v.toLowerCase());
+      for (const hex of seen) expect(table, hex).toHaveProperty(hex);
+    },
+  );
+
+  // The two committed copies are one snapshot of one editor: a token colour
+  // from 1.136 re-derived against a registry from another build would be
+  // measured against a ground the editor no longer paints.
+  it("records both base copies from the same VS Code", () => {
+    expect(baseTokens.vscode).toBe(baseDefaults.vscode);
   });
 });

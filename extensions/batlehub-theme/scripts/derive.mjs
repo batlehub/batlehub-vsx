@@ -24,6 +24,7 @@ const read = (f) => JSON.parse(fs.readFileSync(path.join(dir, f), "utf8"));
 
 export const tokens = read("tokens.json");
 export const baseDefaults = read("base-defaults.json");
+export const baseTokens = read("base-tokens.json");
 
 // ── The rule table (§4.2) ────────────────────────────────────────────────
 // A DESIGN.md token, and every editor key that takes it. Two keys are HC's
@@ -182,6 +183,7 @@ export const VARIANTS = {
 export const FLOORS = {
   dark: {
     ink: 16,
+    token: 4.5,
     "ink-dim": 5.28,
     "ink-dim-raised": 5.2,
     accent: 5.6,
@@ -192,6 +194,7 @@ export const FLOORS = {
   },
   light: {
     ink: 16,
+    token: 4.5,
     "ink-dim": 5.28,
     "ink-dim-raised": 5.2,
     accent: 5.6,
@@ -202,6 +205,7 @@ export const FLOORS = {
   },
   hc: {
     ink: 16,
+    token: 7,
     "ink-dim": 7,
     "ink-dim-raised": 7,
     accent: 7,
@@ -255,10 +259,13 @@ export const MIN_ACCENT_ERROR_DELTA_E = 0.05;
 /** How far toward orange an error red may rotate before the hue is copper's. */
 const MAX_ERROR_HUE = 45;
 
-// ── The four voices (§4.2, second table) ─────────────────────────────────
+// ── The voices (§4.2, second table) ───────────────────────────────────────
+// §11 open 1, closed in the real editor: three colours are all the palette
+// gives syntax (crimson is One Synthetic, amber is the focus ring, the error
+// red is `invalid`), so weight carries what a hue cannot — a call is bold ink,
+// a keyword bold dim ink. Without it every identifier read as one grey word.
 export const VOICES = [
   {
-    voice: "ink",
     name: "Types and namespaces",
     semantic: [
       "class",
@@ -268,52 +275,46 @@ export const VOICES = [
       "typeParameter",
       "namespace",
     ],
-    scopes: ["entity.name.type", "entity.name.namespace"],
+    from: "entity.name.type",
   },
   {
-    voice: "ink",
-    style: "bold",
     name: "Declarations",
-    semantic: ["class.declaration", "method.declaration"],
-    scopes: ["entity.name.function"],
+    semantic: ["method.declaration", "class.declaration"],
+    from: "entity.name.function",
+    style: "bold",
   },
   {
-    voice: "ink-dim",
-    name: "Everything ordinary",
-    semantic: [
-      "method",
-      "property",
-      "parameter",
-      "variable",
-      "keyword",
-      "modifier",
-      "operator",
-    ],
-    scopes: ["keyword", "storage", "variable", "punctuation"],
+    name: "Calls",
+    semantic: ["method", "function"],
+    from: "entity.name.function",
   },
   {
-    voice: "ink-dim",
-    style: "italic",
+    name: "Keywords and modifiers",
+    semantic: ["keyword", "modifier"],
+    from: "keyword.control",
+  },
+  {
+    name: "The body of the code",
+    semantic: ["variable", "property", "parameter"],
+    from: "variable",
+  },
+  { name: "Operators", semantic: ["operator"], from: "keyword.operator" },
+  {
     name: "Comments",
     semantic: ["comment"],
-    scopes: ["comment"],
+    from: "comment",
+    style: "italic",
   },
   {
     voice: "copper",
     name: "Literals and annotations",
-    semantic: [
-      "string",
-      "number",
-      "annotation",
-      "annotationMember",
-      "enumMember",
-    ],
-    scopes: [
-      "string",
-      "constant.numeric",
-      "storage.type.annotation",
-      "constant.other.enum",
-    ],
+    semantic: ["string", "annotation", "annotationMember"],
+    scopes: ["string", "storage.type.annotation"],
+  },
+  {
+    name: "Numbers",
+    semantic: ["number", "enumMember"],
+    from: "constant.numeric",
   },
   {
     voice: "error",
@@ -331,6 +332,14 @@ export const VOICES = [
  * hues stay, every text pair is re-derived to AAA by DESIGN.md's Re-Derived
  * Lightness Rule, and soft rules do not exist.
  */
+/**
+ * Two syntax voices that sit side by side in the same file have to read as two
+ * colours. The number is `MIN_ACCENT_ERROR_DELTA_E`'s — roughly twice the
+ * OKLab just-noticeable difference — applied to the voices instead of to
+ * crimson and the error red.
+ */
+export const MIN_VOICE_DELTA_E = MIN_ACCENT_ERROR_DELTA_E;
+
 export function palette(variant) {
   const floors = FLOORS[variant];
   if (variant !== "hc") {
@@ -551,23 +560,184 @@ export function colorsOf(variant) {
   );
 }
 
+/**
+ * Dracula, as a substitution (§11 decision 20). Decision 18 took the editor's
+ * *roles* — which scope means "a call", which means "a type" — and that half is
+ * what made a buffer readable. Its hues were never the point, and VS Code's
+ * blue-and-teal is no neighbour of a warm theme, so every base colour is
+ * answered by the colour Dracula spends on the same role before the lightness
+ * is re-derived.
+ *
+ * Red and purple are traded against Dracula's own table (decision 20): the
+ * purple carried numbers, constants and storage and the red carried the regex
+ * classes, and the numbers read better as the warmer of the two on this ground.
+ * Dracula's red is also the one borrowed colour crimson pushes: `#ff5555` sits
+ * ΔE 0.043 from it, under the floor, so the derivation rotates it to 0.051.
+ *
+ * Values follow Dracula and Alucard (Dracula Theme, MIT); they are read as a
+ * colour scheme, nothing of the theme is vendored, and the test below fails if
+ * the pinned editor ever emits a colour this table does not answer — a hue of
+ * VS Code's own would otherwise reach a buffer unnoticed.
+ */
+export const HUES = {
+  dark: {
+    "#d4d4d4": "#ff79c6", // operators, embedded expressions
+    "#ffffff": "#f8f8f2", // HC plain text
+    "#c8c8c8": "#f8f8f2", // labels
+    "#9cdcfe": "#f8f8f2", // variables, keys, attribute names
+    "#4fc1ff": "#ff5555", // constants, enum members
+    "#b5cea8": "#ff5555", // numbers
+    "#569cd6": "#ff5555", // language constants, tags, storage
+    "#c586c0": "#ff79c6", // control keywords
+    "#dcdcaa": "#50fa7b", // functions
+    "#4ec9b0": "#8be9fd", // types
+    "#ce9178": "#f1fa8c", // strings (BatleHub's copper still wins on `string`)
+    "#6a9955": "#6272a4", // comments
+    "#7ca668": "#6272a4", // comments, HC
+    "#d16969": "#bd93f9", // regex character classes
+    "#d7ba7d": "#ffb86c", // CSS tags and classes, escapes
+    "#646695": "#6272a4", // regex punctuation
+    "#b46695": "#ff79c6", // regex punctuation, HC
+    "#6796e6": "#8be9fd", // markdown list markers, HC headings
+    "#808080": "#6272a4", // tag punctuation
+    "#f44747": "#bd93f9", // invalid (BatleHub's error red still wins)
+    "#000080": "#ff5555", // markdown headers, diff headers
+    "#cbedcb": "#50fa7b", // search result context, HC
+  },
+  light: {
+    "#000000ff": "#1f1f1f", // embedded expressions
+    "#000000": "#a3144d", // operators, import modifiers
+    "#001080": "#1f1f1f", // variables, object keys — the body
+    "#0070c1": "#cb3a2a", // constants, enum members
+    "#098658": "#cb3a2a", // numbers
+    "#0000ff": "#cb3a2a", // language constants, preprocessor
+    "#af00db": "#a3144d", // control keywords
+    "#800080": "#a3144d", // markup italic
+    "#795e26": "#14710a", // functions
+    "#267f99": "#036a96", // types
+    "#a31515": "#846e15", // strings (copper still wins on `string`)
+    "#008000": "#6c664b", // comments
+    "#800000": "#a34d14", // tags, selectors
+    "#e50000": "#14710a", // attribute names
+    "#811f3f": "#644ac9", // regex
+    "#d16969": "#644ac9", // regex groups
+    "#ee0000": "#a34d14", // regex anchors, escapes
+    "#0451a5": "#036a96", // markdown quotes and list markers
+    "#000080": "#cb3a2a", // diff headers, markup bold
+    "#cd3131": "#644ac9", // invalid (the error red still wins)
+  },
+};
+
+/** Dark and HC read one table; only `vs` reads light. */
+export const huesOf = (variant) => HUES[variant === "light" ? "light" : "dark"];
+
+/**
+ * The editor's own colour for a scope, from the base theme this uiTheme
+ * borrows (§4.2). The last rule naming the scope wins, which is the order VS
+ * Code itself paints in — the flattened list of scripts/base-tokens.mjs keeps
+ * it. An unknown scope is a typo in VOICES, so it throws rather than falling
+ * back to a colour nobody chose.
+ */
+function baseColour(variant, scope) {
+  const rules = baseTokens[VARIANTS[variant].uiTheme].tokenColors;
+  let found;
+  for (const rule of rules) {
+    const scopes = Array.isArray(rule.scope) ? rule.scope : [rule.scope ?? ""];
+    // The scope as written, never a child of it: `keyword.control` is the
+    // keyword colour, `keyword.control.anchor.regexp` is a regex detail, and
+    // a prefix match would hand the language its regex colour.
+    if (rule.settings?.foreground && scopes.includes(scope))
+      found = rule.settings.foreground;
+  }
+  if (!found)
+    throw new Error(
+      `no base rule paints ${scope} in ${VARIANTS[variant].uiTheme}`,
+    );
+  return found;
+}
+
+/**
+ * A borrowed colour, made BatleHub's: the hue is the editor's — decision 18,
+ * the same trade as the error red and the ANSI palette — and the lightness is
+ * re-derived on the BatleHub ground until it meets the token floor, because
+ * the base theme chose its lightness for a ground this theme replaced. Two
+ * rules hold on the way out: a borrowed colour never lands on crimson (One
+ * Synthetic), and it stays ΔE ≥ 0.05 from it, so nothing in a buffer can be
+ * read as the action colour. A colour too close rotates away from crimson's
+ * hue in 1° steps, the error red's own escape.
+ */
+function borrow(variant, p, hex) {
+  const ground = parseHex(p.ground);
+  const accent = parseHex(p.accent);
+  const target = FLOORS[variant].token;
+  const base = parseHex(huesOf(variant)[hex.toLowerCase()] ?? hex);
+  const held = reLightness(base, ground, target);
+  if (deltaE(held, accent) >= MIN_VOICE_DELTA_E) return toHex(held);
+  const { L, C, h } = toOklch(base);
+  for (let step = 1; step <= 180; step++)
+    for (const dir of [1, -1]) {
+      const moved = reLightness(
+        fromOklchClamped({ L, C, h: h + dir * step }),
+        ground,
+        target,
+      );
+      if (deltaE(moved, accent) >= MIN_VOICE_DELTA_E) return toHex(moved);
+    }
+  throw new Error(
+    `no hue near ${hex} reaches ΔE ${MIN_VOICE_DELTA_E} from crimson`,
+  );
+}
+
+/**
+ * Syntax (§4.2, second half): the base theme's rules with every foreground
+ * re-derived onto the BatleHub ground, then BatleHub's own rows on top —
+ * copper for strings and annotations, the error red for `invalid`, italic for
+ * comments. The base list comes first so that a BatleHub row of equal
+ * specificity wins, which is how the editor resolves two rules for one scope.
+ */
 function syntax(variant) {
   const p = palette(variant);
-  const semanticTokenColors = {};
-  const tokenColors = [];
+  const base = baseTokens[VARIANTS[variant].uiTheme];
+  const mine = (row) =>
+    row.voice
+      ? p[row.voice]
+      : borrow(variant, p, baseColour(variant, row.from));
+
+  const tokenColors = base.tokenColors.map((rule) => ({
+    ...rule,
+    settings: rule.settings.foreground
+      ? {
+          ...rule.settings,
+          foreground: borrow(variant, p, rule.settings.foreground),
+        }
+      : { ...rule.settings },
+  }));
   for (const row of VOICES) {
-    const foreground = p[row.voice];
+    if (!row.scopes && !row.style) continue; // semantic-only voices
+    const scopes = row.scopes ?? [row.from];
+    tokenColors.push({
+      name: row.name,
+      scope: scopes,
+      settings: row.style
+        ? { foreground: mine(row), fontStyle: row.style }
+        : { foreground: mine(row) },
+    });
+  }
+
+  const semanticTokenColors = Object.fromEntries(
+    Object.entries(base.semanticTokenColors).map(([t, v]) => [
+      t,
+      typeof v === "string"
+        ? borrow(variant, p, v)
+        : { ...v, foreground: borrow(variant, p, v.foreground) },
+    ]),
+  );
+  for (const row of VOICES) {
+    const foreground = mine(row);
     for (const t of row.semantic)
       semanticTokenColors[t] = row.style
         ? { foreground, [row.style]: true }
         : foreground;
-    tokenColors.push({
-      name: row.name,
-      scope: row.scopes,
-      settings: row.style
-        ? { foreground, fontStyle: row.style }
-        : { foreground },
-    });
   }
   return { semanticTokenColors, tokenColors };
 }

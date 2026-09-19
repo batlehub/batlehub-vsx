@@ -10,15 +10,15 @@ alone.
 
 ## What the colours mean
 
-One hue, one meaning — the same four voices in the chrome and in Java:
+One hue, one meaning in the chrome; in a buffer the editor's role map wearing Dracula's hues, re-lit on the BatleHub ground (RFC 0014 decisions 18 and 20):
 
-| Voice                   | Where it lands                                                                                      |
-| ----------------------- | --------------------------------------------------------------------------------------------------- |
-| **Signal Crimson**      | links, the one primary action, the selected edge — and **never** an error                           |
-| a derived **error** red | "this is broken": squiggles, the Problems list, `invalid` scopes                                    |
-| **Aged Copper**         | pending or held: modified files, warnings, and in Java strings, numbers and annotations             |
-| **Signal Amber**        | the focus ring, and nowhere else                                                                    |
-| **ink** / **dim ink**   | types and declarations in ink; everything ordinary, including keywords, in dim ink; comments italic |
+| Voice                   | Where it lands                                                                          |
+| ----------------------- | --------------------------------------------------------------------------------------- |
+| **Signal Crimson**      | links, the one primary action, the selected edge — and **never** an error               |
+| a derived **error** red | "this is broken": squiggles, the Problems list, `invalid` scopes                        |
+| **Aged Copper**         | pending or held: modified files, warnings, and in Java strings, numbers and annotations |
+| **Signal Amber**        | the focus ring, and nowhere else                                                        |
+| **ink** / **dim ink**   | the chrome: headings and package names in ink, labels and captions in dim ink           |
 
 Crimson is the action colour and stays off every error key: the same hue on
 the `Run` button and under a syntax error would say "do this" and "this is
@@ -63,3 +63,7 @@ in the PR that moves `VSCODE_VERSION` in `tests/heavy/view.sh`.
   voice, on no error key), Counter-Ink, Undependable Fill, In-Gamut.
 
 There is no runtime code: `contributes.themes` and three JSON files.
+
+## Credits
+
+The syntax hues follow [Dracula and Alucard](https://github.com/dracula/visual-studio-code) (Dracula Theme, MIT), with red and purple traded, read as a colour scheme and re-derived onto the BatleHub ground; the scope coverage follows VS Code's own Dark+, Light+ and High Contrast Black. No file of either is redistributed here.

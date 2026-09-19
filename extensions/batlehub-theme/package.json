@@ -45,10 +45,11 @@
   },
   "scripts": {
     "derive": "node scripts/derive.mjs",
+    "base-tokens": "node scripts/base-tokens.mjs",
     "build": "node scripts/derive.mjs",
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "lint": "prettier --check package.json package.nls.json README.md themes/tokens.json themes/base-defaults.json \"scripts/*.mjs\" \"test/*.ts\" vitest.config.ts",
-    "format": "prettier --write package.json package.nls.json README.md CHANGELOG.md themes/tokens.json themes/base-defaults.json \"scripts/*.mjs\" \"test/*.ts\" vitest.config.ts",
+    "lint": "prettier --check package.json package.nls.json README.md themes/tokens.json themes/base-defaults.json themes/base-tokens.json \"scripts/*.mjs\" \"test/*.ts\" vitest.config.ts",
+    "format": "prettier --write package.json package.nls.json README.md CHANGELOG.md themes/tokens.json themes/base-defaults.json themes/base-tokens.json \"scripts/*.mjs\" \"test/*.ts\" vitest.config.ts",
     "test": "vitest run",
     "package": "node scripts/derive.mjs && vsce package --no-dependencies --skip-license -o batlehub-theme.vsix"
   },
