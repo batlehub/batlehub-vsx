@@ -6,7 +6,7 @@ version: "3"
 # read off the DOM. See docs/contributing/testing.md.
 tasks:
   view:
-    desc: "Run the heavy suite: BatleHub modes plus Che Notify in a real VS Code web build against a real BatleHub (needs DATABASE_URL, the browser sidecar, and BATLEHUB_SRC or BATLEHUB_BIN)"
+    desc: "Run the heavy suite: BatleHub modes plus Che Notify against a real BatleHub, then the Java half, in a real VS Code web build (needs DATABASE_URL, the browser sidecar, and BATLEHUB_SRC or BATLEHUB_BIN)"
     cmds:
       - bash tests/heavy/view.sh
 
@@ -19,6 +19,16 @@ tasks:
     desc: "Only the broker-mode half of the heavy suite"
     cmds:
       - HEAVY_ONLY=broker bash tests/heavy/view.sh
+
+  view:java:
+    desc: "Only the Java half of the heavy suite (RFC 0001): redhat.java + java-core in the real editor, no BatleHub, no Postgres"
+    cmds:
+      - HEAVY_ONLY=java bash tests/heavy/view.sh
+
+  view:registry:
+    desc: "Only the registry-link half (RFC 0001 phase 5): batlehub-vsx hands the token to java-core, a real Maven resolves through the hub (needs DATABASE_URL, the sidecar, a BatleHub)"
+    cmds:
+      - HEAVY_ONLY=registry bash tests/heavy/view.sh
 
   shots:
     desc: "List the screenshots of the last heavy run"

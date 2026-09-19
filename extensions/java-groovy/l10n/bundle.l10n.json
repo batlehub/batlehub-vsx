@@ -1,0 +1,6 @@
+{
+  "Groovy: BatleHub Java (batlehub.java-core) is not installed.": "Groovy: BatleHub Java (batlehub.java-core) is not installed.",
+  "Groovy: BatleHub Java resolved no JDK, so the Groovy language server cannot start. Install one with Java: Install a JDK…": "Groovy: BatleHub Java resolved no JDK, so the Groovy language server cannot start. Install one with Java: Install a JDK…",
+  "Groovy: the language server failed to start; Groovy files keep their syntax colouring. See the Groovy log.": "Groovy: the language server failed to start; Groovy files keep their syntax colouring. See the Groovy log.",
+  "Groovy: the server has not been started yet (no Groovy file opened, or no JDK).": "Groovy: the server has not been started yet (no Groovy file opened, or no JDK)."
+}

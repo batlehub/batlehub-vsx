@@ -1,0 +1,29 @@
+name: Java problem
+description: A problem with BatleHub Java (java-core, java-groovy, java-pack) — prefilled by "Java: Report a problem"
+title: "Java: "
+labels: ["java"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        `Java: Report a problem` wrote a zip next to your temp directory with the versions, a redacted detection snapshot, the container limits and the logs — no token, no source. Attach it if you want; read it first.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what you expected, what you saw.
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Prefilled from the report (editor, OS, extension versions, JDKs, container limit, server mode).
+      render: text
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checks
+      options:
+        - label: I read the zip before attaching it
+        - label: The BatleHub Java log (Java: Show log) has nothing more to add

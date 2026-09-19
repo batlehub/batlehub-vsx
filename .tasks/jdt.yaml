@@ -1,0 +1,61 @@
+version: "3"
+
+# The JDT bundle of RFC 0001 §6.2 (`jdt/batlehub-jdt-core`): Java, loaded
+# into JDT.LS through java-core's `contributes.javaExtensions`. Plain Maven +
+# bnd, no Tycho: the jars it compiles against are the ones the pinned
+# redhat.java ships (`jdt:deps`), so the Import-Package ranges match the
+# server it runs in. The built jar is not committed: `jdt:build` puts it at
+# extensions/java-core/jdt/batlehub-jdt-core.jar, where the VSIX picks it up.
+vars:
+  JDK: '{{.JDK | default "java@temurin-21.0.11+10.0.LTS"}}'
+  # The pinned redhat.java, the one deps.sh unpacks; jdt:formatter-defaults
+  # reads its jars, so the two must name the same version.
+  REDHAT_JAVA: '{{.REDHAT_JAVA | default "1.56.0"}}'
+  MAVEN: '{{.MAVEN | default "maven@3.9.16"}}'
+  # A working `mvn` on PATH (CI's setup-java) is used as is; otherwise `mise exec`
+  # (this workspace has the shims but no global java/maven version).
+  MVN:
+    sh: if mvn -v >/dev/null 2>&1; then echo "mvn"; elif command -v mise >/dev/null; then echo "mise exec {{.JDK}} {{.MAVEN}} -- mvn"; else echo "mvn"; fi
+  JAR: extensions/java-core/jdt/batlehub-jdt-core.jar
+
+tasks:
+  deps:
+    desc: "Install the JDT.LS jars of the pinned redhat.java VSIX into ~/.m2 (downloads the VSIX once into ~/.cache/batlehub-heavy)"
+    cmds:
+      - |
+        if mvn -v >/dev/null 2>&1; then bash jdt/deps.sh; else mise exec {{.JDK}} {{.MAVEN}} -- bash jdt/deps.sh; fi
+
+  build:
+    desc: "Build the bundle jar and copy it into extensions/java-core/jdt/"
+    deps: [deps]
+    cmds:
+      - "{{.MVN}} -q -B -f jdt/batlehub-jdt-core/pom.xml -DskipTests package"
+      - mkdir -p extensions/java-core/jdt
+      - cp jdt/batlehub-jdt-core/target/batlehub-jdt-core-*.jar {{.JAR}}
+      - 'unzip -p {{.JAR}} META-INF/MANIFEST.MF | tr -d "\r" | grep -E "^(Bundle-SymbolicName|Bundle-Version|Import-Package)" | cut -c1-160'
+
+  formatter-defaults:
+    desc: "Regenerate extensions/java-core/src/idea/eclipse-defaults.json from the pinned redhat.java's org.eclipse.jdt.core (RFC 0007 §6.2; redo it on every minimum bump)"
+    deps: [deps]
+    cmds:
+      - |
+        CP="$(printf '%s:' "$HOME"/.cache/batlehub-heavy/redhat.java-{{.REDHAT_JAVA}}/extension/server/plugins/*.jar)"
+        mise exec {{.JDK}} -- java -cp "$CP" jdt/EclipseDefaults.java > extensions/java-core/src/idea/eclipse-defaults.json
+      - 'echo "$(node -e "console.log(Object.keys(require(\"./extensions/java-core/src/idea/eclipse-defaults.json\")).length)") formatter defaults from redhat.java {{.REDHAT_JAVA}}"'
+
+  test:
+    desc: "Layer 1b: JUnit 5 over ASTParser — golden files per generator option set, positive/negative/fix per inspection"
+    deps: [deps]
+    cmds:
+      - "{{.MVN}} -q -B -f jdt/batlehub-jdt-core/pom.xml test"
+
+  smoke:
+    desc: "Load the built bundle into a headless JDT.LS (the pinned redhat.java's server) and run ping, inspections and the accessors generator on the maven-multi fixture"
+    cmds:
+      - |
+        if java -version >/dev/null 2>&1; then node jdt/smoke.mjs; else mise exec {{.JDK}} -- node jdt/smoke.mjs; fi
+
+  clean:
+    desc: "Remove the bundle's build output and the copied jar"
+    cmds:
+      - rm -rf jdt/batlehub-jdt-core/target {{.JAR}}

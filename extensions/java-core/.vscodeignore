@@ -1,0 +1,12 @@
+**
+!dist/**
+!media/**
+!l10n/**
+!jdt/*.jar
+!api.d.ts
+!package.nls.json
+!README.md
+!CHANGELOG.md
+!LICENSE.md
+dist/**/*.map
+test-host/**

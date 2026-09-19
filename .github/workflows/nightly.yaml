@@ -1,0 +1,172 @@
+name: Nightly
+
+# RFC 0001 §10 layer 6, §13 `nightly`: the Java heavy half against a matrix —
+# VS Code stable × previous, redhat.java pinned × previous × pre-release —
+# so the dependency this RFC chose to depend on drifts visibly. A failure
+# opens or updates one issue per (dependency, version). The che-code image
+# row needs the image's server tarball, which che-code does not publish as
+# one; it joins when BatleHub RFC 0023's build produces it.
+on:
+  schedule:
+    - cron: "17 3 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  heavy-java:
+    name: java · vscode ${{ matrix.vscode }} · redhat.java ${{ matrix.redhat }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        vscode: ["1.136.1", "1.96.4"]
+        redhat: ["1.56.0", "1.55.0", "pre-release"]
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: pnpm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+      - uses: jdx/mise-action@v2
+        with:
+          install: false
+      - run: pnpm install --frozen-lockfile
+      - name: Resolve the pre-release version
+        id: redhat
+        run: |
+          v="${{ matrix.redhat }}"
+          if [ "$v" = "pre-release" ]; then v="$(curl -fsSL https://open-vsx.org/api/redhat/java/pre-release | python3 -c 'import json,sys;print(json.load(sys.stdin)["version"])')"; fi
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+      - name: A Chrome with its DevTools port
+        run: |
+          google-chrome --headless=new --no-sandbox --disable-gpu --remote-debugging-port=9222 --user-data-dir=/tmp/chrome about:blank >/tmp/chrome.log 2>&1 &
+          for _ in $(seq 1 30); do curl -sf http://127.0.0.1:9222/json/version >/dev/null && break; sleep 1; done
+      - run: mise use -g "java@temurin-21" || true
+      - name: Run
+        env:
+          HEAVY_ONLY: java
+          CDP_URL: http://127.0.0.1:9222
+          VSCODE_VERSION: ${{ matrix.vscode }}
+          REDHAT_JAVA_VERSION: ${{ steps.redhat.outputs.version }}
+        run: bash tests/heavy/view.sh
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: heavy-java-${{ matrix.vscode }}-${{ matrix.redhat }}
+          path: tests/heavy/work/last/
+          if-no-files-found: ignore
+      - name: One issue per (dependency, version) on failure
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const title = `nightly: java half fails on vscode ${{ matrix.vscode }} × redhat.java ${{ steps.redhat.outputs.version }}`;
+            const { data: open } = await github.rest.issues.listForRepo({ owner: context.repo.owner, repo: context.repo.repo, state: "open", labels: "drift" });
+            const body = `Run: ${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}\n\nRFC 0001 §13 nightly: the Java heavy half failed against this dependency version. Artifacts carry the suite log and screenshots.`;
+            const existing = open.find((i) => i.title === title);
+            if (existing) await github.rest.issues.createComment({ owner: context.repo.owner, repo: context.repo.repo, issue_number: existing.number, body });
+            else await github.rest.issues.create({ owner: context.repo.owner, repo: context.repo.repo, title, body, labels: ["drift", "java"] });
+
+  heavy-registry:
+    name: registry half (BatleHub release + Postgres)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_DB: batlehub
+          POSTGRES_USER: batlehub
+          POSTGRES_PASSWORD: changeme
+        ports: ["5432:5432"]
+        options: --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 20
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: pnpm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+      - uses: jdx/mise-action@v2
+        with:
+          install: false
+      - run: pnpm install --frozen-lockfile
+      - name: BatleHub release binaries and the tools the suite calls through mise
+        run: |
+          curl -fsSL https://raw.githubusercontent.com/go-task/task/main/install-task.sh | sh -s -- -d -b /usr/local/bin >/dev/null
+          task hub:install || true
+          mise use -g java@temurin-21.0.11+10.0.LTS maven@3.9.16
+      - name: A Chrome with its DevTools port
+        run: |
+          google-chrome --headless=new --no-sandbox --disable-gpu --remote-debugging-port=9222 --user-data-dir=/tmp/chrome about:blank >/tmp/chrome.log 2>&1 &
+          for _ in $(seq 1 30); do curl -sf http://127.0.0.1:9222/json/version >/dev/null && break; sleep 1; done
+      - name: Run
+        env:
+          HEAVY_ONLY: registry
+          CDP_URL: http://127.0.0.1:9222
+          DATABASE_URL: postgresql://batlehub:changeme@127.0.0.1:5432/batlehub
+          BATLEHUB_BIN: /home/runner/.cache/batlehub-vsx/bin/batlehub
+          BATLEHUB_CLI: /home/runner/.cache/batlehub-vsx/bin/batlehub-cli
+        run: bash tests/heavy/view.sh
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: heavy-registry
+          path: tests/heavy/work/last/
+          if-no-files-found: ignore
+
+  theme-drift:
+    name: theme · DESIGN.md drift
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+      # RFC 0014 §9: themes/tokens.json is a copy of DESIGN.md's token block,
+      # and a copy can fall behind silently. This compares the commit it
+      # records with upstream's newest commit touching DESIGN.md. It never
+      # bumps by itself — a palette change is reviewed — and its failure mode
+      # is one issue, found by title and updated, never a red build.
+      - name: Compare the recorded DESIGN.md commit with upstream
+        id: drift
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          recorded="$(python3 -c 'import json;print(json.load(open("extensions/batlehub-theme/themes/tokens.json"))["source"]["commit"])')"
+          repo="$(python3 -c 'import json;print(json.load(open("extensions/batlehub-theme/themes/tokens.json"))["source"]["repo"].rsplit("github.com/",1)[-1])')"
+          path="$(python3 -c 'import json;print(json.load(open("extensions/batlehub-theme/themes/tokens.json"))["source"]["path"])')"
+          upstream="$(gh api "repos/$repo/commits?path=$path&per_page=1" --jq '.[0].sha')"
+          echo "recorded=$recorded" >> "$GITHUB_OUTPUT"
+          echo "upstream=$upstream" >> "$GITHUB_OUTPUT"
+          echo "compare=https://github.com/$repo/compare/$recorded...$upstream" >> "$GITHUB_OUTPUT"
+          [ "$recorded" = "$upstream" ] && echo "drifted=false" >> "$GITHUB_OUTPUT" || echo "drifted=true" >> "$GITHUB_OUTPUT"
+      - name: One drift issue, updated rather than duplicated
+        if: steps.drift.outputs.drifted == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const title = "theme: DESIGN.md has moved past the commit tokens.json records";
+            const body = [
+              `Recorded: \`${{ steps.drift.outputs.recorded }}\``,
+              `Upstream: \`${{ steps.drift.outputs.upstream }}\``,
+              `Compare: ${{ steps.drift.outputs.compare }}`,
+              "",
+              "RFC 0014 §9. A palette change is reviewed, never automatic: bump `extensions/batlehub-theme/themes/tokens.json`, run `pnpm run derive`, review the three diffs, and keep `pnpm test` green.",
+            ].join("\n");
+            const { data: open } = await github.rest.issues.listForRepo({ owner: context.repo.owner, repo: context.repo.repo, state: "open", labels: "drift" });
+            const existing = open.find((i) => i.title === title);
+            if (existing) await github.rest.issues.createComment({ owner: context.repo.owner, repo: context.repo.repo, issue_number: existing.number, body });
+            else await github.rest.issues.create({ owner: context.repo.owner, repo: context.repo.repo, title, body, labels: ["drift", "theme"] });

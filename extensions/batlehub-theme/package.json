@@ -1,0 +1,62 @@
+{
+  "name": "batlehub-theme",
+  "displayName": "BatleHub Theme",
+  "description": "BatleHub's colour theme: dark, light and high contrast, derived from BatleHub's design system and held to its contrast ratios (RFC 0014).",
+  "version": "0.1.0",
+  "publisher": "batlehub",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/batleforc/batlehub-vsx"
+  },
+  "homepage": "https://github.com/batleforc/batlehub-vsx/tree/main/extensions/batlehub-theme",
+  "icon": "media/theme.png",
+  "engines": {
+    "vscode": "^1.96.0"
+  },
+  "categories": [
+    "Themes"
+  ],
+  "keywords": [
+    "theme",
+    "batlehub",
+    "dark",
+    "light",
+    "high contrast"
+  ],
+  "contributes": {
+    "themes": [
+      {
+        "label": "%theme.dark%",
+        "uiTheme": "vs-dark",
+        "path": "./themes/batlehub-dark.json"
+      },
+      {
+        "label": "%theme.light%",
+        "uiTheme": "vs",
+        "path": "./themes/batlehub-light.json"
+      },
+      {
+        "label": "%theme.hc%",
+        "uiTheme": "hc-black",
+        "path": "./themes/batlehub-hc.json"
+      }
+    ]
+  },
+  "scripts": {
+    "derive": "node scripts/derive.mjs",
+    "build": "node scripts/derive.mjs",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "lint": "prettier --check package.json package.nls.json README.md CHANGELOG.md themes/tokens.json themes/base-defaults.json \"scripts/*.mjs\" \"test/*.ts\" vitest.config.ts",
+    "format": "prettier --write package.json package.nls.json README.md CHANGELOG.md themes/tokens.json themes/base-defaults.json \"scripts/*.mjs\" \"test/*.ts\" vitest.config.ts",
+    "test": "vitest run",
+    "package": "node scripts/derive.mjs && vsce package --no-dependencies --skip-license -o batlehub-theme.vsix"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "@vscode/vsce": "^3.6.0",
+    "prettier": "^3.6.0",
+    "typescript": "^5.9.0",
+    "vitest": "^3.2.0"
+  }
+}

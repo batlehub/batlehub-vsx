@@ -82,3 +82,41 @@ Fixed in the CLI on 2026-09-06, with the origin parsed and three unit tests
 in `cli/src/contract/tests.rs`. The broker half's `PROXY-OK` step is what
 would find it again: it queries the gallery through the proxy and requires
 the registry's extension in the answer.
+
+## The Java half
+
+`task heavy:view:java` (`HEAVY_ONLY=java`) is RFC 0001's layer 4: the same
+web build with `redhat.java` (pinned, `REDHAT_JAVA_VERSION`) and
+`java-core` installed, `tests/heavy/fixtures/maven-multi` open, **no
+BatleHub and no Postgres**. Driven by `tests/heavy/java.mjs`, it proves:
+
+- the status bar item, and the log after activation;
+- the newcomer story — the editor runs with no `JAVA_HOME` and a `java`
+  shim that answers nothing; the core finds the mise JDKs, writes
+  `java.configuration.runtimes` and, because the language server has no JDK,
+  `java.jdt.ls.java.home`; the suite reloads and the server reaches Standard
+  mode on the JDK the core handed it;
+- the JDK quick pick lists the runtimes and the install-by-manager entry;
+- spike (a): the classpath before and after `activeProfiles=dev` in
+  `.settings/org.eclipse.m2e.core.prefs` and a re-import (decision 14 —
+  the suite logs `SPIKE-A-OK` or `SPIKE-A-NEGATIVE`, both are answers);
+- `Java: Remove BatleHub settings` restores the workspace settings;
+- the performance numbers (`PERF` in the suite log): activation, detection,
+  status bar visibility, time to Standard mode.
+
+## The registry half
+
+`task heavy:view:registry` (`HEAVY_ONLY=registry`) is RFC 0001 phase 5's
+one registry scenario, beside the BatleHub halves because it needs a hub
+(decision 39): `batlehub-vsx` signed in through `BATLEHUB_TOKEN`, `java-core`
+with `batlehub.java.registry.enabled: true` pointing at the run's Maven
+registry (a proxy of Central that refuses anonymous reads), the editor's
+`HOME` set to the run's directory. It proves the core writes the mirror and
+the bearer token — handed over by `batlehub-vsx`, never read from the
+contract file — into that `~/.m2/settings.xml` (0600) and
+`~/.gradle/init.d/batlehub.gradle`, and then a real Maven with a fresh local
+repository resolves the profile-only dependency through the hub with that
+file (`_remote.repositories` names `batlehub` as the serving repository).
+
+Layer 2 (`task ext:host`, `@vscode/test-cli`) needs a display and runs in
+CI's `host` job; the Che tools container has none.

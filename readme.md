@@ -19,6 +19,17 @@ moved out of the [BatleHub](https://github.com/batleforc/batlehub) repository
   resolved, the registry's signature verified (RFC 0020), the supply-chain
   verdict honoured (RFC 0018).
 
+## `batlehub.java-core`, `batlehub.java-groovy`, `batlehub.java-pack`
+
+Java for VS Code the BatleHub way ([RFC 0001](docs/rfc/0001-java-env.md)):
+one core over `redhat.java` that detects and installs JDKs through the
+manager you have, warns about the container's memory, adds the Java panel,
+an IDEA-style menu, run configurations in a form, the Maven and Gradle
+integration, an inspections bundle inside the language server, and the
+optional BatleHub registry link; a Groovy satellite over the core's
+contract; a pack that installs the lot. Guide: `docs/guide/java/`.
+Implementation log and findings: `todo.md`.
+
 ## `batlehub.che-remote-ssh`
 
 Connects the editor over SSH to an [Eclipse Che](https://eclipse.dev/che/)
