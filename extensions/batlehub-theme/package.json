@@ -2,7 +2,7 @@
   "name": "batlehub-theme",
   "displayName": "BatleHub Theme",
   "description": "BatleHub's colour theme: dark, light and high contrast, derived from BatleHub's design system and held to its contrast ratios (RFC 0014).",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "publisher": "batlehub",
   "license": "Apache-2.0",
   "repository": {
