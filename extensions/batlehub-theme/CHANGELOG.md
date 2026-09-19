@@ -6,3 +6,12 @@ First cut (RFC 0014): three variants derived from `DESIGN.md`
 registry.
 
 - - -
+## batlehub-theme-v0.1.0 - 2026-09-19
+#### Features
+- start work on the new java extension and init batlehub theme - (d7b0484) - Maxime
+- Mise en place batlehub theme - (34d66da) - Max Batleforc
+#### Miscellaneous Chores
+- changelog - (4cfaad9) - Max Batleforc
+
+- - -
+
