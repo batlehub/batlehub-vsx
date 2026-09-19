@@ -32,6 +32,11 @@ path = "extensions/batlehub-vsx"
 public_api = true
 pre_bump_hooks = ["pnpm pkg set version={{version}}"]
 
+[monorepo.packages.batlehub-theme]
+path = "extensions/batlehub-theme"
+public_api = true
+pre_bump_hooks = ["pnpm pkg set version={{version}}"]
+
 [monorepo.packages.che-remote-ssh]
 path = "extensions/che-remote-ssh"
 public_api = true
