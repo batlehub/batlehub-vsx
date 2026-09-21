@@ -42,7 +42,7 @@
     "package": "vsce package --no-dependencies --skip-license -o java-pack.vsix"
   },
   "devDependencies": {
-    "@vscode/vsce": "^3.6.0",
-    "prettier": "^3.6.0"
+    "@vscode/vsce": "^4.0.0",
+    "prettier": "^3.9.8"
   }
 }
