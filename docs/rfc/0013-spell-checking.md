@@ -9,7 +9,7 @@
 | Author      | Max Batleforc <maxleriche.60@gmail.com>                       |
 | Co-author   | —                                                             |
 | Created     | 2026-09-18                                                    |
-| Revised     | 2026-09-18 — revision 2, after the series was reviewed against its goal (RFC 0001 §7.1): cspell and nothing else — no grammar checking, no severity mapping onto a setting global to every file type, the rename fix pinned to cspell's titles in the nightly matrix, the RFC 0006 dependency dropped |
+| Revised     | 2026-09-29 — revision 3, the recommendation of §11 promoted to decision 12 (Groovy bridged by its language id, which the satellite already registers), and §8's one deferral given the reopen condition `task rfc:deferred` was asking for |
 | Supersedes  | —                                                             |
 | Depends on  | RFC 0001 (the inspections bridge and view of §4.2, the coexistence rule, the pack); RFC 0005 (the profile, where `spelling/unknownWord` can be turned `off` with a reason — phase 2 only); needs member `manifest.writeSetting` — [RFC 0001 §5.2 contract changelog](/rfc/0001-java-env#contract-changelog) (phase 2 only). Revision 1 listed RFC 0006 for a project word list under `.batlehub/java/`; nothing is written there (the list is `cspell.json`), so the dependency is gone |
 | Touches     | `extensions/java-core/src/inspections/` (new `spelling.ts`, `view.ts`, `bridge.ts`), `src/coexistence.ts`, `extensions/java-pack/package.json`, `tests/heavy/java.mjs`, `docs/guide/java/` |
@@ -427,7 +427,7 @@ not offered; the row and cspell's own fixes stay.
 | Wrap cspell's diagnostics into the `batlehub` DiagnosticCollection (re-emit them with the profile's severity) | Every typo twice in the Problems panel (cspell's row and ours) unless cspell is silenced, and then its quick fixes go with it. Setting cspell's own level is one write and keeps its fixes. |
 | A BatleHub word list under `.batlehub/java/` synced into `cspell.json` | Two files for one list; cspell's CLI in CI reads only its own. |
 | **Grammar checking** beside spelling (LanguageTool, or JetBrains' Grazie, which is what IDEA bundles) — considered this session and dropped | No Appendix A row asks for it and no team did; the maintained VS Code bridges either send text to a public LanguageTool service — comment text would never go to a public service, RFC 0001 §7.1 — or need a local LanguageTool server, a JVM of several hundred MiB inside a pod whose memory budget is already spoken for. **Returns only on a team diary request** (`docs/diary/`, three dated entries, RFC 0001 §7.1), and then as a local server started through the managed process, never a public endpoint. |
-| Map the profile's severity onto `cSpell.diagnosticLevel` (revision 1's decision 3) | The key is global to every file type: a Java profile would change Markdown. **Deferred with one trigger**: cspell offers a per-language level. |
+| Map the profile's severity onto `cSpell.diagnosticLevel` (revision 1's decision 3) | The key is global to every file type: a Java profile would change Markdown. **Deferred with one trigger**: it reopens when cspell offers a per-language level. |
 | Recommend cspell in the docs and do nothing in the core | The gap of A.6 is the *flow*: no row in the view, no `off` in the profile, no rename fix, and a newcomer never learns the extension exists. |
 
 ---
@@ -488,13 +488,11 @@ not offered; the row and cspell's own fixes stay.
 | 9 | Who writes `cspell.json`? (revision 2) | **The quick fix, and nothing else.** No file is created when none exists; `ignorePaths` is added only in the edit that creates the file. |
 | 10 | Default level (was open question 1) | **cspell's own (`info`); the core does not set it** — a consequence of decision 3. A developer who wants `warning` sets `cSpell.diagnosticLevel` themselves, knowing it is global. |
 | 11 | Does RFC 0006 remain a dependency? (revision 2) | **No.** Nothing is written under `.batlehub/java/`; the word list is `cspell.json`. |
+| 12 | Groovy files, before `java-groovy` exposes a language id to the contract? | **Bridged now, by language id `groovy`** — the satellite already registers it through `registerLanguage`, so there is nothing to wait for. |
 
 ### Still open
 
-1. Whether Groovy files should be bridged before `java-groovy` exposes a
-   language id to the core's contract (`registerLanguage` gives it).
-   Recommendation: yes, by language id `groovy`, since the satellite
-   already registers it.
+None at this revision.
 
 ---
 

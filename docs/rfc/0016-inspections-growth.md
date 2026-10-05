@@ -9,6 +9,7 @@
 | Author      | Max Batleforc <maxleriche.60@gmail.com>                       |
 | Co-author   | —                                                             |
 | Created     | 2026-09-18                                                    |
+| Revised     | 2026-09-29 — revision 2, the two answerable questions of §11 promoted to decisions 9 and 10: no telemetry write (the guide says how instead), and SonarLint recommended rather than bundled with `ext:licenses` as the gate. The classpath verification and the cap stay phase-0 measurements, and §2.1's list stays owed to the diaries |
 | Supersedes  | —                                                             |
 | Depends on  | RFC 0001 (the bundle of §6.2, the Inspections view, the manifest, the resource diagnostic of decision 30, the memory rule of §7.1); RFC 0013 (the diagnostics-bridge pattern this reuses); RFC 0012 (`Engine.parse` with bindings); RFC 0005 (the profile that silences a bridged rule, with its reason); RFC 0007 (imported reasons) |
 | Touches     | `extensions/java-core/src/inspections/` (new `sonar.ts`; `bridge.ts`, `view.ts`, `rules.ts`), `src/detect/resources.ts`, `src/coexistence.ts`, `extensions/java-pack` (a recommendation, not a member of the default set), `jdt/batlehub-jdt-core` (`Inspection` gains `needsBindings` and `ceiling`), `jdt/smoke.mjs` and `jdt/fixtures/`, `tests/heavy/java.mjs` (`SONAR-OK`), `docs/guide/java/inspections.md` |
@@ -499,6 +500,8 @@ flowchart TD
 | 6 | How is a type-aware rule proven? | **`task jdt:smoke`, one fixture project per rule area.** `ASTParser`-built units have no bindings; the smoke is slower and is the only layer loading the rule into the server it ships in. |
 | 7 | How is a new own rule admitted? | **One release at `information` with its ceiling written; promoted only over an empty false-positive record in the diaries.** |
 | 8 | Which rules does the bundle grow? | **The teams' list (§2.1), owed.** No own rule against a guessed row. |
+| 9 | SonarLint telemetry? | **No write.** `sonarlint.disableTelemetry: true` matches the spirit of "nothing sent", but it is a foreign write the feature does not need; the guide says how to set it and the developer owns the choice. |
+| 10 | The licence? | **Recommended only, nothing bundled**, which is what makes LGPL-3.0 workable here. The `ext:licenses` policy is the gate and runs before the pack's `package.json` names the extension — not a reading taken on trust from this document. |
 
 ### Still open
 
@@ -507,20 +510,16 @@ flowchart TD
    here from its documentation, **to verify in phase 0** on `maven-multi`
    (a finding that needs a dependency's type is the test). If false, Sonar
    runs with a degraded classpath and the breadth claim shrinks to its
-   syntactic rules.
+   syntactic rules. A measurement, and the one the whole bridge rests on.
 2. **The cap.** Read-only estimate (this draft), or write an `-Xmx` into
    `sonarlint.ls.vmargs` through the manifest so the cap is *declared*
-   rather than guessed? Recommendation: measure in phase 0; write it only
-   if the unbounded default is measurably the quarter-of-RAM heap that
-   killed the heavy suite once (todo.md, feedback).
-3. **Telemetry.** Write `sonarlint.disableTelemetry: true` by default? It
-   matches the spirit of "nothing sent", but it is a foreign write not
-   needed by the feature. Recommendation: no write; the guide says how.
-4. **Licence, confirmed.** LGPL-3.0 as a recommended extension, nothing
-   bundled, is believed clean; confirm against the `ext:licenses` policy
-   before the pack's `package.json` names it.
-5. **The list.** §2.1's rows. The RFC leaves Draft for phases 4–5 only when
-   they are filled; phases 0–3 do not wait.
+   rather than guessed? Measured in phase 0, and written only if the
+   unbounded default is measurably the quarter-of-RAM heap that killed the
+   heavy suite once (todo.md, feedback) — the one case where decision 9's
+   "no foreign write" gives way, because the memory rule outranks it.
+3. **The list.** §2.1's rows, owed by the team diaries rather than by this
+   document. The RFC leaves Draft for phases 4–5 only when they are filled;
+   phases 0–3 do not wait.
 
 ---
 

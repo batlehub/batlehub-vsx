@@ -296,6 +296,20 @@ three diary entries),
       phase 1 creates `packages/java-rules`, which is half of it — when that
       lands, re-read decision 31 rather than assuming the split follows.
 
+- [ ] **`THEME-TOKENS-OK` cannot pass as written, and its capture is racy.**
+      Found on 2026-09-30 while proving RFC 0007 phase 2, which is the first
+      time the java driver ran to completion in a while: the assertion reads
+      `d['pick']['string']`, and the driver never captures a `string` key at
+      all, so the step can only fail. Two of the other voices are also wrong
+      and *differ between runs* — `class` came out `#50fa7b` in one run and the
+      theme's `#8be9fd` in the next, `keyword` `#fe5368` then `#ff79c6` — which
+      is TextMate colouring sampled before the semantic tokens arrive, and
+      `annotation` matches the `Test` type span rather than `@Test` in both.
+      The step needs a `settle` on the semantic colours the way `ready` and
+      `format` do, not a fixed `sleep`. It is RFC 0014's step and it blocks the
+      java half before the import steps, which were verified by replaying their
+      assertions against the run's own JSONL.
+
 ## Recurring
 
 - [ ] **Bump `TESTED_REDHAT_JAVA`** (`extensions/java-core/src/server/mode.ts`)

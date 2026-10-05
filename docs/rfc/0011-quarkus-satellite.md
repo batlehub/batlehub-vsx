@@ -9,7 +9,7 @@
 | Author      | Max Batleforc <maxleriche.60@gmail.com>                       |
 | Co-author   | —                                                             |
 | Created     | 2026-09-18                                                    |
-| Revised     | 2026-09-18 — revision 2, after the series was reviewed against its goal (RFC 0001 §7.1): built together with RFC 0010 after RFC 0003's orchestrator, dev mode a managed process with a declared cap and no untracked fallback, the log-line probe and the pack question resolved, the Dev UI's "loopback" stated for a Che pod, no contract version defined here |
+| Revised     | 2026-09-29 — revision 3, the recommendations of §11 promoted to decisions 11 and 12: Maven dev mode first with the Gradle debug invocation pinned from a real fixture in phase 3, and the two shape changes folded into RFC 0001 §5.2's existing rows before phase 1 so the core takes one change instead of three |
 | Supersedes  | —                                                             |
 | Depends on  | RFC 0001 (the core, its contract, the `batlehub-java` task provider, the registry link); RFC 0003 revision 2 (the orchestrator and the managed process only — dev mode is a managed process with a declared cap, a readiness probe and a stop order; the server kinds moved to the parked RFC 0017), which comes before this RFC in RFC 0001 §14's order of work; RFC 0010 (the bridge pattern), built together with this one (sixth in that order); needs members `manifest.writeSetting`, `process.start`, `registerRunStepKind`, `registerRunTemplate` — RFC 0001 §5.2 contract changelog |
 | Touches     | `extensions/java-quarkus/` (new), `extensions/java-pack-frameworks/` (new, shared with RFC 0010), `tests/heavy/fixtures/quarkus/`, `tests/heavy/java.mjs`, `docs/guide/java/quarkus.md` |
@@ -591,20 +591,12 @@ the changelog before phase 1 starts, not defined here (§11 open 2).
 | 8 | Pack composition (was open question 3) | **Framework satellites are not in the default pack.** The default set is JDT.LS plus one framework server, everything else opt-in per workspace (RFC 0001 §7.1): `java-pack-frameworks` carries `java-spring` and `java-quarkus`, and the Red Hat pair / VMware's extension are per-workspace recommendations. |
 | 9 | Dev mode's memory | **A declared cap, 1 024 MiB by default** (`devMemoryMiB`), through the managed process; the measured peak on the fixture is written here in phase 2. |
 | 10 | Contract change | **None defined here.** The needed members are rows of the [RFC 0001 §5.2 contract changelog](/rfc/0001-java-env#contract-changelog) (§6.2). |
+| 11 | The Gradle debug flag for `quarkusDev`? | **Maven first; Gradle in phase 3**, its exact invocation pinned from the fixture's real output as RFC 0001 phase 7 does. The Quarkus Gradle plugin's `jvmArgs`/`debug` options changed between 3.x minors and are not guessed from documentation. |
+| 12 | The two additions to existing changelog rows? | **Carried by the existing 1.1 rows of RFC 0001 §5.2** — `registerRunTemplate` for a template that yields a task (with `upsertTask`, shared with RFC 0004), `registerRunStepKind` for extra arguments on a kind's start task. Neither is a new member; the three RFCs land one change in the core, not three. |
 
 ### Still open
 
-1. **The Gradle debug flag.** `quarkusDev` honours `-Ddebug=<port>` via
-   the Quarkus Gradle plugin's `jvmArgs`/`debug` options, which changed
-   between 3.x minors; the exact invocation is pinned from the fixture
-   once it exists. Recommendation: Maven first, Gradle in phase 3 with
-   the real output captured as in RFC 0001 phase 7.
-2. **Two additions to existing changelog rows** (§6.2): a run template
-   that yields a task, and extra arguments on a kind's start task. Neither
-   is a new member, both change a shape another RFC defined (0010's
-   `RunTemplate`, 0003's `RunStepKind`). Recommendation: add them to the
-   rows in RFC 0001 §5.2 before phase 1, so the three RFCs land one change
-   in the core, not three.
+None at this revision.
 
 ---
 

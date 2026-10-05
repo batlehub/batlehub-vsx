@@ -9,7 +9,7 @@
 | Author      | Max Batleforc <maxleriche.60@gmail.com>                       |
 | Co-author   | —                                                             |
 | Created     | 2026-09-18                                                    |
-| Revised     | 2026-09-18 — revision 2, after the series was reviewed against its goal (RFC 0001 §7.1): the engine is `batlehub java inspect --profile` and never reads a settings file; a user override is marked "differs from project"; an imported `why` is accepted but marked; a `profile` manifest entry kind for programmatic writes; bridged SonarLint rules are silenced here as `sonar/<key>`; the unknown-rule and unknown-default holes closed |
+| Revised     | 2026-09-29 — revision 3, the recommendations of §11 promoted to decisions 11–13: `Fix all in file` skips the rules the profile turned off, a downgrade's rationale rides on the diagnostic as related information as well as in the view, and the `sonar/` prefix is kept through RFC 0016's bridge |
 | Supersedes  | —                                                             |
 | Depends on  | RFC 0001 (the JDT bundle of §6.2 and the inspections bridge of §4.2, phase 6 landed; the red lines of §7.1); RFC 0006 (the committed half of `.batlehub/java/`, where the profile lives); RFC 0002 runs the profile for CI and for agents; RFC 0007 writes imported entries; RFC 0016 brings the bridged rules |
 | Touches     | `extensions/java-core/src/inspections/` (`rules.ts`, `bridge.ts`, `view.ts`, new `profile.ts` — shared through `packages/java-rules`), `src/manifest.ts` (one new entry kind, `profile`), `jdt/batlehub-jdt-core` (`Handler`, `Engine`), `schema/`, `tests/heavy/java.mjs`, `docs/guide/java/` |
@@ -547,22 +547,13 @@ sequenceDiagram
 | 8 | Where is a noisy bridged rule silenced? (revision 2) | **Here**, same file, same required reason (RFC 0016). |
 | 9 | An unknown default (revision 2) | **Taken as `error`**: every lower severity needs a `why`. Replaces revision 1's fallback to `warning`, which let a downgrade from `error` through on an older bundle. |
 | 10 | The engine's name and input (revision 2) | **`batlehub java inspect --profile <file>`**; the file is `.batlehub/java/inspections.json`, JSON everywhere; the engine never reads a settings file. |
+| 11 | Does `Fix all in file` skip the rules the profile turned `off`? | **Yes.** A team that turned a rule off does not want its fix applied in bulk either; an explicit single-rule fix-all still applies it. |
+| 12 | Where does a downgrade's `why` surface? | **Both** — as related information on the diagnostic, and in the view. The related-information entry is one line, and it is what a developer hovering the squiggle actually reads. |
+| 13 | Does the `sonar/<key>` form survive RFC 0016's bridge? | **The prefix stays**, whatever SonarLint calls the rule itself. A key with no `/` is already a warning here, and the prefix names the analyser in a review diff. |
 
 ### Still open
 
-1. Whether `Fix all in file` should skip rules the profile turned `off`
-   (it fixes what the bundle finds, regardless of severity today).
-   Recommendation: skip `off` rules — a team that turned a rule off does
-   not want its fix applied in bulk either; keep them on explicit
-   single-rule fix-all.
-2. Whether a downgrade's `why` should surface in the diagnostic itself
-   (related information) or only in the view. Recommendation: both; the
-   related-information entry is one line and is what a developer hovering
-   the squiggle reads.
-3. Whether the `sonar/<key>` form survives RFC 0016's design of the
-   bridge (it may prefer SonarLint's own `java:S1135` with no prefix).
-   Recommendation: keep the prefix — a key with no `/` is already a
-   warning here, and the prefix names the analyser in a review diff.
+None at this revision.
 
 ---
 

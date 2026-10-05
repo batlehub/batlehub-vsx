@@ -30,7 +30,7 @@
 //   console    the browser console's error count
 import { createRequire } from "node:module";
 import { execSync } from "node:child_process";
-import { readFileSync, writeFileSync } from "node:fs";
+import { readFileSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -585,6 +585,7 @@ try {
   // Greeter.formatted.java).
   const IDEA_STYLE = path.join(WS, ".idea", "codeStyles", "Project.xml");
   const ideaBefore = readIfPresent(IDEA_STYLE);
+  const ideaTemplatesBefore = readIfPresent(path.join(WS, ".idea", "fileTemplates", "Class.java"));
   await runCommand(page, "Java: Import from IntelliJ");
   await sleep(1200);
   // The flag is off in a fresh workspace: the command offers to turn it on,
@@ -633,6 +634,10 @@ try {
     profile: readIfPresent(path.join(WS, ".vscode", "batlehub-java", "formatter.xml")),
     manifest: readIfPresent(path.join(WS, ".batlehub", "java", "written.json")),
     idea: readIfPresent(path.join(WS, ".idea", "codeStyles", "Project.xml")),
+    // Use cases 2 and 3: the live templates of the suite's IDEA configuration
+    // directory and the project's file templates, both in one snippets file.
+    snippets: readIfPresent(path.join(WS, ".vscode", "intellij.code-snippets")),
+    ideaTemplates: readIfPresent(path.join(WS, ".idea", "fileTemplates", "Class.java")),
   };
   await snap(page, "idea-written");
   // Format Document with the imported profile, against IDEA's own output.
@@ -666,12 +671,47 @@ try {
     wroteProfile: !!wrote.profile,
     wroteSettings: wrote.settings,
     manifest: wrote.manifest,
-    ideaUnchanged: wrote.idea === ideaBefore,
+    ideaUnchanged: wrote.idea === ideaBefore && wrote.ideaTemplates === ideaTemplatesBefore,
+    snippets: wrote.snippets,
     greeterBefore,
     formatted,
     formatTimedOut: !!saved.timedOut,
     golden: readIfPresent(path.join(WS, ".idea", "golden", "Greeter.formatted.java")),
   });
+  // Use case 2's real proof: the snippet the import wrote is offered by the
+  // editor's own completion in a Java file. A snippets file nothing reads is
+  // not an imported live template.
+  const SNIPPET_PROBE = path.join(WS, "core", "src", "main", "java", "com", "acme", "core", "Probe.java");
+  // The caret goes to the end of the file and one line past it: a snippet
+  // scoped to `java` is offered anywhere in a Java file, and end-of-file is
+  // the one position that needs no cursor arithmetic to reach.
+  writeFileSync(SNIPPET_PROBE, "package com.acme.core;\n\nclass Probe {}\n");
+  await openFile(page, "Probe.java");
+  await sleep(2000);
+  // `chord` is the only way to send a combination here: puppeteer's
+  // `keyboard.press` takes one key and rejects "Control+Home".
+  await chord(page, "Control", "End");
+  await page.keyboard.press("Enter");
+  await page.keyboard.type("sout");
+  await sleep(1500);
+  await chord(page, "Control", " ");
+  const suggestions = await settle(
+    async () =>
+      await page
+        .$$eval(".suggest-widget .monaco-list-row", (els) => els.map((e) => e.innerText.replace(/\s+/g, " ").trim()))
+        .catch(() => []),
+    (rows) => rows.some((r) => /sout/.test(r)),
+    20000,
+    1000,
+  );
+  await snap(page, "idea-snippet");
+  emit({ phase: "idea-snippet", suggestions: suggestions.value ?? [], timedOut: !!suggestions.timedOut });
+  try {
+    rmSync(SNIPPET_PROBE);
+  } catch {
+    // The probe is the suite's own file; a failed delete is not a failure.
+  }
+
   // Put the fixture's file back before the inspection step reads it. The
   // buffer is clean (the format was saved), so the editor picks the change
   // up rather than holding a stale one.

@@ -9,7 +9,7 @@
 | Author      | Max Batleforc <maxleriche.60@gmail.com>                       |
 | Co-author   | —                                                             |
 | Created     | 2026-09-18                                                    |
-| Revised     | 2026-09-18 — revision 2, after the series was reviewed against its goal (RFC 0001 §7.1): built together with RFC 0011 after RFC 0003's orchestrator, the bridge key written only when the Spring language server has no usable JDK ≥ 17, the main class from a file scan, the Boot version from POMs on disk and `~/.m2` only, the Spring Tools server counted as the workspace's one framework server, no contract version defined here, out of the default pack |
+| Revised     | 2026-09-29 — revision 3, the recommendations of §11 promoted to decisions 12–15: no explorer decoration, script-only Gradle detection with a later `Detect` button, `Stop` disabled with its reason for an instance the editor did not start, and the Spring language server's heap declared through RFC 0003's generic `estimate` row rather than read from a foreign setting |
 | Supersedes  | —                                                             |
 | Depends on  | RFC 0001 (the core, its contract `extensions/java-core/api.d.ts`, the run editor and the `batlehub-java` task provider); RFC 0003 revision 2 (the orchestrator and the managed process only — a running application as a step with a declared cap, a readiness probe and a stop order; the server kinds moved to the parked RFC 0017), which comes before this RFC in RFC 0001 §14's order of work; RFC 0011, built together with this one (sixth in that order); RFC 0004 when it exists (devfile commands as run templates, for the Che case) — nothing here waits for it; needs members `manifest.writeSetting`, `registerRunTemplate`, `registerRunStepKind` — RFC 0001 §5.2 contract changelog |
 | Touches     | `extensions/java-spring/` (new), `extensions/java-pack-frameworks/` (new, shared with RFC 0011), `extensions/java-core/api.d.ts` (the members of §5.2), `tests/heavy/fixtures/spring-boot/`, `tests/heavy/java.mjs`, `docs/guide/java/spring.md` |
@@ -650,29 +650,15 @@ test/*.test.ts          vitest over the pure modules with fixtures of real POMs,
 | 9 | The core absent? | **`extensionDependencies: ["batlehub.java-core"]`**, consistent with RFC 0008: the editor guarantees the core, `assertContract` checks the version only. |
 | 10 | In the pack? | **No — `java-pack-frameworks`**, shared with RFC 0011 (its decision 8); the Spring Tools server is the workspace's one framework server. |
 | 11 | Where in the order of work | **Sixth, together with RFC 0011, after RFC 0003** (RFC 0001 §14): Team A's most used stacks. |
+| 12 | Explorer decoration for the Boot version? | **No — the tab is enough.** A decoration is a contract member for one consumer; add it when someone asks for it. |
+| 13 | Gradle detection depth? | **Script-only**: `plugins { id "org.springframework.boot" }` read from the script, plus a `Detect` button that runs `gradle properties` on a trusted workspace in a later phase. A plugin applied from a convention plugin in `buildSrc` is invisible without running Gradle, and running Gradle is not detection. |
+| 14 | `Stop` for an instance started outside the editor? | **Disabled, with the reason shown.** `POST /actuator/shutdown` is rarely exposed, and no process is hunted by port. |
+| 15 | How an estimate reaches the resource diagnostic? | **`process.declare(estimate)`** (RFC 0001 §5.2, 1.1; its shape is RFC 0003 decision 17) — an id, a `memoryMiB`, a label, nothing started — not a Spring-specific read of `spring-boot.ls.vmargs` inside the core. The same row serves Quarkus (RFC 0011) and Metals (RFC 0009). |
 
 ### Still open
 
-1. **Explorer decoration.** Does the explorer need "Spring Boot 3.5.4" on
-   the module, or is the tab enough? Recommendation: the tab, until
-   someone asks; a decoration is a contract member for one consumer.
-2. **Gradle detection depth.** Reading `plugins { id "org.springframework.boot" }`
-   from the script is enough for the common case; a plugin applied from a
-   convention plugin in `buildSrc` is invisible without running Gradle.
-   Recommendation: script-only detection plus a `Detect` button that
-   runs `gradle properties` when the workspace is trusted, in a later
-   phase.
-3. **The `Stop` button for instances started outside the editor.** `POST
-   /actuator/shutdown` works when exposed but is rarely exposed;
-   recommendation: disabled with the reason, no process hunting by port.
-4. **How an estimate reaches the resource diagnostic.** RFC 0003 §4.2 sums
-   JDT.LS (from `java.jdt.ls.vmargs`) and every managed process; a JVM
-   another extension starts — the Spring Tools server here, Quarkus' in RFC
-   0011, Metals in RFC 0009 — is neither. Recommendation: an `estimate`
-   form of the managed-process declaration (an id, a `memoryMiB`, a label,
-   nothing started), added as a row of the contract changelog by RFC 0003;
-   not a Spring-specific read of `spring-boot.ls.vmargs` inside the core.
-   To settle with RFC 0003 before phase 2.
+None at this revision. Decision 15 lands with RFC 0003's contract row,
+before phase 2.
 
 ---
 

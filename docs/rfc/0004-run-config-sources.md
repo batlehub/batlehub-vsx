@@ -9,7 +9,7 @@
 | Author      | Max Batleforc <maxleriche.60@gmail.com>                       |
 | Co-author   | —                                                             |
 | Created     | 2026-09-18                                                    |
-| Revised     | 2026-09-18 — revision 2, after the series was reviewed against its goal (RFC 0001 §7.1): `task --list-all --json` never run before workspace trust (a plain YAML read lists the top-level tasks until then), Taskfile ids validated like make targets, the interpolation boundary defined, a size cap on parsed YAML, RFC 0023 named as BatleHub's |
+| Revised     | 2026-09-29 — revision 3, the recommendations of §11 promoted to decisions 12–15: composite commands always sequential, a `java -jar` line a task and never a launch, a `Run Task` run left outside the managed process with the tab saying so, and the strict schema kept with a warning on `<<:`. Only the che-code task-type reading stays open |
 | Supersedes  | —                                                             |
 | Depends on  | RFC 0001 (the `batlehub-java` task provider, the run editor, the detection snapshot); RFC 0003 for the "as a run configuration" half (a `task` step); the devfile 2.x schema; Task v3 (`task --list-all --json`, after workspace trust only) |
 | Touches     | `extensions/java-core/src/run/sources/` (new: `devfile.ts`, `taskfile.ts`, `makefile.ts`, `provider.ts`), `src/run/editor.ts` (the before-launch field, templates), `package.json` (`taskDefinitions`, settings), `tests/heavy/fixtures/` (a devfile, a Taskfile, a Makefile in `maven-multi`), `docs/guide/java/run.md` |
@@ -588,33 +588,19 @@ export interface Entry {
 | 9 | What is interpolated? | **<code v-pre>{{variables}}</code> of the same devfile, and `${PROJECT_SOURCE}` / `${PROJECTS_ROOT}` in `workingDir`. Nothing else** — no editor variable, ever. |
 | 10 | YAML limits | **1 MiB of text, `CORE_SCHEMA`, 20 000 nodes with aliases counted per use**; `js-yaml` resolves aliases and would hand an alias bomb to whoever walks the result. |
 | 11 | A long-lived devfile `run` command inside an RFC 0003 run | **A `process` step with a declared cap, not a `task` step** — the memory rule (§7 red lines). |
+| 12 | Devfile `composite` commands with `parallel: true`? | **Sequential always**, with a note on the channel. RFC 0003 has no parallel steps; revisit if a real devfile of a team needs the parallelism. |
+| 13 | A main class from a `java -jar target/app.jar` line? | **No launch — a task.** A jar line has no main class the debugger can use; the template list says so rather than guessing one. |
+| 14 | A `run`-group command started from `Run Task`? | **Left outside the managed process.** The Task API owns it and it is the developer's explicit act, like a terminal; the `JDK` tab notes "tasks not counted". Revisit when a recorded peak says a devfile run command is what fills a pod. |
+| 15 | `<<` merge keys in a repository devfile? | **The strict `CORE_SCHEMA` stays**, with a warning when the text contains `<<:`. Revisit if a real team's devfile uses one under `commands`. |
 
 ### Still open
 
 1. **che-code's devfile task type and label format** (spike (a), phase 0):
-   the type name and whether its labels are stable enough for
+   the type name, and whether its labels are stable enough for
    `preLaunchTask`. If they are not, the `devfile` source stays on beside
-   them and the before-launch pick shows che-code's first. Recommendation:
-   read them in the che-code of **BatleHub's** RFC 0023 image (the che-code
-   image; `batleforc/batlehub/docs/rfc/`, not this series) before deciding.
-2. **Devfile `composite` commands as RFC 0003 runs**: `parallel: true`
-   has no RFC 0003 equivalent (decision: no parallel steps). Recommendation:
-   sequential always, with a channel note; revisit if a real devfile needs
-   the parallelism.
-3. **A run command's main class** from lines other than `java -cp …` and
-   `exec:java` (`java -jar target/app.jar` has no main class the debugger
-   can use). Recommendation: a jar line is a task, not a launch; say so in
-   the template list.
-4. **A `run`-group command started from `Run Task`** is long-lived and
-   outside the managed process, because the Task API owns it. Options: leave
-   it (it is the user's explicit act, like a terminal), or give such entries
-   a `CustomExecution` that calls `process.start`. Recommendation: leave it
-   until a recorded peak says a devfile run command is what fills a pod; the
-   `JDK` tab's sum then notes "tasks not counted".
-5. **`<<` merge keys in a repository devfile** are dropped by `CORE_SCHEMA`
-   (§6.1). Recommendation: keep the strict schema and warn when the text
-   contains `<<:`; revisit if a real devfile of a team uses it in
-   `commands`.
+   them and the before-launch pick shows che-code's first. To read in the
+   che-code image of BatleHub's RFC 0023 (`batleforc/batlehub/docs/rfc/`,
+   not this series) — a reading, not a choice.
 
 ---
 

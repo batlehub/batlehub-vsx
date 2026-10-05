@@ -461,6 +461,14 @@ if [[ "$ONLY" == "all" || "$ONLY" == "java" ]]; then
   # only a manager. `mise` stays reachable; its `java` shim answers nothing
   # without a global version, which is what a fresh Che workspace has.
   JAVA_ENV_PATH="$(printf '%s' "$PATH" | tr ':' '\n' | grep -v -E '/java|/jdk|/jvm' | paste -sd: -)"
+  # RFC 0007 use case 2 reads user-level live templates, and §4.2 reads them
+  # from outside the workspace. HOME stays the real one (mise's installs are
+  # what DETECT-OK finds); the IDEA half of the configuration moves through
+  # XDG_CONFIG_HOME, which is where IDEA itself looks on Linux, with mise's own
+  # config linked in beside it so `mise ls java` still answers.
+  JCFG="$HEAVY_WORK/config-java"
+  rm -rf "$JCFG" && cp -r "$REPO/tests/heavy/fixtures/idea-home" "$JCFG"
+  [[ -d "${XDG_CONFIG_HOME:-$HOME/.config}/mise" ]] && ln -s "${XDG_CONFIG_HOME:-$HOME/.config}/mise" "$JCFG/mise"
   INSTALL_VSIX=("$REDHAT_VSIX" "$JAVA_CORE_VSIX" "$JAVA_GROOVY_VSIX" "$THEME_VSIX")
   EDITOR_FOLDER="$JWS"
   T_START=$SECONDS
@@ -469,7 +477,7 @@ if [[ "$ONLY" == "all" || "$ONLY" == "java" ]]; then
   # run twice): JDT.LS at 1 GiB, every other JVM the editor spawns (the
   # Groovy server) at 6% of the container through JAVA_TOOL_OPTIONS.
   start_editor "$J" '{ "workbench.startupEditor": "none", "java.server.launchMode": "Standard", "java.jdt.ls.vmargs": "-XX:+UseParallelGC -XX:GCTimeRatio=4 -XX:AdaptiveSizePolicyWeight=90 -Dsun.zip.disableMemoryMapping=true -Xmx1G -Xms100m -Xlog:disable", "batlehub.java.log.level": "debug", "security.workspace.trust.enabled": false, "extensions.ignoreRecommendations": true, "git.openRepositoryInParentFolders": "never", "terminal.integrated.gpuAcceleration": "off" }' \
-    JAVA_HOME= JDK_HOME= PATH="$JAVA_ENV_PATH" JAVA_TOOL_OPTIONS="-XX:MaxRAMPercentage=6"
+    JAVA_HOME= JDK_HOME= PATH="$JAVA_ENV_PATH" XDG_CONFIG_HOME="$JCFG" JAVA_TOOL_OPTIONS="-XX:MaxRAMPercentage=6"
   log "Editor (VS Code $VSCODE_VERSION, web) at http://127.0.0.1:$EDITOR_PORT, folder $JWS, started in $(( SECONDS - T_START )) s"
   DUMP_ON_FAIL="$J"; DUMP_JSONL="$HEAVY_WORK/java.jsonl"
   PREFS="$JWS/core/.settings/org.eclipse.m2e.core.prefs"
@@ -584,6 +592,23 @@ print(f"{r:.2f}")' "$(field "$J_" theme)" >"$HEAVY_WORK/theme-light.txt" || fail
   assert_json "$J_" idea "'formatter.xml' in (d.get('manifest') or '') and 'java.format.settings.url' in (d.get('manifest') or '')" \
     "the import's writes did not go through the manifest: $(field "$J_" idea | python3 -c 'import json,sys;print((json.load(sys.stdin)["manifest"] or "")[:400])')"
   assert_json "$J_" idea "d['ideaUnchanged']" "the import modified .idea/ — it is read-only (§6.6)"
+  # ── RFC 0007 use cases 2 and 3: live templates and the file header ──
+  assert_json "$J_" idea "any('Live templates' in r for r in d['scopeRows']) and any('File templates' in r for r in d['scopeRows'])" \
+    "the scope pick does not offer the two template kinds: $(field "$J_" idea | python3 -c 'import json,sys;print(json.load(sys.stdin)["scopeRows"])' | cut -c1-300)"
+  assert_json "$J_" idea "'live templates' in d['plan'] and 'from IntelliJIdea2026.1' in d['plan'] and 'iterableVariable()' in d['plan'] and 'HTML_TEXT' in d['plan']" \
+    "the plan does not name where the live templates came from, or does not list the iter expression and the non-Java template it skipped: $(field "$J_" idea | python3 -c 'import json,sys;print(json.load(sys.stdin)["plan"])' | cut -c1-600)"
+  assert_json "$J_" idea "d.get('snippets') and set(json.loads(d['snippets'])) == {'sout','psvm','fori','iter','file:Class'} and json.loads(d['snippets'])['sout']['body'] == ['System.out.println(' + chr(36) + '0);'] and json.loads(d['snippets'])['fori']['body'][0].count(chr(36) + '{1:i}') == 3 and (chr(36) + '2') in json.loads(d['snippets'])['fori']['body'][0]" \
+    "the snippets file is not the four Java live templates plus the file template, with IDEA's variables as tab stops: $(field "$J_" idea | python3 -c 'import json,sys;print(json.load(sys.stdin).get("snippets"))' | cut -c1-600)"
+  assert_json "$J_" idea "'div' not in json.loads(d['snippets'])" "the HTML live template reached a Java-scoped snippets file"
+  assert_json "$J_" idea "(chr(36) + '{year}') in (d.get('wroteSettings') or '') and 'java.templates.fileHeader' in (d.get('wroteSettings') or '')" \
+    "java.templates.fileHeader was not written with JDT's own variables: $(field "$J_" idea | python3 -c 'import json,sys;print(json.load(sys.stdin).get("wroteSettings"))' | cut -c1-400)"
+  assert_json "$J_" idea "'PACKAGE_NAME' not in d['snippets'] and 'Copyright' in ' '.join(json.loads(d['snippets'])['file:Class']['body'])" \
+    "the file template kept the package line, or lost the header include decision 15 says to expand: $(field "$J_" idea | python3 -c 'import json,sys;print(json.loads(json.load(sys.stdin)["snippets"])["file:Class"])' | cut -c1-400)"
+  assert_json "$J_" idea "'intellij.code-snippets' in (d.get('manifest') or '')" \
+    "the snippets file is not in the manifest, so Remove BatleHub settings would leave it behind"
+  assert_json "$J_" idea-snippet "not d['timedOut'] and any('sout' in s for s in d['suggestions'])" \
+    "the imported sout snippet is not offered by the editor's completion in a Java file: $(field "$J_" idea-snippet | cut -c1-300)"
+  log "IMPORT-SNIPPET-OK (four Java live templates of the IDEA configuration directory + the project's file template → .vscode/intellij.code-snippets through the manifest; iter's iterableVariable() listed and the template still shipped; the HTML one skipped; java.templates.fileHeader in JDT's variables; sout offered by the editor's own completion)"
   assert_json "$J_" idea "'this.people' in (d.get('greeterBefore') or '') and 'private int unused' in (d.get('greeterBefore') or '')" \
     "Greeter.java was not the committed file before Format Document — an earlier step left a dirty buffer or a saved edit behind"
   assert_json "$J_" idea "not d['formatTimedOut'] and d.get('golden') and d['formatted'].strip() == d['golden'].strip()" \

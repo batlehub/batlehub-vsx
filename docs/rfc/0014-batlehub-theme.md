@@ -9,7 +9,7 @@
 | Author      | Max Batleforc <maxleriche.60@gmail.com>                       |
 | Co-author   | —                                                             |
 | Created     | 2026-09-18                                                    |
-| Revised     | 2026-09-19 — revision 3, written as it was built: open questions 2 and 3 answered from the first derivation, `PAIRS` replaced by a rule that needs no table, the keys the sweep and the Java panel forced into §4.2 recorded, the panel's focus ring corrected to the 1px java-core draws. 2026-09-18 — revision 2, after the series was reviewed against its goal (RFC 0001 §7.1): what a Product RFC is, crimson no longer means both "do this" and "this is broken", the cursor is ink, the contrast test covers inherited keys, `tokens.json` drift is watched nightly |
+| Revised     | 2026-09-29 — revision 4, the last open question promoted to decision 21: the 1px focus ring is `java-core`'s `panel.css` to widen under RFC 0001, not the theme's, so §6.3 stands and the panel stays untouched from here |
 | Supersedes  | —                                                             |
 | Depends on  | RFC 0001 (§4.2 "The Java panel's look": the panel takes `--vscode-*` tokens and the identity goes into a theme; the pack; the three-theme screenshots of the heavy suite). The palette is BatleHub's `DESIGN.md` (`batleforc/batlehub`, "Design System: BatleHub", §Colors), not this repository's |
 | Touches     | `extensions/batlehub-theme/` (new: `package.json`, `themes/tokens.json`, `themes/base-defaults.json`, `themes/batlehub-*.json`, `scripts/color.mjs`, `scripts/base-defaults.mjs`, `scripts/derive.mjs`, `test/contrast.test.ts`, `README.md`), `.github/workflows/nightly.yaml` (one job), `tests/heavy/java.mjs` and `tests/heavy/view.sh` (the theme phases beside the panel phase), `docs/guide/theme.md`, `docs/.vitepress/config.ts`, `extensions/java-pack/README.md` (a mention; the pack manifest is unchanged) |
@@ -614,15 +614,12 @@ defined still outranks every place it is used. It measures 10.1:1 (dark), 11.8:1
 | 18 | Whose colours does code wear? (decisions 15–17 are its three failed attempts) | **The editor's, re-lit on BatleHub's ground.** Weight (15), a third ink tier (16) and giving the body the ink (17) each moved the needle and none made a buffer readable: the palette has one accent hue for code, and nine hand-named Java scopes leave most file types unpainted. `tokenColors` are not inherited, so naming none is not an option either. The theme takes Dark+, Light+ and HC Black from the pinned VS Code as a committed copy, re-lights every foreground on the BatleHub ground to 4.5:1 (7:1 in HC), and rotates any that lands within ΔE 0.05 of crimson. Strings and annotations keep copper, `invalid` keeps the error red, comments keep their italic. Decisions 12 and 13 made this trade twice already; the identity is the chrome. |
 | 19 | Which hues, once the roles are borrowed? | **Tokyo Night's.** Decision 18 borrowed two things at once — the editor's role map and the editor's hues — and only the first was load-bearing. VS Code's blue-and-teal against a warm near-black ground reads as two themes in one window. `TOKYO` substitutes the Tokyo Night colour for each base colour before the lightness is re-derived, so the scope coverage of decision 18 is kept whole and only the palette changes. The table has to be total: a base colour with no answer would reach a buffer as VS Code's own, and a pin bump is exactly how that would arrive unnoticed, so the test holds every colour of the committed copy against it. Tokyo Night / Tokyo Night Day are Enkia's, MIT, read as a colour scheme and credited; no file of theirs is vendored. |
 | 20 | Which hues, once the candidates were seen side by side? | **Dracula's, with red and purple traded.** Decision 19 shipped Tokyo Night on reasoning alone; a page holding the same `Greeter.java` in four palettes at once settled it by eye instead, and the measurements went with it. Dracula keeps its voices further apart than Tokyo Night (mean ΔE 0.270 against 0.198 across the eight voices a line of Java shows). The trade sends Dracula's purple to the regex classes and its red to the numbers, constants and storage. One cost is recorded rather than hidden: Dracula paints keywords and operators the same pink, so that pair measures ΔE 0 — the editor's own table does the same, and separating them is a line of `HUES`, open if it ever grates. |
+| 21 | The panel's focus ring is 1px, DESIGN.md's is 2px with a 2px offset | **Widened in `java-core`, not here.** `panel.css` draws `outline: 1px solid var(--vscode-focusBorder)`; the theme supplies the colour and has no say in the width, so the fix is a one-line change under RFC 0001 and §6.3 stands — the panel is untouched from this extension. |
 
 ### Still open
 
-1. **The panel's focus ring is 1px, DESIGN.md's is 2px with a 2px offset.**
-   `java-core`'s `panel.css` draws `outline: 1px solid
-   var(--vscode-focusBorder)`; the theme supplies the colour and has no say
-   in the width. Widening it is a one-line `java-core` change under RFC
-   0001 and was deliberately not made from here (§6.3: the panel is
-   untouched).
+None at this revision. Decision 21 leaves one line owed in `java-core`
+under RFC 0001, not in this extension.
 
 ---
 

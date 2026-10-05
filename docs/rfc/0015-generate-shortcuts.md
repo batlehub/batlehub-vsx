@@ -9,6 +9,7 @@
 | Author      | Max Batleforc <maxleriche.60@gmail.com>                       |
 | Co-author   | —                                                             |
 | Created     | 2026-09-18                                                    |
+| Revised     | 2026-09-29 — revision 2, the three answerable questions of §11 promoted to decisions 8–10: the builder an inner static class so it can call a private constructor, `copy` built for records now and deleted when JEP 468 lands, and LightWeight mode disabled with its reason rather than given a second syntactic implementation. Rows 3–10 stay owed to Team A's diary |
 | Supersedes  | —                                                             |
 | Depends on  | RFC 0001 (the bundle of §6.2, the Generate menu of §4.2, the mode gating of decision 36); RFC 0002 for the agent surface; RFC 0007 for the imported live templates this complements |
 | Touches     | `jdt/batlehub-jdt-core` (three delegates, `Builders.java`, `Withers.java`, `Surround.java`, golden files), `extensions/java-core` (`src/generate/menu.ts`, new `src/generate/options.ts`, settings), `packages/java-rules/verbs.ts` (three `kind`s of `java_generate`), `tests/heavy/java.mjs` (a `SHORTCUTS-OK` step), `jdt/smoke.mjs`, `docs/guide/java/editing.md` |
@@ -512,29 +513,16 @@ JDT.LS, starts no process, and its write is an unsaved edit.
 | 5 | Lombok | **Offered when on the classpath, never introduced.** `redhat.java` supports Lombok, so the annotation is a complete answer where the team already made that choice. |
 | 6 | Surround-with as snippets? | **No.** It needs a selection → statement-range mapping only the AST gives. RFC 0007's imported live templates are snippets and complement it; they do not replace it. |
 | 7 | Bindings | **Optional.** Generators are syntactic; surround-with uses bindings when available for the catch type and says when it did not. |
+| 8 | Builder placement? | **An inner static class**, so the builder can call a private constructor — the InnerBuilder shape most teams actually use, not IDEA's separate-file "Replace constructor with builder". A setting overrides it; Team A's row 1 entry confirms or overturns the default. |
+| 9 | `with` on records? | **A `copy` generator now** — forty lines — deleted the day JEP 468's derived record creation is final on the team's JDK. Withers returning copies are the only form a record allows, and forty lines is cheaper than the wait. |
+| 10 | LightWeight mode? | **Disabled with the reason and the switch offer**, as decision 36 of RFC 0001 does for every delegate. The generators are syntactic in principle, but a fallback outside the bundle is a second implementation of each; RFC 0018 (parked) is the only place a pre-index tier is discussed at all. |
 
 ### Still open
 
-1. **Builder placement default**: inner static class or a separate
-   `<Type>Builder.java`? IDEA's built-in "Replace constructor with builder"
-   writes a separate file; the InnerBuilder plugin most teams actually use
-   writes an inner class, and an inner builder can call a private
-   constructor. Recommendation: `inner`, confirmed or overturned by Team A's
-   row 1 entry.
-2. **`with` on records.** Withers returning copies are the only form a
-   record allows, and JEP 468 (derived record creation) may one day make
-   them redundant. Recommendation: build `copy` for records now — it is
-   forty lines — and delete it the day the language feature is final on the
-   team's JDK.
-3. **LightWeight mode.** The generators are syntactic and could in
-   principle run without a full server, but the bundle is loaded only in
-   Standard. Options: disabled with the reason and the switch offer (what
-   decision 36 does for every delegate today), or a fallback outside the
-   bundle. Recommendation: disabled with the reason; a fallback is a second
-   implementation, and RFC 0018 (parked) is the only place a pre-index tier
-   is even discussed.
-4. **Rows 3–10.** Owed. The RFC leaves Draft when the table has no *owed*
-   cell.
+1. **Rows 3–10 of §2.1.** Owed, and owed by Team A's diary
+   (`docs/diary/team-a.md`) rather than by this document: the list is taken
+   from what a team leaving IntelliJ reaches for, not guessed here. The RFC
+   leaves Draft when the table has no *owed* cell.
 
 ---
 

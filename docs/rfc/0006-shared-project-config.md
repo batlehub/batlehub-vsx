@@ -9,7 +9,7 @@
 | Author      | Max Batleforc <maxleriche.60@gmail.com>                       |
 | Co-author   | —                                                             |
 | Created     | 2026-09-18                                                    |
-| Revised     | 2026-09-18 — revision 2, after the series was reviewed against its goal (RFC 0001 §7.1): the engine reads only the committed half, through a `resolve()` shared in `packages/java-rules`; editor and CI may differ by design and the RFC says so; the migration lists what narrowing `.gitignore` would expose and asks; a repo-supplied `settingsFile` warns once; m2e prefs are applied only after trust; one validator, checked against the schema in `lint` |
+| Revised     | 2026-09-29 — revision 3, the recommendations of §11 promoted to decisions 12 and 13: `satellites.<id>` handed over as a raw object until a second satellite needs a validated sub-schema, and `Keep mine` remembered in the extension's storage rather than as a setting that would trip its own warning |
 | Supersedes  | —                                                             |
 | Depends on  | RFC 0001 (the core, its settings of §4.1, the manifest and the overlay of §4.2); consumed by RFC 0005 (inspection profiles), RFC 0013 (spell checking) and RFC 0002 (the headless engine reads the same files) |
 | Touches     | `packages/java-rules` (the pure `project-config.ts`, shared with RFC 0002's engine), `extensions/java-core/src/project/` (new `config.ts`), `src/written.ts` (the `.gitignore` line), `src/manifest.ts`, `src/build/maven/overlay.ts`, `src/panel/`, `schema/`, `tests/heavy/java.mjs`, `docs/guide/java/` |
@@ -652,19 +652,12 @@ sequenceDiagram
 | 9 | When is `project.json` applied? (revision 2) | **After trust.** Writing the m2e preferences counts as applying, like `-P`, `-s` and the registry link. |
 | 10 | How does the migration narrow `.gitignore`? (revision 2) | **List, show, ask.** Files that would become visible to git and are not known committed files are shown; nothing moves silently; no answer means the v1 layout stays. |
 | 11 | One validator or two? (revision 2) | **One**: the walker, generated from or checked against the JSON Schema in `lint`. |
+| 12 | The `satellites.<id>` contract surface? | **A raw-object `projectConfig(id)` accessor** in the first phase; a typed sub-schema registration when a second satellite needs the editor to validate its section. Either way the member is `projectConfig(id)` of RFC 0001 §5.2's contract changelog, 1.1; the typed form would be a later minor. |
+| 13 | Does `Keep mine` on the `settingsFile` warning write a workspace setting? | **No — the extension's storage.** A setting recording the choice would itself show as "differs from project", which is the warning the developer just dismissed. |
 
 ### Still open
 
-1. The `satellites.<id>` contract surface: a `projectConfig(id)` accessor
-   returning the raw object, or a typed registration of a sub-schema so the
-   editor validates satellite sections too. Recommendation: raw object in the
-   first phase, sub-schema registration when a second satellite needs it.
-   Either way the member is entered in the [RFC 0001 §5.2 contract
-   changelog](/rfc/0001-java-env#contract-changelog); it has no row there yet.
-2. Whether `Keep mine` on the `settingsFile` warning should also write the
-   developer's choice as a workspace setting (visible, reversible, in the
-   manifest) rather than into the extension's storage. Recommendation:
-   storage first — a setting would itself show as "differs from project".
+None at this revision.
 
 ---
 

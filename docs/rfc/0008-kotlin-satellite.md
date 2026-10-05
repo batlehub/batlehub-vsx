@@ -9,7 +9,7 @@
 | Author      | Max Batleforc <maxleriche.60@gmail.com>                       |
 | Co-author   | —                                                             |
 | Created     | 2026-09-18                                                    |
-| Revised     | 2026-09-18 — revision 3, phase 0 measured: the gate passes on ILS-263.4702.0 (§11 Measured), decision 1 stays a bundled server, open question 1 is answered (the server imports Maven by running `mvn` from `PATH` — which a `mise` workspace does not have), and two questions open: the declared cap must cover a 2.8 GB process tree, and a 352 MB VSIX may not be publishable. Revision 2, after the series was reviewed against its goal (RFC 0001 §7.1): phase 0 jumps the queue as a measurement, a failed gate falls back to a thin bridge to JetBrains' extension instead of nothing, the server starts through the core's managed process, the coexistence write goes through `manifest.writeSetting`, the size budget is raised for this VSIX and the runtime download dropped |
+| Revised     | 2026-09-29 — revision 4, the recommendations of §11 promoted to decisions 11–14: the core's own Maven passed on the server's `PATH`, no run template for a Kotlin `main` in v0.1, a `kotlin-lsp` pre-release row in the nightly matrix, and the 2.8 GB daemon tree declared rather than capped (RFC 0003 decision 18). Only the publishable size of a 352 MB VSIX stays open, and it blocks the rest. 2026-09-29, revision 5, the last open question answered by measurement (§11 Measured — the publishable size): a 352 MB VSIX cannot be published, the limit is `open-vsx.org`'s reported 250 MiB, and decision 2 survives at 257 MB by dropping the bundled JBR and the debug plugins — both owed to other decisions already. Decision 7's budget is now the publishable size rather than the release's |
 | Supersedes  | —                                                             |
 | Depends on  | RFC 0001 (the contract of §5.2, `java-groovy` as the model satellite, decision 7's usability gate, decision 31, the red lines of §7.1); the core's Gradle provider (RFC 0001 phase 7) for the Kotlin DSL and the mixed modules; RFC 0003 revision 2 (the managed process); needs members `manifest.writeSetting` and `process.start` — RFC 0001 §5.2 contract changelog |
 | Touches     | `extensions/java-kotlin` (new), `extensions/java-core/src/build/gradle/provider.ts` (source roots), `extensions/java-core/src/build/maven/provider.ts` (`kotlin-maven-plugin` roots), `extensions/java-pack`, `.tasks/kotlin.yaml`, `tests/heavy/fixtures/kotlin-project`, `tests/heavy/java.mjs`, `tests/contract/run.sh`, `docs/guide/java/kotlin.md` |
@@ -522,10 +522,15 @@ sequenceDiagram
 | 4 | JDK for the server? | **The core's resolution for the folder**, no `javaHome` key. Feedback 5 of RFC 0001 was found once; a per-satellite JDK setting would let it be found again. |
 | 5 | Heap? | **Capped, `-Xmx1G` default**, the value measured by the smoke; RFC 0001 §15.3 is not optional for a JVM that embeds an IDE platform. Measured: the cap holds the server and not its daemons — 2.8 GB for the tree (see Measured, and still-open question 4). |
 | 6 | Kotlin in the core's project model? | **Source roots only** (`src/main/kotlin`, `src/test/kotlin`, `build.gradle.kts`). The module, JDK and classpath are the build tool's; Kotlin changes none of them. |
-| 7 | VSIX size (was open question 1) | **The 60 MB budget is raised for this VSIX alone**, to the measured size of the pinned release plus headroom — measured: 352 MB packed, 1138 MB unpacked, of which 181 MB is the bundled JBR (still-open question 5 asks whether a VSIX that size can be published at all) — written into CI's per-extension table (RFC 0001 §13 already checks the budget per extension). A satellite is installed only by who needs it, so its size is paid only by them. The runtime-download fallback is dropped, not kept in reserve. |
+| 7 | VSIX size (was open question 1) | **The 60 MB budget is raised for this VSIX alone, to 257 MB — the publishable size, not the release's size** (revision 5). The registry's limit is the budget: `open-vsx.org/api/version` reports `maxExtensionSize: 262144000` (250 MiB), and the pinned release zipped whole is 370 MB. Decision 15 says what comes out to reach 257 MB. Written into CI's per-extension table (RFC 0001 §13 already checks the budget per extension), and the check is a publishability gate now, not a hygiene one. A satellite is installed only by who needs it, so its size is paid only by them. The runtime-download fallback is dropped, not kept in reserve. |
 | 8 | Manifest sharing (was open question 3) | **`manifest.writeSetting` from the start**; the satellite never has a `written.json` or a `Remove settings` command of its own (RFC 0001 §7.1 red line 1). Needs that member — [RFC 0001 §5.2 contract changelog](/rfc/0001-java-env#contract-changelog); `java-groovy` uses it too. Phase 1 waits for it rather than shipping an interim. |
 | 9 | How the server is started | **Through the core's managed process** (RFC 0003 revision 2; needs `process.start(spec)` — same changelog), cap `-Xmx1G` declared, outside the pack's default set. The satellite never spawns. |
 | 10 | Where in the order of work | **Phase 0 second, the rest last but one** (RFC 0001 §14): Team B is waiting but Team A switches first; a failed gate is cheaper known now than after Team A's track. Phases 1–3 come after that track, before RFC 0009. |
+| 11 | Which Maven does the server import with? | **The one the core already resolved for its own run steps**, passed on the server's `PATH` — not whatever a `mise` shim resolves to. Opened and closed by phase 0 (§11 Measured), folded into phase 1. |
+| 12 | A run template for a Kotlin `main`? | **None in v0.1.** `mainClass` is `<File>Kt` unless `@file:JvmName` says otherwise, and guessing wrong is worse than the developer typing it; the run editor's Application template works today. |
+| 13 | Server version drift? | **A `kotlin-lsp` pre-release row in the nightly matrix** (RFC 0001 §4.2), so a breaking release of a pre-alpha server is a drift issue and not a user report. |
+| 14 | The declared cap, with the daemons bringing the tree to 2.8 GB? | **Declared, not capped** (RFC 0003 decision 18). The satellite declares the measured tree to `process.start` and writes nothing into the project's Gradle or Kotlin daemon options: Kotlin takes a third of the 8 GiB budget, the `JDK` tab says so, and a foreign write to shrink a visible number is not one this series makes. |
+| 15 | Can a 352 MB VSIX be published at all? (was open question 5) | **No — and decision 2 survives anyway, by dropping two things that were already owed.** Measured 2026-09-29 against `maxExtensionSize: 262144000`: the release zipped whole is 370 MB (**+108 MB**); **without the bundled JBR**, 265 MB — still over, by 3.2 MB; **without the JBR and without the debug plugins** (`plugins/dap-jvm`, `plugins/kotlin-dap.lsp`), **257 MB, under by 5.1 MB**. The JBR goes because decision 4 already says the core resolves the JDK and phase 0 caught the server handing its own JBR to Maven as `JAVA_HOME` — a server that has no JBR cannot do that. The debug plugins go because v0.1 has no Kotlin run template (decision 12) and nothing invokes them. **The margin is 2 %**, so decision 13's nightly row gates the packed size, not just the protocol. |
 
 ### Measured — phase 0, 2026-09-18
 
@@ -581,37 +586,44 @@ Four things the numbers say that the yes/no column does not.
   Maven as `JAVA_HOME`. Decision 4 says the core's resolution and no
   `javaHome` key; phase 1 has to make that true, because left alone the
   server compiles the user's project against a JDK the core never chose.
+### Measured — the publishable size, 2026-09-29
+
+The lookup step 2 of RFC 0001 §14 left behind, answered from the registry and
+from the tree already in the cache. A VSIX is a **zip**, so the release's own
+`tar.gz` (352 MB) was the wrong proxy; these are zips of the unpacked tree at
+the default deflate level.
+
+| Packed | Bytes | Against 262 144 000 |
+| --- | --- | --- |
+| The release, whole | 370 222 479 | **+108.1 MB — refused** |
+| Without `jbr/` | 265 391 183 | **+3.2 MB — refused** |
+| Without `jbr/`, `plugins/dap-jvm/`, `plugins/kotlin-dap.lsp/` | 257 017 841 | **−5.1 MB — publishable** |
+
+Three things the table does not say.
+
+- **The limit is the registry's, and it is reported, not documented.**
+  `open-vsx.org/api/version` answers `maxExtensionSize: 262144000` — 250 MiB.
+  `ovsx` checks a package against it before uploading, so an oversized VSIX
+  fails locally rather than after the upload. The Marketplace publishes no
+  limit at all (microsoft/vsmarketplace#1541 is open and unanswered), which
+  does not matter: Open VSX is the registry a Che workspace installs from.
+- **Per-platform VSIX would buy nothing here.** It is the fix the C# extension
+  used for the same 351 MB wall (konveyor/editor-extensions#1494), but this
+  download is already single-platform — `lib/rocksdbjni/` holds only
+  `librocksdbjni-linux64.so`, `lib/pty4j/` only `linux`. There is no second
+  platform's payload to split out, so the only way under the limit is to carry
+  less.
+- **The two drops were owed independently**, which is why decision 2 survives
+  a `no`. Neither is a concession made to the limit: the JBR contradicts
+  decision 4 and phase 0 caught it doing so, and the debug plugins have no
+  caller in v0.1. Had the answer needed a third drop from `plugins/kotlin/`
+  (245 MB unpacked, the analyser itself), decision 1's bridge would be back.
+
 
 ### Still open
 
-1. ~~**Maven Kotlin projects.**~~ **Answered by phase 0** (see Measured): the
-   server imports Maven itself by running `mvn` from `PATH`, so the Maven
-   half is a full one — provided the satellite puts a real Maven on that
-   `PATH`. What is left is *which* Maven: the core resolves one for its own
-   run steps, and phase 1 should pass that rather than let the server take
-   whatever a `mise` shim resolves to. Folded into phase 1, not open.
-2. **A run template for a Kotlin `main`.** `mainClass` is `<File>Kt` unless
-   `@file:JvmName` says otherwise; guessing wrong is worse than the user
-   typing it. Recommendation: no template in v0.1; the run editor's
-   Application template with the class typed works today.
-3. **Server version drift.** JetBrains releases often and pre-alpha
-   promises no compatibility; the nightly matrix (RFC 0001 §4.2) gains a
-   `kotlin-lsp` pre-release row so a breaking release is a drift issue, not
-   a user report.
-4. **What the declared cap has to be** (opened by phase 0). The server obeys
-   `-Xmx1g`; its Gradle and Kotlin daemons bring the tree to 2.8 GB. Whether
-   decision 9 declares the tree's number to `process.start`, or caps the
-   daemons too (`org.gradle.jvmargs`, the Kotlin daemon's own options)
-   through the import it drives, is RFC 0003's question to settle with this
-   measurement in hand. Blocks nothing before phase 1.
-5. **Whether the 352 MB VSIX can be published at all** (opened by phase 0).
-   Decision 7 raises the budget to the measured size, and the measured size
-   is an order of magnitude over the 60 MB the other extensions live in;
-   Open VSX and the Marketplace have their own limits, which nobody here has
-   checked. Phase 1's first act is to check them — if a 352 MB VSIX cannot
-   be published, decision 2 ("bundled, nothing downloaded at runtime")
-   reopens and decision 1's bridge is back on the table for a reason that
-   has nothing to do with the server's quality.
+None at this revision. Decision 15's 2 % margin is what decision 13's
+nightly row now watches.
 
 ---
 
@@ -621,6 +633,6 @@ Four things the numbers say that the yes/no column does not.
 | --- | --- |
 | 0 | **The gate, measured — second in RFC 0001 §14's order of work, as a measurement only**: `task kotlin:fetch` + `kotlin:smoke` on the pinned release with the mise JDK 21 and the `kotlin-project` fixture; the numbers of RFC 0001 decision 7's gate and the measured size (§11 decision 7 here) written into §11. Ships nothing. A failed gate does not stop the RFC: it turns phase 1 into the thin bridge of decision 1. |
 | — | *Team A's track (RFC 0001 §14 steps 3–11) comes here; it brings the managed process (RFC 0003) and `manifest.writeSetting` that phase 1 needs.* |
-| 1 | **The satellite**: `extensions/java-kotlin` cloned from `java-groovy` — server through `process.start`, channel, panel tab, status item, trust rule, coexistence prompt through `manifest.writeSetting`; `.tasks/kotlin.yaml`; the raised size budget in CI; the contract test extended; `docs/guide/java/kotlin.md`. Useful on its own. *Gate failed*: the same extension without `server/` — the bridge key, the tab, the recommendation of JetBrains' extension. |
+| 1 | **The satellite**, packed as decision 15 says (no `jbr/`, no debug plugins, the packed size asserted under 250 MiB before anything else): `extensions/java-kotlin` cloned from `java-groovy` — server through `process.start`, channel, panel tab, status item, trust rule, coexistence prompt through `manifest.writeSetting`; `.tasks/kotlin.yaml`; the raised size budget in CI; the contract test extended; `docs/guide/java/kotlin.md`. Useful on its own. *Gate failed*: the same extension without `server/` — the bridge key, the tab, the recommendation of JetBrains' extension. |
 | 2 | **The core's roots**: Maven and Gradle providers learn `src/main/kotlin` and `build.gradle.kts`; unit tests. Independent of phase 1 and useful without it (the explorer). |
 | 3 | **Proof**: the `kotlin` phase of the `java` heavy half, `KOTLIN-OK` gated, the memory budget of the suite revised; the nightly matrix row of question 3. |

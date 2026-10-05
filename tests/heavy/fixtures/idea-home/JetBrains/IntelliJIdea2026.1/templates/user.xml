@@ -1,0 +1,32 @@
+<templateSet group="user">
+  <template name="sout" value="System.out.println($END$);" description="Prints a string to System.out" toReformat="true" toShortenFQNames="true">
+    <context>
+      <option name="JAVA_STATEMENT" value="true" />
+    </context>
+  </template>
+  <template name="psvm" value="public static void main(String[] args) {&#10;  $END$&#10;}" description="main() method declaration" toReformat="true" toShortenFQNames="true">
+    <context>
+      <option name="JAVA_DECLARATION" value="true" />
+    </context>
+  </template>
+  <template name="fori" value="for (int $INDEX$ = 0; $INDEX$ &lt; $LIMIT$; $INDEX$++) {&#10;  $END$&#10;}" description="Iterate with an index" toReformat="true">
+    <variable name="INDEX" expression="suggestIndexName()" defaultValue="i" alwaysStopAt="true" />
+    <variable name="LIMIT" expression="" defaultValue="" alwaysStopAt="true" />
+    <context>
+      <option name="JAVA_STATEMENT" value="true" />
+    </context>
+  </template>
+  <template name="iter" value="for ($ELEMENT_TYPE$ $VAR$ : $ITERABLE$) {&#10;  $END$&#10;}" description="Iterate over an Iterable" toReformat="true">
+    <variable name="ITERABLE" expression="iterableVariable()" defaultValue="" alwaysStopAt="true" />
+    <variable name="ELEMENT_TYPE" expression="iterableComponentType(ITERABLE)" defaultValue="&quot;java.lang.Object&quot;" alwaysStopAt="false" />
+    <variable name="VAR" expression="suggestVariableName()" defaultValue="" alwaysStopAt="true" />
+    <context>
+      <option name="JAVA_STATEMENT" value="true" />
+    </context>
+  </template>
+  <template name="div" value="&lt;div&gt;$END$&lt;/div&gt;" description="A div, which is not Java" toReformat="false">
+    <context>
+      <option name="HTML_TEXT" value="true" />
+    </context>
+  </template>
+</templateSet>

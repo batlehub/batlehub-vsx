@@ -9,7 +9,7 @@
 | Author      | Max Batleforc <maxleriche.60@gmail.com>                       |
 | Co-author   | —                                                             |
 | Created     | 2026-09-18                                                    |
-| Revised     | 2026-09-18 — revision 2, after the series was reviewed against its goal (RFC 0001 §7.1): the four server kinds split out to RFC 0017 (parked), the managed process specified as the memory rule's mechanism (§4.2, §5.2, §6.3), JDWP on `localhost` everywhere, `deploy` paths held inside the workspace, the contract version left to RFC 0001 §5.2 |
+| Revised     | 2026-09-29 — revision 3, the recommendations of §11 promoted to decisions 12–15, and the three questions other RFCs sent here settled as decisions 16–18: the cap ledger RFC 0002's command line appends to, the `estimate` declaration for a JVM another extension starts (RFC 0009, 0010, 0011), and RFC 0008's Kotlin daemon tree declared rather than capped — one change in the core's contract instead of three |
 | Supersedes  | —                                                             |
 | Depends on  | RFC 0001 (the run editor of phase 4, the `batlehub-java` task provider, the contract of §5.2, the resource diagnostic of §4.2, the memory rule of §7.1, the heavy suite); `vscjava.vscode-java-debug` for every `launch` and `attach` step |
 | Touches     | `extensions/java-core/src/run/` (new `steps.ts`, `orchestrator.ts`), `src/process/` (new `managed.ts`, `budget.ts`, `sweep.ts`), `src/detect/resources.ts` (the sum), `api.d.ts` (the members of RFC 0001 §5.2's changelog), `package.json` (`debuggers`, settings), `extensions/java-groovy` (its server started through the managed process), `tests/heavy/` (the java half), `docs/guide/java/run.md` |
@@ -714,26 +714,19 @@ It defines no version; the changelog is where the next one is written.
 | 9 | Orphans? | **A pid file in workspace storage, swept at activation, guarded by the kernel start time.** No watchdog (§8). |
 | 10 | JDWP bind address? | **`localhost`, every kind, no option for `*`.** Revision 1 contradicted itself between §6.3 and §7. |
 | 11 | `debug: true` without the debugger? | **A warning; the step runs without the agent.** Revision 1 listed it under hard errors while saying it did not fail. |
+| 12 | A `launch` step's JVM in the sum? | **Declared from the launch's `vmArgs` when it carries an `-Xmx`, `run.defaultMemoryMiB` otherwise**, and the tab says "estimated". The core sees a session, not a pid; an honest estimate beats a hole in the sum. |
+| 13 | The budget figure — this RFC's setting, or the devfile's `memoryRequest`? | **The setting stays, as the override**; RFC 0004's devfile reader fills the default when it lands. This RFC does not depend on RFC 0004 to ship. |
+| 14 | `launch` steps of non-Java types? | **Listed** — every `launch.json` entry, the Java ones first. Nothing prevents a `node` server before a Java client. |
+| 15 | Descendant RSS double-counts shared pages? | **Accepted.** The JVMs this series starts do not fork; `Pss` from `smaps_rollup` only if a measurement misleads someone. |
+| 16 | The cap ledger the command line needs (RFC 0002 decision 15)? | **This RFC owns it**: a per-workspace file of the running declared caps under the user's cache directory, `0600`, written under the manifest's lock discipline, stale lines dropped by pid. §4.2's sum reads it, an outside engine appends to it. No secret is in it. |
+| 17 | A JVM another extension starts — Spring Tools, Quarkus, Metals? | **`process.declare(estimate)`** — an id, a `memoryMiB`, a label, nothing started — the 1.1 row of RFC 0001 §5.2's contract changelog whose shape is owned here. Not a per-framework read of a foreign `*.ls.vmargs` setting inside the core (RFC 0010 decision 15, RFC 0009, RFC 0011). |
+| 18 | The Kotlin server's daemon tree, 2.8 GB measured (RFC 0008)? | **Declared, not capped.** The satellite declares the measured tree to `process.start` and writes nothing into the project's Gradle or Kotlin daemon options: a foreign write to shrink a number the developer can already read in the `JDK` tab is not one this series makes. Kotlin takes a third of the 8 GiB budget and says so. Revisit only if a recorded peak shows the tree is what fills the pod. |
 
 ### Still open
 
-1. **A `launch` step's JVM is not in the sum.** `vscode-java-debug` spawns
-   it; the core sees a session, not a pid. Counting it means reading the
-   launch's `vmArgs` for an `-Xmx` and declaring that. Recommendation: do
-   so when `vmArgs` carries one, declare `run.defaultMemoryMiB` otherwise,
-   and say "estimated" in the tab.
-2. **Reading the request instead of setting it.** The devfile's
-   `memoryRequest` is the real figure and RFC 0004 already reads the
-   devfile. Recommendation: keep the setting as the override, let RFC 0004's
-   reader fill the default when it lands; do not make this RFC depend on it.
-3. **`launch` steps of non-Java types** (a `node` server before a Java
-   client). Nothing prevents it; the question is whether the run editor
-   lists them. Recommendation: list every `launch.json` entry, the Java
-   ones first.
-4. **Descendant RSS double-counts shared pages.** Summing `VmRSS` over a
-   process tree overstates a forking server. Recommendation: accept it —
-   the JVMs this series starts do not fork — and switch to `Pss` from
-   `smaps_rollup` only if a measurement misleads someone.
+None at this revision. Decisions 12 and 15 name the measurement that
+reopens each: a launch whose estimate misleads, a forking server under the
+sum.
 
 ---
 

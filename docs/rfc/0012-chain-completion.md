@@ -9,7 +9,7 @@
 | Author      | Max Batleforc <maxleriche.60@gmail.com>                       |
 | Co-author   | —                                                             |
 | Created     | 2026-09-18                                                    |
-| Revised     | 2026-09-18 — revision 3, phase 1 built and measured (§11 Measured): JDT.LS 1.61 does ship the computer, but it answers only chains to project reference types — never a primitive or a JDK type — labels depth ≥ 2 wrongly, and sorts every chain last. Use case 2 is rewritten around a shape the server can answer. Revision 2, after the series was reviewed against its goal (RFC 0001 §7.1): the default-on write states every condition of the default-on rule, the delegate path gets its own latency gate, the ranking's interaction with the editor's filter is measured in phase 1 rather than asserted |
+| Revised     | 2026-09-29 — revision 4, the recommendations of §11 promoted to decisions 10–12: the upstream issue opened at phase 1 with the measured numbers and phase 2 built only if it goes unowned, depth-1 chains left to JDT with the ranking special-cased so a chain never outranks a plain local, and `ignore_types` a constant |
 | Supersedes  | —                                                             |
 | Depends on  | RFC 0001 (the bundle of §6.2, the `written.json` manifest of §4.2, the heavy suite's performance gate of §15.2); RFC 0002 for the headless proof of the delegate; RFC 0016 shares the bindings entry point of `Engine.parse` (§6.2) |
 | Touches     | `extensions/java-core` (`src/completion/chain.ts`, one setting, one manifest write), `jdt/batlehub-jdt-core` (one delegate, the first binding-aware code path in `Engine`), `tests/heavy/java.mjs` (a `CHAIN-OK` step and its two latency lines), `docs/guide/java/editing.md` |
@@ -505,6 +505,9 @@ bridge uses.
 | 7 | May the core turn on `redhat.java`'s key by default? (revision 2) | **Yes, under RFC 0001 §7.1's default-on rule, with every condition stated**: workspace scope, through the manifest, shown once in the panel with its undo, never written when the user has already set the key — either value. |
 | 8 | Is the delegate path gated too? (revision 2) | **Yes: `chainDelegateMs < 150 ms`** in the heavy suite, the same number as the budget — a delegate that returns truncated sets on the fixture to stay under it fails use case 5's flag instead. |
 | 9 | Is the `sortText` ranking known to work under the editor's fuzzy score? (revision 2) | **No — it is measured in phase 1** (`chainRank`), and phase 2's ranking is designed from that number. *Measured*: the server sends `sortText` `999999979` on every chain, so there is no server ordering to preserve — a delegate supplies the whole one. |
+| 10 | Upstream first? | **The issue at phase 1, carrying the measured numbers; phase 2 built only if the measurement earns it *and* the issue has no owner by the next `redhat.java` pin bump.** A JDT.LS that gained on-typing invocation and a relevance for chain proposals would make the provider redundant, and that is the better outcome. |
+| 11 | Depth-1 chains? | **Left to JDT**, with rule 1 of §4.2's ranking special-cased so a depth-2 chain never sorts above a plain local. No duplicate proposals; use case 4 asserts the ordering. |
+| 12 | `ignore_types`? | **A constant in the delegate** — `java.lang.Object` and the server's own few — until someone needs to add to it. |
 
 ### Measured — phase 1, 2026-09-18
 
@@ -585,22 +588,10 @@ and it ranks them last. A developer leaving IDEA gets `config.getServer()`
 and never the `int`/`String` chains they used most. Whether that earns a
 delegate is still decision 2's call — but it is now a decision about
 coverage, not about latency, and phase 1 ships the useful half either way.
-
 ### Still open
 
-1. **Upstream first?** A JDT.LS change adding on-typing invocation and a
-   relevance for chain proposals would make phase 2's provider redundant.
-   Recommendation: open the upstream issue at phase 1 with the measured
-   numbers, and build phase 2 only if the measurement earns it *and* the
-   issue has no owner within the next `redhat.java` pin bump.
-2. **Depth-1 chains**: emit them (they duplicate JDT's plain proposals but
-   carry the rank) or leave them to JDT (no duplicates, but a local of the
-   expected type sorts by JDT's rules, not §4.2's)? Recommendation: leave
-   them to JDT and special-case rule 1 of the ranking so that a depth-2
-   chain never sorts above a plain local — use case 4 asserts this.
-3. **`ignore_types`**: the server's computer ignores `java.lang.Object`
-   and a few more by preference; the delegate needs the same list as an
-   argument or a constant. Constant, until someone needs to add to it.
+None at this revision. Decision 10 names the condition under which
+phase 2 is not built at all.
 
 ---
 

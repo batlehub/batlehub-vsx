@@ -9,7 +9,7 @@
 | Author      | Max Batleforc <maxleriche.60@gmail.com>                       |
 | Co-author   | —                                                             |
 | Created     | 2026-09-18                                                    |
-| Revised     | 2026-09-18 — revision 2, after the series was reviewed against its goal (RFC 0001 §7.1): two surfaces over one tool table — the live editor as an MCP server first (no second JVM), the command-line twin second; live-editor writes are unsaved edits; both surfaces report under the committed `.batlehub/java/` files and never read a `settings.json`; `inspect --profile` and `config --print` added |
+| Revised     | 2026-09-29 — revision 3, the recommendations of §11 promoted to decisions 12–16: `node` on `PATH` rather than a bundled runtime, the server's source roots as the only exclusion list, no server quick fixes in `fix`, the cap ledger consumed from RFC 0003, and the stdio relay chosen over `registerTool` because an agent outside the editor has to reach the live one. Only the `RenameSupport` spike stays open |
 | Supersedes  | —                                                             |
 | Depends on  | RFC 0001 (the bundle of §6.2 and its delegates, phase 6; the JDK resolution of §4.2; the red lines of §7.1); RFC 0003 (the managed process and its cap accounting); RFC 0006 and RFC 0005 (the committed `.batlehub/java/` files, the only configuration either surface reports under); BatleHub RFC 0011 (`batlehub-cli`, whose subcommand the command-line twin becomes) |
 | Touches     | `extensions/java-core` (new `src/mcp/`: the tools registered with the editor over the running JDT.LS; one setting, one command), `packages/java-rules` (the verbs table both surfaces render), `jdt/batlehub-jdt-core` (one new delegate, `batlehub.rename`), a new `engine/` directory (Node, the launcher `jdt/smoke.mjs` already is), `tests/heavy` (live-editor steps in the `java` half, an `engine` half), `docs/guide/java/engine.md` |
@@ -749,48 +749,19 @@ engine/config.ts      .batlehub/java/project.json and inspections.json only, thr
 | 9 | One surface or two, and which first? (revision 2) | **Two, the live editor first.** Same five tool schemas from one table. The live editor reuses the running JDT.LS and sees unsaved buffers, with no second JVM in the pod — RFC 0001 §7.1's memory rule is the argument. The command-line twin is second, for CI and editor-less agents; it declares its cap and joins the editor's cap accounting where there is one. |
 | 10 | What configuration does the engine read? (revision 2) | **Only the committed `.batlehub/java/` files** (`project.json`, `inspections.json`) plus flags — never a `settings.json`: personal in the editor, attacker-written in a fresh clone. The live-editor tools report under the same project values, so agent and CI agree even when the developer's override differs; the difference is marked, not applied. |
 | 11 | Which verbs do RFCs 0005 and 0006 call? (revision 2) | **`batlehub java inspect --profile <file>`** (the committed profile is the default input; `--print-profile` prints it) and **`batlehub java config --print`**. No `batlehub-java` binary exists, in this RFC or in theirs. |
+| 12 | What must `batlehub-cli` carry to exec the engine? | **`node` on `PATH`, nothing bundled.** The one-line error names `mise use node@24`; revisit if a user without Node appears — the shape decision 10 of RFC 0001 already uses for JDKs. |
+| 13 | Recursion and exclusions for `inspect .`? | **The server's own source roots**, asked for with `java.project.listSourcePaths` and walked. No second exclusion list to drift from the first. |
+| 14 | Does `fix` run the server's quick fixes too? | **No, not in phase 1.** The bundle's fixes are the ones with a known, tested edit. |
+| 15 | How does the command line join the cap accounting? | **A ledger of the running declared caps**, per workspace, under the user's cache directory, `0600`, written under the manifest's lock discipline: the engine adds its line while it runs and removes it at exit, a stale line dropped when its pid is gone. RFC 0003 decision 16 owns its shape; this RFC only consumes it. |
+| 16 | The registration form in the editor? | **The JVM-less stdio relay**, not `vscode.lm.registerTool`: an external agent — Claude Code in the pod's terminal — has to reach the live editor, which is the goal RFC 0001 §7.1 names, and `registerTool` is seen only by the editor's own agents. A unix socket in the extension's storage, `0600`, no listener. The tool table and the handlers are the same either way. |
 
 ### Still open
 
-1. **What `batlehub-cli` has to carry** to exec a Node engine: a bundled
-   Node runtime (the CLI's distribution grows by ~50 MB per platform) or a
-   `node` on `PATH` requirement (every target image has it; a bare
-   developer laptop may not). Recommendation: require `node` on `PATH`,
-   with the one-line error naming `mise use node@24`, and revisit if a
-   user without Node appears — the same shape as decision 10 of RFC 0001
-   for JDKs.
-2. **`RenameSupport` versus JDT.LS's `RenameHandler`** for the delegate,
-   given that `org.eclipse.jdt.ls.core` exports unversioned (RFC 0001
-   revision 4): whichever compiles against the pinned jars with the fewest
-   internal imports. A spike in phase 1 answers it.
-3. **Recursion and exclusions for `inspect .`**: the server's
-   `java.project.resourceFilters` defaults, or the engine's own walk with
-   `.gitignore`? Recommendation: ask the server for its projects' source
-   roots (`java.project.listSourcePaths`, already advertised) and walk
-   those — no second exclusion list.
-4. **Whether `fix` should run the server's own quick fixes** (Red Hat's
-   `java.action.organizeImports` and friends) besides the bundle's. Not in
-   phase 1; the bundle's fixes are the ones with a known, tested edit.
-5. **How the command line joins the editor's cap accounting.** The core's
-   managed process (RFC 0003) knows the declared caps of what it started;
-   an outside process does not. Recommendation: the core keeps a small
-   ledger of running declared caps per workspace under the user's cache
-   directory (no secret, `0600`), written under the manifest's lock
-   discipline; the engine reads it, adds its own line while it runs and
-   removes it at exit, and a stale line is dropped when its pid is gone.
-   RFC 0003 owns the ledger's shape; this RFC only consumes it.
-6. **The exact registration form in the editor.**
-   `vscode.lm.registerMcpServerDefinitionProvider` hands the editor a
-   server *definition* (stdio or HTTP) that the editor launches, where the
-   handlers here must run in the extension host beside the language
-   client. Two candidates for phase 0's spike: a JVM-less stdio relay
-   (a few dozen lines of Node, no listener: a unix socket in the
-   extension's storage, `0600`) between the editor-launched definition and
-   the extension host; or `vscode.lm.registerTool`, which is in-process but
-   seen only by the editor's own agents. Recommendation: the relay if an
-   external agent (Claude Code in the pod's terminal) must reach the live
-   editor, `registerTool` otherwise; the tool table and the handlers are
-   the same either way.
+1. **`RenameSupport` versus JDT.LS's `RenameHandler`** for the delegate,
+   given that `org.eclipse.jdt.ls.core` exports unversioned (revision 4 of
+   RFC 0001): whichever compiles against the pinned jars with the fewest
+   internal imports. A spike in phase 1 answers it — a measurement, not a
+   choice to argue.
 
 ---
 

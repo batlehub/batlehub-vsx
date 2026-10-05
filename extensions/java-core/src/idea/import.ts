@@ -18,6 +18,7 @@
 // The converters are pure and live beside this file; this module is the only
 // one that touches the file system.
 import * as fs from "node:fs";
+import * as os from "node:os";
 import * as path from "node:path";
 import { applyEdits, modify } from "jsonc-parser";
 import * as vscode from "vscode";
@@ -36,6 +37,15 @@ import {
   toEclipseProfile,
   usesPerProjectSettings,
 } from "./codestyle";
+import {
+  fileHeader,
+  fileTemplateSnippet,
+  parseLiveTemplates,
+  type Snippet,
+  SNIPPETS_PATH,
+  snippetsFile,
+  toSnippet,
+} from "./templates";
 
 export interface ImportPlan {
   configs: JavaLaunch[];
@@ -197,7 +207,7 @@ export function readIdea(root: string): { path: string; xml: string }[] {
 
 // --- the plan --------------------------------------------------------------
 
-export type ScopeId = "runs" | "codestyle";
+export type ScopeId = "runs" | "codestyle" | "livetemplates" | "filetemplates";
 
 export interface CodeStylePlan {
   /** The IDEA scheme's name, for the report; the profile is always PROFILE_NAME. */
@@ -208,9 +218,21 @@ export interface CodeStylePlan {
   skipped: Skipped[];
 }
 
+export interface TemplatesPlan {
+  /** Snippet entries for `.vscode/intellij.code-snippets`; both kinds share the file. */
+  snippets: Snippet[];
+  /** `java.templates.fileHeader`, when `includes/File Header.java` was read. */
+  settings: Record<string, unknown>;
+  /** Where the live templates came from, for the report: IDEA has several products. */
+  source?: string;
+  skipped: Skipped[];
+}
+
 export interface FullPlan {
   runs?: ImportPlan;
   codestyle?: CodeStylePlan;
+  livetemplates?: TemplatesPlan;
+  filetemplates?: TemplatesPlan;
   /** A kind that could not be read at all: it is skipped, the others proceed (§4.3). */
   errors: { scope: ScopeId; reason: string }[];
 }
@@ -255,6 +277,75 @@ export function planCodeStyle(
   };
 }
 
+/**
+ * `templates/*.xml` of the IDEA configuration directory → snippet entries.
+ * Pure over the files' text; `source` is the product directory's name, which
+ * the plan shows because a machine can hold several (§4.2).
+ */
+export function planLiveTemplates(
+  files: { name: string; xml: string }[],
+  source?: string,
+): TemplatesPlan {
+  const snippets: Snippet[] = [];
+  const skipped: Skipped[] = [];
+  for (const f of files)
+    for (const t of parseLiveTemplates(f.xml)) {
+      const r = toSnippet(t);
+      if ("skipped" in r) skipped.push(r.skipped);
+      else {
+        snippets.push(r.snippet);
+        skipped.push(...r.notes);
+      }
+    }
+  return { snippets, settings: {}, skipped, ...(source ? { source } : {}) };
+}
+
+/**
+ * `.idea/fileTemplates/` → the header setting and one `file:<name>` snippet per
+ * template. The header include is expanded into each snippet, because a snippet
+ * has no `#parse`: what IDEA writes in one step has to arrive in one step.
+ */
+export function planFileTemplates(
+  header: string | undefined,
+  templates: { name: string; text: string }[],
+): TemplatesPlan {
+  const skipped: Skipped[] = [];
+  const settings: Record<string, unknown> = {};
+  let headerText = "";
+  if (header !== undefined) {
+    const h = fileHeader(header);
+    if (h.lines.length) settings["java.templates.fileHeader"] = h.lines;
+    skipped.push(...h.notes);
+    headerText = `${header.replace(/\n+$/, "")}\n`;
+  }
+  const snippets: Snippet[] = [];
+  for (const tpl of templates) {
+    // `#parse("File Header.java")` is the only directive with a meaning here,
+    // and it is expanded rather than dropped — a class template whose header
+    // vanished is not the template the team wrote.
+    const text = tpl.text.replace(
+      /^[ \t]*#parse\("File Header\.java"\)[ \t]*\n?/gm,
+      headerText,
+    );
+    const r = fileTemplateSnippet(tpl.name, text);
+    snippets.push(r.snippet);
+    skipped.push(...r.notes);
+  }
+  if (header !== undefined)
+    skipped.push({
+      option: "java.templates.typeComment",
+      reason:
+        "IDEA has no type-comment template of its own, so the setting is left alone",
+    });
+  return { snippets, settings, skipped };
+}
+
+/** Both template kinds land in one file, so the diff is built from both. */
+const allSnippets = (plan: FullPlan): Snippet[] => [
+  ...(plan.livetemplates?.snippets ?? []),
+  ...(plan.filetemplates?.snippets ?? []),
+];
+
 const SETTINGS_PATH = ".vscode/settings.json";
 const LAUNCH_PATH = ".vscode/launch.json";
 const FORMAT = { formattingOptions: { insertSpaces: true, tabSize: 2 } };
@@ -274,6 +365,9 @@ export function planDiffs(
   current: Record<string, string | undefined>,
 ): Diff[] {
   const out: Diff[] = [];
+  // Every kind that writes a setting adds to one list, so `settings.json`
+  // is one diff and one write however many kinds the scope picked.
+  const settings: [string, unknown][] = [];
   if (plan.runs?.configs.length) {
     let after = current[LAUNCH_PATH];
     for (const c of plan.runs.configs) after = upsertConfig(after, c);
@@ -289,10 +383,22 @@ export function planDiffs(
       before: current[PROFILE_PATH] ?? "",
       after: plan.codestyle.profileXml,
     });
+    settings.push(...Object.entries(plan.codestyle.settings));
+  }
+  const snippets = allSnippets(plan);
+  if (snippets.length)
+    out.push({
+      target: SNIPPETS_PATH,
+      before: current[SNIPPETS_PATH] ?? "",
+      after: snippetsFile(snippets),
+    });
+  if (plan.filetemplates)
+    settings.push(...Object.entries(plan.filetemplates.settings));
+  if (settings.length) {
     let text = current[SETTINGS_PATH]?.trim()
       ? current[SETTINGS_PATH]!
       : "{}\n";
-    for (const [k, v] of Object.entries(plan.codestyle.settings))
+    for (const [k, v] of settings)
       text = applyEdits(text, modify(text, [k], v, FORMAT));
     out.push({
       target: SETTINGS_PATH,
@@ -327,6 +433,23 @@ export function summary(plan: FullPlan): string[] {
     for (const k of Object.keys(cs.settings)) lines.push(`  → ${k}`);
     for (const s of cs.skipped) lines.push(`  - ${s.option}: ${s.reason}`);
   }
+  const lt = plan.livetemplates;
+  if (lt) {
+    lines.push(
+      `live templates       ${lt.snippets.length} imported${lt.source ? `, from ${lt.source}` : ""}`,
+    );
+    for (const s of lt.snippets) lines.push(`  + ${s.prefix}`);
+    for (const s of lt.skipped) lines.push(`  - ${s.option}: ${s.reason}`);
+  }
+  const ft = plan.filetemplates;
+  if (ft) {
+    lines.push(`file templates       ${ft.snippets.length} imported`);
+    for (const k of Object.keys(ft.settings)) lines.push(`  → ${k}`);
+    for (const s of ft.snippets) lines.push(`  + ${s.prefix}`);
+    for (const s of ft.skipped) lines.push(`  - ${s.option}: ${s.reason}`);
+  }
+  if (plan.livetemplates || plan.filetemplates)
+    lines.push(`  → ${SNIPPETS_PATH}`);
   for (const e of plan.errors) lines.push(`! ${e.scope}: ${e.reason}`);
   return lines;
 }
@@ -341,7 +464,112 @@ const readIfPresent = (p: string): string | undefined => {
   }
 };
 
-export function readPlan(root: string, scopes: Set<ScopeId>): FullPlan {
+/**
+ * The newest IDEA configuration directory, or undefined when the machine has
+ * none — which is the normal case in a Che pod, and why the command offers a
+ * directory pick (§4.2). Newest by mtime: several products (IDEA, Android
+ * Studio) and several versions can sit side by side.
+ */
+export function readIdeaConfigDir(
+  home: string,
+  platform: NodeJS.Platform,
+  env: { APPDATA?: string; XDG_CONFIG_HOME?: string } = {},
+): string | undefined {
+  // On Linux IDEA has followed the XDG base directories since 2020.1, so
+  // `XDG_CONFIG_HOME` is where it really looks and `~/.config` is only the
+  // default. Reading the same variable is how this finds a developer whose
+  // configuration is not in the default place.
+  const roots =
+    platform === "darwin"
+      ? [path.join(home, "Library", "Application Support", "JetBrains")]
+      : platform === "win32"
+        ? [
+            path.join(
+              env.APPDATA ?? path.join(home, "AppData", "Roaming"),
+              "JetBrains",
+            ),
+          ]
+        : [
+            path.join(
+              env.XDG_CONFIG_HOME || path.join(home, ".config"),
+              "JetBrains",
+            ),
+          ];
+  const found: { dir: string; at: number }[] = [];
+  for (const r of roots)
+    for (const name of listDirs(r)) {
+      const dir = path.join(r, name);
+      // A product directory without `templates/` or `keymaps/` holds nothing
+      // this reads, so it is not a candidate to be "the newest".
+      if (!fs.existsSync(path.join(dir, "templates"))) continue;
+      try {
+        found.push({ dir, at: fs.statSync(dir).mtimeMs });
+      } catch {
+        // A directory that cannot be stat'd is one we cannot read either.
+      }
+    }
+  return found.sort((a, b) => b.at - a.at)[0]?.dir;
+}
+
+const listDirs = (dir: string): string[] => {
+  try {
+    return fs
+      .readdirSync(dir, { withFileTypes: true })
+      .filter((e) => e.isDirectory() || e.isSymbolicLink())
+      .map((e) => e.name)
+      .sort();
+  } catch {
+    return [];
+  }
+};
+
+/**
+ * §4.3, a hard error: a configuration directory that resolves inside a
+ * workspace folder is refused. Live templates and keybindings change what the
+ * editor does, and a repository must not be able to supply them — symlinks
+ * followed, which is the whole point of the check.
+ */
+export function outsideWorkspace(dir: string, folders: string[]): boolean {
+  const real = (p: string): string => {
+    try {
+      return fs.realpathSync(p);
+    } catch {
+      return path.resolve(p);
+    }
+  };
+  const d = real(dir);
+  return !folders.some((f) => {
+    const r = real(f);
+    return d === r || d.startsWith(r + path.sep);
+  });
+}
+
+const readDirFiles = (
+  dir: string,
+  ext: string,
+): { name: string; text: string }[] =>
+  (() => {
+    try {
+      return fs
+        .readdirSync(dir, { withFileTypes: true })
+        .filter((e) => e.isFile() && e.name.endsWith(ext))
+        .map((e) => e.name)
+        .sort();
+    } catch {
+      return [];
+    }
+  })().flatMap((name) => {
+    const text = readIfPresent(path.join(dir, name));
+    return text === undefined
+      ? []
+      : [{ name: name.slice(0, -ext.length), text }];
+  });
+
+export function readPlan(
+  root: string,
+  scopes: Set<ScopeId>,
+  configDir?: string,
+): FullPlan {
   const out: FullPlan = { errors: [] };
   if (scopes.has("runs")) out.runs = plan(readIdea(root));
   if (scopes.has("codestyle")) {
@@ -362,11 +590,49 @@ export function readPlan(root: string, scopes: Set<ScopeId>): FullPlan {
       else out.codestyle = r;
     }
   }
+  if (scopes.has("livetemplates")) {
+    if (!configDir)
+      out.errors.push({
+        scope: "livetemplates",
+        reason:
+          "no IntelliJ configuration directory on this machine — run the command again and pick one (a Che pod has no IDEA)",
+      });
+    else {
+      const files = readDirFiles(path.join(configDir, "templates"), ".xml");
+      if (!files.length)
+        out.errors.push({
+          scope: "livetemplates",
+          reason: `no templates/*.xml under ${configDir}`,
+        });
+      else
+        out.livetemplates = planLiveTemplates(
+          files.map((f) => ({ name: f.name, xml: f.text })),
+          path.basename(configDir),
+        );
+    }
+  }
+  if (scopes.has("filetemplates")) {
+    const dir = path.join(root, ".idea", "fileTemplates");
+    const header = readIfPresent(
+      path.join(dir, "includes", "File Header.java"),
+    );
+    const templates = readDirFiles(dir, ".java");
+    if (header === undefined && !templates.length)
+      out.errors.push({
+        scope: "filetemplates",
+        reason: "no .idea/fileTemplates/",
+      });
+    else out.filetemplates = planFileTemplates(header, templates);
+  }
   return out;
 }
 
 const empty = (p: FullPlan) =>
-  !p.runs?.configs.length && !p.runs?.skipped.length && !p.codestyle;
+  !p.runs?.configs.length &&
+  !p.runs?.skipped.length &&
+  !p.codestyle &&
+  !p.livetemplates &&
+  !p.filetemplates;
 
 /** The right-hand side of every diff, served from memory: nothing is on disk before `Write`. */
 const SCHEME = "batlehub-java-idea-import";
@@ -415,16 +681,25 @@ async function writePlan(
 ): Promise<void> {
   const launch = diffs.find((d) => d.target === LAUNCH_PATH);
   if (launch) writeAll(folder, launch.after);
-  if (plan.codestyle) {
+  if (plan.codestyle)
     writeOwnedFile(
       path.join(folder.uri.fsPath, ...PROFILE_PATH.split("/")),
       plan.codestyle.profileXml,
     );
-    for (const [key, value] of Object.entries(plan.codestyle.settings)) {
+  const snippets = allSnippets(plan);
+  if (snippets.length)
+    writeOwnedFile(
+      path.join(folder.uri.fsPath, ...SNIPPETS_PATH.split("/")),
+      snippetsFile(snippets),
+    );
+  for (const settings of [
+    plan.codestyle?.settings,
+    plan.filetemplates?.settings,
+  ])
+    for (const [key, value] of Object.entries(settings ?? {})) {
       const { section, leaf } = splitKey(key);
       await writeForeignSetting(section, leaf, value);
     }
-  }
 }
 
 /**
@@ -447,13 +722,70 @@ export async function requireTrust(): Promise<boolean> {
   return false;
 }
 
+/** The user cancelled the pick, which is not the same as having no directory. */
+const CANCELLED = "\uE000cancelled";
+
+/**
+ * The directory the user-level templates are read from: the machine's own IDEA
+ * configuration, or one the developer points at. A Che pod has no IDEA, so the
+ * pick is the normal path here and not the fallback.
+ *
+ * A directory inside a workspace folder is refused, symlinks followed (§4.3):
+ * live templates become snippets the editor offers, and a repository must not
+ * be able to supply them.
+ */
+async function resolveConfigDir(): Promise<string | undefined> {
+  const auto = readIdeaConfigDir(os.homedir(), process.platform, process.env);
+  if (auto) return auto;
+  const pick = vscode.l10n.t("Pick a directory");
+  const r = await vscode.window.showInformationMessage(
+    vscode.l10n.t(
+      "Java: no IntelliJ configuration directory on this machine, so there are no user-level live templates to read. Point at one — a copy from your laptop — or skip that kind.",
+    ),
+    pick,
+    vscode.l10n.t("Skip live templates"),
+  );
+  if (r !== pick) return undefined;
+  const picked = await vscode.window.showOpenDialog({
+    canSelectFiles: false,
+    canSelectFolders: true,
+    canSelectMany: false,
+    title: vscode.l10n.t(
+      "The IntelliJ configuration directory (it holds templates/)",
+    ),
+  });
+  const dir = picked?.[0]?.fsPath;
+  if (!dir) return CANCELLED;
+  const folders = (vscode.workspace.workspaceFolders ?? []).map(
+    (f) => f.uri.fsPath,
+  );
+  if (!outsideWorkspace(dir, folders)) {
+    void vscode.window.showErrorMessage(
+      vscode.l10n.t(
+        "Java: {0} is inside this workspace. Live templates become snippets the editor offers, so they are read from your own configuration and never from the repository.",
+        dir,
+      ),
+    );
+    return CANCELLED;
+  }
+  return dir;
+}
+
 export async function importIdea(): Promise<void> {
   const folder = vscode.workspace.workspaceFolders?.[0];
   if (!folder) return;
   if (!(await requireTrust())) return;
-  const KINDS: { id: ScopeId; label: string }[] = [
+  const KINDS: { id: ScopeId; label: string; detail?: string }[] = [
     { id: "runs", label: vscode.l10n.t("Run configurations") },
     { id: "codestyle", label: vscode.l10n.t("Code style") },
+    {
+      id: "livetemplates",
+      label: vscode.l10n.t("Live templates"),
+      detail: vscode.l10n.t(
+        "Read from your IntelliJ configuration directory, never from the repository",
+      ),
+    },
+    { id: "filetemplates", label: vscode.l10n.t("File templates") },
   ];
   const picked = await vscode.window.showQuickPick(
     KINDS.map((k) => ({ ...k, picked: true })),
@@ -463,7 +795,17 @@ export async function importIdea(): Promise<void> {
     },
   );
   if (!picked?.length) return;
-  const plan = readPlan(folder.uri.fsPath, new Set(picked.map((p) => p.id)));
+  const scopes = new Set(picked.map((p) => p.id));
+  const configDir = scopes.has("livetemplates")
+    ? await resolveConfigDir()
+    : undefined;
+  if (configDir === CANCELLED) return;
+  // "Skip live templates" is an answer, not a failure: the kind leaves the
+  // scope so the plan does not report a missing directory the user just
+  // declined to supply.
+  if (scopes.has("livetemplates") && !configDir) scopes.delete("livetemplates");
+  if (!scopes.size) return;
+  const plan = readPlan(folder.uri.fsPath, scopes, configDir);
   if (empty(plan) && !plan.errors.length) {
     void vscode.window.showInformationMessage(
       vscode.l10n.t(
@@ -473,7 +815,7 @@ export async function importIdea(): Promise<void> {
     return;
   }
   const current: Record<string, string | undefined> = {};
-  for (const t of [LAUNCH_PATH, SETTINGS_PATH, PROFILE_PATH])
+  for (const t of [LAUNCH_PATH, SETTINGS_PATH, PROFILE_PATH, SNIPPETS_PATH])
     current[t] = readIfPresent(path.join(folder.uri.fsPath, ...t.split("/")));
   const diffs = planDiffs(plan, current);
   const lines = summary(plan);

@@ -9,7 +9,7 @@
 | Author      | Max Batleforc <maxleriche.60@gmail.com>                       |
 | Co-author   | —                                                             |
 | Created     | 2026-09-18                                                    |
-| Revised     | 2026-09-18 — revision 3, phase 1 built and proven in the real editor (`IMPORT-TRUST-OK`, `IMPORT-PLAN-OK`, `IMPORT-OK`): the trust gate runs before the experimental-flag prompt (that prompt is a write), `[java].editor.detectIndentation` has to be turned off or the indent never moves, and the fixture carries a style that actually changes the file. Revision 2, after the series was reviewed against its goal (RFC 0001 §7.1): the import waits for workspace trust, the plan is a diff of what will be written, keymaps never come from the workspace, the profile target is `inspections.json` |
+| Revised     | 2026-09-29 — revision 4, the recommendations of §11 promoted to decisions 14 and 15: the code-style golden asserts byte equality on a fixture that avoids the unmappable options, with the unmapped list as the published boundary, and file templates lose `${PACKAGE_NAME}` rather than guess it. 2026-09-29, revision 5, phase 2 built and proven in the real editor (`IMPORT-SNIPPET-OK`): the IDEA configuration directory read through `XDG_CONFIG_HOME` as IDEA itself reads it, the package line of a file template dropped and listed as decision 15 says, `java.templates.typeComment` left alone because IDEA has nothing to fill it from, and §10's heavy list corrected — one step covers use cases 2 and 3 because they share one snippets file |
 | Supersedes  | —                                                             |
 | Depends on  | RFC 0001 (`src/idea/import.ts`, the `written.json` manifest, the `experimental.intellijImport` flag, the JDT bundle's rule ids); RFC 0005 (the shared inspection profile the imported profile is written as, and — revision 2 — the manifest entry kind of a profile written by a program); `redhat.java` ≥ 1.56.0 (`java.format.settings.url`, `java.templates.fileHeader`, `java.completion.importOrder`) |
 | Touches     | `extensions/java-core/src/idea/` (`import.ts` grows a scope picker; new `codestyle.ts`, `templates.ts`, `keymap.ts`, `profile.ts`), `src/manifest.ts` (one new entry kind, `keybinding`; the `profile` kind is RFC 0005's), `package.json` (the command's title, no new setting), `tests/heavy/fixtures/` (an `.idea/` with all five kinds, IDEA golden output), `docs/guide/java/intellij.md` |
@@ -229,7 +229,7 @@ What the import writes, all through the manifest (RFC 0001 §4.2
 | Run configurations | `launch.json` entries (RFC 0001 phase 4, unchanged) |
 | Code style | `.vscode/batlehub-java/formatter.xml` (an Eclipse formatter profile, `file` entry); settings `java.format.settings.url`, `java.format.settings.profile`, `java.completion.importOrder`, `java.sources.organizeImports.starThreshold` / `staticStarThreshold`, `[java].editor.tabSize` / `editor.insertSpaces` / **`editor.detectIndentation: false`** |
 | Live templates | `.vscode/intellij.code-snippets` (`file` entry) |
-| File templates | `java.templates.fileHeader`, `java.templates.typeComment` (settings); other templates → the same snippets file with prefix `file:<name>` |
+| File templates | `java.templates.fileHeader` (setting); other templates → the same snippets file with prefix `file:<name>`. `java.templates.typeComment` is **left alone** (revision 5): IDEA has no type-comment template of its own to read, and the plan says so rather than inventing one |
 | Keymap | the **user** `keybindings.json` (`keybinding` entry, a new manifest kind carrying the file's previous content; removed by the remove command on a second confirmation, the plan says so) |
 | Inspection profile | `.batlehub/java/inspections.json`, RFC 0005's shared profile (entries with a generated `why`, marked imported; recorded under the manifest entry kind RFC 0005 revision 2 defines for a profile written by a program) |
 
@@ -240,9 +240,13 @@ What the import writes, all through the manifest (RFC 0001 §4.2
   `profiles_settings.xml` for the active one), `.idea/runConfigurations/`
   as today. User-level, only when the scope asks, and **only from outside
   the workspace**: the newest
-  `~/.config/JetBrains/<Product><Version>/` (Linux), `~/Library/Application
+  `$XDG_CONFIG_HOME/JetBrains/<Product><Version>/` (Linux — IDEA has followed
+  the XDG base directories since 2020.1, so `~/.config` is its default and not
+  its rule, and reading the variable is how a developer whose configuration is
+  elsewhere is found at all), `~/Library/Application
   Support/JetBrains/…` (macOS), `%APPDATA%\JetBrains\…` (Windows) — its
-  `templates/*.xml` and `keymaps/*.xml`. Several products (IDEA, Android
+  `templates/*.xml` and `keymaps/*.xml`. A product directory with no
+  `templates/` is not a candidate to be "the newest". Several products (IDEA, Android
   Studio): the plan lists which was read; a pick if more than one. With no
   such directory (a Che pod has no IDEA), the command offers a directory
   pick; a pick that resolves — symlinks followed — inside any workspace
@@ -301,9 +305,11 @@ What the import writes, all through the manifest (RFC 0001 §4.2
 - **File templates**: `includes/File Header.java` → `java.templates.fileHeader`
   (lines), `${YEAR}`/`${USER}`/`${NAME}` → `${year}`/`${user}`/`${type_name}`
   (JDT's variables); `Class.java`, `Interface.java`, … → snippets
-  `file:Class` etc. with the header include expanded; `${PACKAGE_NAME}` →
-  `${TM_DIRECTORY}` is wrong (it is a path), so it becomes a placeholder,
-  listed.
+  `file:Class` etc. with the header include expanded — a snippet has no
+  `#parse`, so what IDEA writes in one step has to arrive in one step. The
+  package line is **dropped and listed** (decision 15): `${TM_DIRECTORY}` is a
+  path, not a package. Any other Velocity directive is dropped and listed, and
+  so is a variable JDT or the editor has no counterpart for.
 - **Keymap**: `<keymap name parent>` — only `<action>` children (the
   diff). `first-keystroke` `"alt insert"` → `"alt+insert"` (IDEA's
   keystroke grammar: modifiers `shift control alt meta`, keys upper-case,
@@ -609,9 +615,13 @@ graph LR
   key (skipped and listed; written and named);
   Write produces the manifest entries; the removal restores; `.idea/`
   checksums.
-- **Heavy** (`tests/heavy/java.mjs`): cases 1, 2, 4, 5 of §2.1
-  (`IDEA-FORMAT-OK` with the golden file, `IDEA-SNIPPET-OK`,
-  `GENERATE-KEY-OK`, `IDEA-PROFILE-OK`), case 6's checksums.
+- **Heavy** (`tests/heavy/java.mjs`): cases 1 to 5 of §2.1 and case 6's
+  checksums. One step per write, not one per case: `IMPORT-OK` is case 1 with
+  the golden file, **`IMPORT-SNIPPET-OK` is cases 2 and 3 together** — they
+  share one snippets file, so one step asserting both is the honest shape —
+  then `GENERATE-KEY-OK` (case 4) and `IDEA-PROFILE-OK` (case 5). Revision 5
+  corrected this list, which promised a case-3 step that has no write of its
+  own and named `IDEA-SNIPPET-OK`, which no step used.
 - **Existing suites** unchanged: the run-configuration import tests of
   RFC 0001 phase 4 (`import.test.ts`) prove the shared parser still
   behaves.
@@ -637,21 +647,12 @@ graph LR
 | 11 | The profile target and its generated reason (revision 2) | **`.batlehub/java/inspections.json`.** RFC 0005 accepts the generated `why` and marks the row as imported in the view; the manifest entry kind for a profile written by a program is RFC 0005's (revision 2). |
 | 12 | What is the `ACTIONS` keystroke checked against? (revision 2) | **The user's bindings and every extension's default bindings.** The user's own wins and the entry is skipped; an extension default is shadowed and named in the plan. |
 | 13 | When is `eclipse-defaults.json` regenerated? (revision 2) | **With every bump of the `redhat.java` minimum**, in the Renovate PR that moves the pin (§9). |
+| 14 | The fidelity threshold for the imported code style? | **A golden fixture that avoids the constructs with no Eclipse counterpart** (`WRAP_LONG_LINES` and the alignment family), asserted byte-equal, with the unmapped list published as the honest boundary. A documented diff on a fixture that includes them would be a test that asserts nothing. |
+| 15 | `${PACKAGE_NAME}` in file templates? | **Dropped, and listed.** A snippet cannot know the package, so every file template other than the header becomes a snippet without the package line; if a team's `Class.java` turns out to matter, a `Java: New file from template` command over `redhat.java`'s own is its own small RFC. |
 
 ### Still open
 
-1. **Fidelity threshold for the code style.** The golden comparison
-   (case 1) will differ on options with no Eclipse counterpart
-   (`WRAP_LONG_LINES` and the alignment family). Whether the case asserts
-   byte equality on a fixture that avoids those constructs, or a
-   documented diff, is a choice to make once the first golden file exists.
-   Recommendation: a fixture that avoids them, and the unmapped list as
-   the honest boundary.
-2. **`${PACKAGE_NAME}` in file templates**: a snippet cannot know the
-   package; `redhat.java`'s new-class command does. Recommendation: file
-   templates other than the header become snippets without the package
-   line, listed; if a team's `Class.java` matters, a `Java: New file from
-   template` command is its own small RFC.
+None at this revision.
 
 ---
 
@@ -660,7 +661,7 @@ graph LR
 | Phase | Content |
 | --- | --- |
 | 1 | ~~The trust gate and the diff plan (`planDiffs`, host case 7); `codestyle.ts` with the mapping table, `eclipse-defaults.json` extracted from the pinned JDT, the settings; the fixture's `Project.xml` and IDEA golden file; heavy case 1.~~ **Done** (revision 3). 402 JDT defaults from the pinned redhat.java 1.56.0 (`task jdt:formatter-defaults`); 29 of 30 fixture options mapped, `WRAP_LONG_LINES` listed; `Format Document` byte-for-byte equal to IDEA 2026.1.3's own headless formatter. Host case 7 is covered by the heavy half instead: the diff editors and the untrusted gate are both driven there. |
-| 2 | `templates.ts`: live templates and file templates; the snippets file, `fileHeader`; heavy cases 2, 3. |
+| 2 | ~~`templates.ts`: live templates and file templates; the snippets file, `fileHeader`; heavy cases 2, 3.~~ **Done** (revision 5). `src/idea/templates.ts` pure beside `codestyle.ts`, two scopes on the pick (`livetemplates`, `filetemplates`), both kinds in one `.vscode/intellij.code-snippets` and one `settings.json` diff. Four things the build settled: the configuration directory is read through `XDG_CONFIG_HOME` (§4.2), a skipped `Skip live templates` is an answer and not a missing directory, `java.templates.typeComment` is left alone (§4.1), and the escaping is done in one pass with the snippet syntax held aside — escaping after substitution ate the `$` of every mapped variable, which is the bug the `Emitter` exists to make impossible. Heavy: `IMPORT-SNIPPET-OK` (cases 2 and 3), with the `sout` it wrote offered by the editor's own completion. |
 | 3 | `keymap.ts` with the `ACTIONS` table and the extension-default check, the directory pick outside the workspace, the `keybinding` manifest kind (previous content) and its confirmed removal; heavy case 4. |
 | 4 | With RFC 0005 phase 1 (revision 2: the imported mark and the entry kind): `profile.ts` writing `inspections.json`, the `RULES` table build check; heavy case 5. |
 | 5 | Flag graduation: the command in the Java panel; the guide page `docs/guide/java/intellij.md`. |

@@ -8,7 +8,7 @@
 | Author      | Max Batleforc <maxleriche.60@gmail.com>                       |
 | Co-author   | —                                                             |
 | Created     | 2026-09-17                                                    |
-| Revised     | 2026-09-17 — revision 2, the v1 scope cut (§8, §11 decisions 3, 19, 21, 31). Same day, revision 3, read against the tree: the registry token asked from `batlehub-vsx` instead of a second contract-file reader (decision 38), the Java heavy half without a BatleHub (decision 39), m2e's profile preference tried before the credential-bearing overlay (decision 14), v0.1 shrunk to the newcomer story (decision 37), untrusted means nothing runs (decision 40), `fr` and the `.batlehub/java/*.toml` files dropped, `.forgejo` mirror and Sonar removed, diagrams rendered by the docs site. 2026-09-18, revision 4, written from the implementation (`todo.md` of this repository): `redhat.java` a soft dependency (§4.1, decision 41), the language server's own JDK written by the core (§4.2), decisions 8 and 14 answered, Maven + bnd instead of Tycho (§6.2), the scope notes of §15. Same day, revision 5, after the last real-editor runs: the registry link driven against a real BatleHub (`/maven2`, §4.2), the build tool resolved through the manager like the JDK (§4.2), the Groovy heap capped, §15 brought up to date. Same day, revision 6, after the first green CI on a runner (PR #7): what the runner found (§15.5). Same day, revision 7, after the series was reviewed against its goal: the red lines and the memory rule (§7.1), the contract changelog and `token()` leaving the contract (§5.2), the server's JDK written only when `redhat.java` found none (§4.2), what would reopen decision 1 (§11), the stale rows of revisions 3–6 corrected, Appendix A rows linked to their RFCs. No new feature enters this document; everything new is a draft of the series. Same day, revision 8, **Implemented**: the six things revision 7 owed in code are written and proven (§15.7) — the server's JDK read off `redhat.java` and never off the core's own scan, file modes in the manifest, the workspace `settings.json` and m2e's preference under the lock, `registry.token()` deprecated in 1.0, the "tested up to" warning, and the home probes answering before trust (§7.1's gate, decision 40). Nothing is owed; the RFC closes and the series moves to [0008](/rfc/0008-kotlin-satellite) phase 0 (§14) |
+| Revised     | 2026-09-17 — revision 2, the v1 scope cut (§8, §11 decisions 3, 19, 21, 31). Same day, revision 3, read against the tree: the registry token asked from `batlehub-vsx` instead of a second contract-file reader (decision 38), the Java heavy half without a BatleHub (decision 39), m2e's profile preference tried before the credential-bearing overlay (decision 14), v0.1 shrunk to the newcomer story (decision 37), untrusted means nothing runs (decision 40), `fr` and the `.batlehub/java/*.toml` files dropped, `.forgejo` mirror and Sonar removed, diagrams rendered by the docs site. 2026-09-18, revision 4, written from the implementation (`todo.md` of this repository): `redhat.java` a soft dependency (§4.1, decision 41), the language server's own JDK written by the core (§4.2), decisions 8 and 14 answered, Maven + bnd instead of Tycho (§6.2), the scope notes of §15. Same day, revision 5, after the last real-editor runs: the registry link driven against a real BatleHub (`/maven2`, §4.2), the build tool resolved through the manager like the JDK (§4.2), the Groovy heap capped, §15 brought up to date. Same day, revision 6, after the first green CI on a runner (PR #7): what the runner found (§15.5). Same day, revision 7, after the series was reviewed against its goal: the red lines and the memory rule (§7.1), the contract changelog and `token()` leaving the contract (§5.2), the server's JDK written only when `redhat.java` found none (§4.2), what would reopen decision 1 (§11), the stale rows of revisions 3–6 corrected, Appendix A rows linked to their RFCs. No new feature enters this document; everything new is a draft of the series. Same day, revision 8, **Implemented**: the six things revision 7 owed in code are written and proven (§15.7) — the server's JDK read off `redhat.java` and never off the core's own scan, file modes in the manifest, the workspace `settings.json` and m2e's preference under the lock, `registry.token()` deprecated in 1.0, the "tested up to" warning, and the home probes answering before trust (§7.1's gate, decision 40). Nothing is owed; the RFC closes and the series moves to [0008](/rfc/0008-kotlin-satellite) phase 0 (§14). 2026-09-29, revision 9, §5.2's contract changelog brought back in line with the series after the recommendations of every draft were promoted to decisions: `process.declare(estimate)` gains RFC 0003 as the owner of its shape, `registerRunStepKind` the extra arguments RFC 0011 needs, `projectConfig(id)` the raw-object first form, and `process.start`'s ledger named as the file RFC 0002's command line appends to. No member is added and no decision here changes; four rows were describing less than the drafts had settled. §14's order of work moves to revision 9 with it: steps 2 and 4 are struck as done (0008's gate measured, 0012's phase 1 built), the series starts at 3, and the one lookup 0008's phase 0 left behind — whether a 352 MB VSIX can be published — keeps step 2's place by step 2's own argument. No step is renumbered; eleven documents cite these numbers. |
 | Supersedes  | —                                                             |
 | Depends on  | BatleHub RFC 0011 (the credential `batlehub-vsx` holds; the optional registry link asks that extension for it and never reads the file); BatleHub RFC 0018 (verdicts the dependency views may surface); BatleHub RFC 0023 (the che-code the extensions are exercised in). BatleHub RFCs live in `batleforc/batlehub/docs/rfc/`; this series is the extensions' own. |
 | Touches     | `extensions/java-core`, `java-groovy`, `java-pack`; `jdt/` (phase 6); `tests/heavy` (a `java` half); `docs/rfc/` (this series), `docs/guide/java/`; `extensions/batlehub-vsx` (one exported method, phase 5) |
@@ -625,12 +625,12 @@ drafts had each defined 1.1 on their own.
 | 1.0 | everything in the interface above | `java-groovy` | shipped; `registry.token()` is **deprecated in 1.0 and gone in 1.1** — one consumer, in this repository, moved with it |
 | 1.1 | `registry.writeCredential(target)` | [0008](/rfc/0008-kotlin-satellite), [0009](/rfc/0009-scala-satellite) | the core writes the fenced block — `0600`, under the lock, in the manifest with the file's previous mode — into a target it knows (`maven-settings`, `gradle-init`; `coursier` when BatleHub accepts what Coursier sends). A new target is a reviewed change in the core, not satellite code |
 | 1.1 | `manifest.writeSetting(key, value)` | 0008, [0010](/rfc/0010-spring-boot-satellite), [0011](/rfc/0011-quarkus-satellite), [0013](/rfc/0013-spell-checking) | a satellite's foreign-setting write lands in the core's one manifest, so `Remove BatleHub settings` stays one command; applies the default-on rule of §7.1 |
-| 1.1 | `process.start(spec)` — the managed process | [0003](/rfc/0003-server-run-step-kinds), every satellite that spawns | declared cap, readiness probe, clean stop, peak RSS recorded; the only way anything long-lived starts (§7.1) |
-| 1.1 | `process.declare(estimate)` | 0008 (fallback bridge), 0009, 0010, 0011, [0016](/rfc/0016-inspections-growth) | a JVM another extension starts (Spring Tools, MicroProfile, Metals, SonarLint): not managed, but counted in the sum as an estimate the satellite names |
-| 1.1 | `registerRunStepKind(kind)` | 0003, 0010, 0011 | the built-in kinds go through it too |
+| 1.1 | `process.start(spec)` — the managed process | [0003](/rfc/0003-server-run-step-kinds), every satellite that spawns | declared cap, readiness probe, clean stop, peak RSS recorded; the only way anything long-lived starts (§7.1). Its ledger of running declared caps (RFC 0003 decision 16) is a file, not a member: the command line of [0002](/rfc/0002-headless-engine-mcp) appends to it from outside the extension host |
+| 1.1 | `process.declare(estimate)` | 0003 (owns the shape, decision 17), 0008 (fallback bridge), 0009, 0010, 0011, [0016](/rfc/0016-inspections-growth) | a JVM another extension starts (Spring Tools, MicroProfile, Metals, SonarLint): not managed, but counted in the sum as an estimate the satellite names — an id, a `memoryMiB`, a label, nothing started. Never a per-framework read of a foreign `*.ls.vmargs` inside the core |
+| 1.1 | `registerRunStepKind(kind)` | 0003, 0010, 0011 | the built-in kinds go through it too; a kind's start task takes extra arguments, which 0011's `quarkusDev` needs (its decision 12) |
 | 1.1 | `registerRunTemplate(template)` | 0009, 0010, 0011 | with `upsertTask` and a template's `extraArgs`, which 0011 and [0004](/rfc/0004-run-config-sources) both need |
 | 1.1 | `BuildTool` gains `"sbt"` | 0009 | see the union rule below |
-| 1.1 | `projectConfig(id)` | [0006](/rfc/0006-shared-project-config) | a satellite's own section of the committed `.batlehub/java/project.json`, read-only |
+| 1.1 | `projectConfig(id)` | [0006](/rfc/0006-shared-project-config) | a satellite's own section of the committed `.batlehub/java/project.json`, read-only, handed over as a raw object; a typed sub-schema registration is a later minor, when a second satellite needs the editor to validate its section (0006 decision 12) |
 
 **Widening an exported union is a major bump** — a consumer may switch over
 it exhaustively — **unless the type was published as open**. From 1.1 every
@@ -1179,7 +1179,7 @@ carrying its use cases as acceptance scenarios in its §2.1. "Depends on" is alw
 has to exist before it is worth writing. The first table is what revision 2
 cut out of this RFC, with the trigger that brings each one back.
 
-### The order of work (revision 7)
+### The order of work (revision 9)
 
 Set against the goal of §7.1, with two teams waiting: **Team A** (Spring
 Boot, Quarkus, the generate shortcuts, cspell) switches first; **Team B**
@@ -1187,11 +1187,20 @@ Boot, Quarkus, the generate shortcuts, cspell) switches first; **Team B**
 accepting what Coursier sends, so only its measurement jumps the queue.
 
 1. ~~This RFC's revision 7 and what it owes in code~~ — **done** (revision 8,
-   §15.7); this RFC is Implemented and the series starts at 2.
-2. [0008](/rfc/0008-kotlin-satellite) **phase 0 only** — the gate measured; a
-   failed gate is cheaper known now than after Team A's track.
+   §15.7); this RFC is Implemented and the series starts at 3.
+2. ~~[0008](/rfc/0008-kotlin-satellite) **phase 0 only** — the gate measured~~
+   — **done**, both halves (0008 revisions 3 and 5). The gate passes on
+   ILS-263.4702.0, and the lookup it left behind is answered: **no**, a
+   370 MB VSIX is refused by `open-vsx.org`'s reported 250 MiB limit, but
+   0008 decision 2 survives at 257 MB without the bundled JBR and the debug
+   plugins — both of which were owed to other decisions anyway. The bridge
+   stays off the table. Step 2's argument held: this cost a lookup and a
+   `zip` before Team A's track, not a satellite after it.
 3. [0007](/rfc/0007-intellij-import-full) — the switching aid itself.
-4. [0012](/rfc/0012-chain-completion) phase 1.
+4. ~~[0012](/rfc/0012-chain-completion) phase 1~~ — **done** (0012 revision 3:
+   built and measured). What is left is its decision 10 — the upstream issue,
+   carrying the measured numbers — and phase 2 only if that issue has no
+   owner by the next `redhat.java` pin bump.
 5. [0003](/rfc/0003-server-run-step-kinds) — the orchestrator and the managed
    process, without the server kinds ([0017](/rfc/0017-server-kinds), parked).
 6. [0010](/rfc/0010-spring-boot-satellite) and
