@@ -151,6 +151,7 @@
       "italic": true
     },
     "string": "#e8894a",
+    "decorator": "#e8894a",
     "annotation": "#e8894a",
     "annotationMember": "#e8894a",
     "number": "#ff6229",

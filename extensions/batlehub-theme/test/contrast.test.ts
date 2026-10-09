@@ -38,10 +38,10 @@ type Theme = {
     settings: { foreground?: string; fontStyle?: string };
   }[];
 };
+// derive() is the whole pipeline; once per file is enough.
+const derived = derive() as Record<string, Theme>;
 const themeOf = (variant: string) =>
-  (derive() as Record<string, Theme>)[
-    VARIANTS[variant as keyof typeof VARIANTS].file
-  ];
+  derived[VARIANTS[variant as keyof typeof VARIANTS].file];
 const roles = ROLES as Record<string, string[]>;
 
 const here = import.meta.dirname;

@@ -1,0 +1,10 @@
+{
+  "extends": "../../../tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "rootDir": "../../..",
+    "typeRoots": ["../../../extensions/java-groovy/node_modules/@types"],
+    "types": ["node", "vscode"]
+  },
+  "include": ["satellite.ts", "../../../extensions/java-core/api.d.ts"]
+}

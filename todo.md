@@ -1,6 +1,18 @@
 # todo — the Java series
 
-**State on 2026-09-18.** [RFC 0001](docs/rfc/0001-java-env.md) is
+> **Progress, 2026-10-09: about 73 % by count, about 65 % by effort.**
+>
+> | | Done | Left |
+> | --- | --- | --- |
+> | The order of work (15 steps: 1–12 with 4b, 6b and 6c) | 11 — 1, 2, 3, 4, 4b, 5, 6, 6b, 6c, 8, 9 | 4 — 7, 10, 11, 12 |
+> | Owed, outside the order ("Found while building", "Ongoing") | — | ~8, all small |
+>
+> *Effort* weighs what is left: 10 (the live editor as an MCP server) and
+> 12 (Kotlin's remaining phases, then Scala) are each as large as anything
+> done so far; 7 waits on Team A's list, not on code. Done counts only what a real client has been through
+> (`ALL-OK` in the heavy suite). Update this box when an item closes.
+
+**State on 2026-10-09** (items 4b, 5, 6, 6b and 6c below are new since). **On 2026-09-18:** [RFC 0001](docs/rfc/0001-java-env.md) is
 **Implemented** (revision 8): phases 0–8 landed, proven in the real editor
 (`task heavy:view:java`, seventeen steps from `STATUS-OK` to `DESKTOP-OK`
 plus the performance gate), and the six things revision 7 owed in code are
@@ -18,10 +30,26 @@ written here is the first step and what blocks it.
 
 ## Now
 
-- [ ] **Commit and push the revision 8 work.** It is in the working tree,
-      unsigned: `git add -A && git commit -S -s -F .git/COMMIT_MSG_RFC0001`
-      (the message passes `cog verify`), then the PR. `task check` is green
-      and heavy run 3 is green; CI has not seen any of it.
+- [ ] **Commit and push the work of 2026-10-09** (RFC 0012 phases 2–3
+      verified, RFC 0003 phases 1–2, contract 1.1, the `Fix all` fix —
+      `Engine.edits()` applies the rewrite and returns one edit over the
+      changed span; `INSPECTIONS-OK` now compares the saved file to
+      `.idea/golden/Greeter.fixed.java`, `ALL-OK` 2026-10-09 — RFC 0003
+      phases 3–4, RFC 0011 phases 2–4 — `java-quarkus`,
+      `java-pack-frameworks`, the `quarkus` heavy half and its CI job —, RFC
+      0010 phase 2 — `java-spring`, the `spring` heavy half and its CI job — and
+      `view.sh` now pruning `tests/heavy/work/` to the newest `HEAVY_KEEP`
+      (3) runs — and the revision 8 work still in the tree with it). Unsigned:
+      `git add -A && git commit -S -s -F .git/COMMIT_MSG_CONTRACT_1_1`
+      (passes `cog verify`), then the PR. `task check` and the `java` and
+      `quarkus` and `spring` heavy halves are green here; CI has seen none of it.
+- [ ] **Watch the first `heavy-quarkus`, `heavy-spring` and `heavy-sonar` CI runs.** New job, never run on a
+      runner. Locally `~/.m2` and `~/.gradle` were warm; the runner starts
+      cold, so the warm-up in `view.sh` (Maven package, the platform
+      descriptor, Gradle's `quarkusBuild`) and the 45 min timeout are what
+      it tests first. It also assumes `mise exec` installs `maven@3.9.16`
+      and `gradle@8.14.5` on demand. `heavy-spring` is the same shape, Boot
+      4.1.1 and Spring Boot Tools 2.4.0.
 - [ ] **Watch the first CI run for the new `DESKTOP` step.** It starts a
       second editor with `JAVA_HOME` set. On a runner the `heavy-java` job
       still moves `/usr/lib/jvm` away — that is what creates the *newcomer*,
@@ -60,13 +88,24 @@ written here is the first step and what blocks it.
       never have passed, and the fixture gained `Config.java`/`Server.java`.
       It also labels depth ≥ 2 wrongly (`h.getConfig.getServer()`) and sorts
       every chain last. All five findings are in that RFC's §11 Measured.
+4b. ~~RFC 0012 phases 2–3 — the chain delegate~~ — **built**, revision 5,
+      without waiting for the issue: it cannot be filed for now, so decision
+      10 was amended and phase 2 earned by the coverage finding alone (no
+      `int`, no `String`, chains last). `batlehub.completion.chain` in the
+      bundle (0.2.1) over the server's own `ChainFinder`;
+      `batlehub.java.completion.chain` defaults to `"auto"`; `SMOKE-OK`
+      answers `config.getServer().getPort()` for an `int` and
+      `…getHost()` for a `String`; `CHAIN-DELEGATE-OK` in the real editor
+      (55 ms against the 150 ms gate). Thirteen findings in that RFC's §11
+      "Measured — phase 2". A fork of JDT.LS was considered and refused
+      (decision 10).
 - [ ] **Still owed by RFC 0012 phase 1: file the upstream issue.** Nobody
-      here has filed it, and [RFC 0012](docs/rfc/0012-chain-completion.md)
-      open question 1 ("upstream first?") cannot be decided until it has been
-      seen: the recommendation there is to build phase 2 only if the
-      measurement earns it **and** the issue has no owner by the next
-      `redhat.java` pin bump. It is ready to file, below — posting it is
-      outward-facing and under the maintainer's name, so it waits for them.
+      here has filed it, and it cannot be filed for now. Phase 2 no longer
+      waits on it (decision 10, revision 5) — but the server's computer is
+      still what `"shortcut"` users get, and if upstream fixes the label,
+      the coverage and the rank, the delegate is deleted. It is ready to
+      file, below — posting it is outward-facing and under the maintainer's
+      name, so it waits for them.
 
       **Repository:** [`eclipse-jdtls/eclipse.jdt.ls`](https://github.com/eclipse-jdtls/eclipse.jdt.ls)
       (the server `redhat.java` bundles, and the owner of
@@ -179,19 +218,44 @@ written here is the first step and what blocks it.
 
       **To file it** once the text is agreed:
       `gh issue create --repo eclipse-jdtls/eclipse.jdt.ls --title "…" --body-file <file>`
-- [ ] **5 · [RFC 0003](docs/rfc/0003-server-run-step-kinds.md) phase 1 — the managed process.**
-      `src/process/` (`managed.ts`, `budget.ts`, `sweep.ts`, `history.ts`),
-      the sum in `resources.ts` and its line in the `JDK` tab,
-      `processes.json` in `Report a problem`. This is the memory rule of
-      §7.1 getting its mechanism, and **everything after it depends on it**.
-      The server kinds stay in [RFC 0017](docs/rfc/0017-server-kinds.md), parked.
-- [ ] **6 · [RFC 0010](docs/rfc/0010-spring-boot-satellite.md) + [RFC 0011](docs/rfc/0011-quarkus-satellite.md), together.**
-      Their phase 1 is *one* change in the core, not three: the contract 1.1
-      members the changelog schedules (`process.start`, `process.declare`,
-      `registerRunStepKind`, `registerRunTemplate` with `upsertTask` and
-      `extraArgs`, `manifest.writeSetting`, `writeCredential`). Blocked by 5.
-      This is the contract's first minor bump — `registry.token()` goes at the
-      same time (it is deprecated in 1.0 and has no satellite consumer).
+5. ~~[RFC 0003](docs/rfc/0003-server-run-step-kinds.md) phase 1 — the managed process~~ —
+      **done**, revision 4, 2026-10-09. `src/process/` (`managed.ts`,
+      `budget.ts`, `sweep.ts`, `history.ts`), the declared caps in the `JDK`
+      tab's sum, `processes.json` in `Report a problem`, the sweep at
+      activation; cases 6 and 7 as Node tests over real processes. Owed, in
+      that RFC's §11: `Remove BatleHub settings` deleting `processes.json`
+      and the history; the off-Linux sweep fallback.
+6. ~~[RFC 0010](docs/rfc/0010-spring-boot-satellite.md) + [RFC 0011](docs/rfc/0011-quarkus-satellite.md) phase 1 — contract 1.1~~ —
+      **done** 2026-10-09, with RFC 0003 phase 2: `process.start`,
+      `process.declare`, `registerRunStepKind`, `registerRunTemplate`
+      (`upsertTask`, `ServerStep.extraArgs`), `manifest.writeSetting`,
+      `registry.writeCredential`; `token()` gone and `api.registry` a facade.
+      `java-groovy` starts through `process.start` (`PROC-GROOVY-OK`), the
+      `child_process` lint rule is on. Built **ahead of the orchestrator**
+      by choice, so `registerRunStepKind` only keeps the kind for now. Not
+      in 1.1: `"sbt"`, `projectConfig(id)`, and the open-union rule on the
+      1.0 unions (RFC 0001 §5.2).
+6b. ~~[RFC 0003](docs/rfc/0003-server-run-step-kinds.md) phases 3–4 — the orchestrator~~ —
+      **done**, revision 6, 2026-10-09. `steps.ts`, the engine
+      `orchestrator.ts` (no `vscode`: the order and the reverse stop are Node
+      tests over real processes), the inline adapter `session.ts`, the probes
+      shared in `src/process/probe.ts`, the `orchestrated` template, the
+      `server` step with its attach, `FIXTURE-KIND-OK` in the contract test;
+      `RUN-ORDER-OK` (with Stop), `RUN-ACCEPT-OK`, `RUN-TIMEOUT-OK` in the real
+      editor. Found: js-debug reports no exit code, and an implicit `exit`
+      probe must not inherit the 60 s timeout. **RFCs 0010/0011 phase 2+ are
+      unblocked**; their kind is the `server` step's first real client.
+6c. ~~RFCs 0010/0011 phase 2+ — the framework satellites~~ — **done**
+      2026-10-09, both **Implemented**. Quarkus ([RFC 0011](docs/rfc/0011-quarkus-satellite.md),
+      revision 6): `java-quarkus` v0.2, seven cases in `task heavy:view:quarkus`.
+      Spring Boot ([RFC 0010](docs/rfc/0010-spring-boot-satellite.md), revision 7):
+      `java-spring` v0.3 — detection, the Spring Tools bridge (Java 21, not
+      17), profiles, the template, the instances dashboard, the `spring-boot`
+      run step — six cases in `task heavy:view:spring`. Both in
+      `java-pack-frameworks` 0.2.0; guides `docs/guide/java/{quarkus,spring}.md`.
+      What both RFCs had wrong is in their decisions (0011: 13–22; 0010:
+      16–26) — the bridged keys and JDK versions were the pattern: measure the
+      vendor extension before trusting an RFC's line about it.
 - [ ] **7 · [RFC 0015](docs/rfc/0015-generate-shortcuts.md) phase 0 then 1.**
       Phase 0 is Team A's, not ours: they fill that RFC's §2.1 from
       [`docs/diary/team-a.md`](docs/diary/team-a.md) and each row is classified
@@ -199,15 +263,28 @@ written here is the first step and what blocks it.
       `Builders.java` + `Withers.java`, their golden files, the two menu
       entries, `options.ts`, the Lombok step, `SHORTCUTS-OK`.
       **Blocked on a team's real list, on purpose: do not guess it.**
-- [ ] **8 · [RFC 0013](docs/rfc/0013-spell-checking.md) phase 1 — cspell, nothing else.**
-      Pack membership, the row in the Inspections view with its
-      `not available` state through `coexistence.ts`, the team word list in
-      `cspell.json`.
-- [ ] **9 · [RFC 0016](docs/rfc/0016-inspections-growth.md) phase 0 then 1.**
-      Phase 0 verifies, ships nothing: SonarLint from Open VSX in che-code
-      *and* the web build, its `source`/`code` shape, classpath reuse, peak
-      RSS on `maven-multi` and on a Team A project, the licence. Phase 1 is
-      the read path and the rows.
+8. ~~[RFC 0013](docs/rfc/0013-spell-checking.md) phase 1 — cspell, nothing else~~ —
+      **done**, revision 4, 2026-10-09: cspell 4.9.3 in `java-pack`;
+      `src/inspections/spelling.ts` — the `spelling/unknownWord` rule in the
+      Inspections view (`via cspell <version>`, no Fix all), the `not
+      available` / `disabled by you` rows, and the core's `Add "<word>" to
+      project dictionary (cspell.json)` fix — `SPELL-OK`, `SPELL-DICT-OK` in
+      the java half; `docs/guide/java/spelling.md`. Found: cspell's own "add"
+      fixes write settings files, and its correction titles are `<word>
+      (preferred)`, not the `Change to "…"` RFC 0013 §5.2 pinned — phase 3
+      starts there. Phases 2 (the profile's `off`, needs RFC 0005) and 3
+      (the rename fix) remain.
+9. ~~[RFC 0016](docs/rfc/0016-inspections-growth.md) phase 0 then 1~~ —
+      **done**, revisions 3–4, 2026-10-09. Phase 0 measured SonarLint 5.9.0
+      ("SonarQube for IDE") in the web build: source `sonarqube`, JDT.LS's
+      classpath **reused** (the bridge's founding question), its server 608 MiB
+      with no `-Xmx` by default, a JRE bundled in the platform builds,
+      LGPL-3.0. Phase 1: `src/inspections/sonar.ts`, `sonar/<ruleKey>` rows in
+      the Inspections view, the "not installed" row, its server counted (768
+      MiB, estimated) — `task heavy:view:sonar`, three steps, and a
+      `heavy-sonar` CI job. **Owed to phase 2** (the `javaHome` write only for
+      the universal build, `sonarlint.rules` from RFC 0005's profile): che-code
+      and a Team A project's peak — the cap decision waits on that number.
 - [ ] **10 · [RFC 0002](docs/rfc/0002-headless-engine-mcp.md) phase 0 — the live editor as an MCP server.**
       The five tool schemas in `packages/java-rules/verbs.ts` and
       `src/mcp/` over the running JDT.LS; edits applied unsaved as one undo
@@ -239,50 +316,13 @@ three-theme panel screenshots are three different themes for the first time.
 three diary entries),
 [0004](docs/rfc/0004-run-config-sources.md) (behind 0003, no team asking yet).
 
-## Found while building, owed by RFC 0001
-
-- [ ] **`Java: Fix all inspections in file` corrupts the file.** On the
-      `maven-multi` fixture it turns `this.people.add(p)` into `.add(p)` and
-      `people.size() == 0` into `.isEmpty()` — the receiver of every fix that
-      copies a node is dropped, and the result does not compile.
-      **The bundle is not at fault**: `Engine.applyFixAll` produces the right
-      text, and `task jdt:test` is green. The bug is `Engine.edits()`
-      (`jdt/batlehub-jdt-core/src/main/java/batlehub/jdt/core/Engine.java`),
-      which serialises an `ASTRewrite`'s edit tree into flat LSP `TextEdit`s:
-      `createCopyTarget` produces a `CopySourceEdit`/`CopyTargetEdit` pair
-      whose text only exists once the *tree* is applied to a document, so
-      `flatten()` emits the outer `ReplaceEdit` with an empty replacement.
-      Anything that goes through `batlehub.inspections.fixAll` is affected;
-      `Engine.apply`, which the unit tests use, applies the tree and is fine.
-      The lazy fix is to stop serialising the tree at all: apply it to a copy
-      of the document in `edits()` and return one `TextEdit` over the changed
-      span (trim the common prefix and suffix so it is not the whole file).
-      **It has been invisible because the heavy assertion is too weak** —
-      `INSPECTIONS-OK` only checks that `isEmpty()` appears somewhere, which
-      broken output satisfies. Once the fix lands, assert the buffer against
-      a golden the way RFC 0007's `IMPORT-OK` does.
-
 ## Standing debt — owed by no RFC, and still true
-
-- [ ] **`runCommand` in the heavy driver fails silently on a wrong title.**
-      It types the title and, when no row matches exactly, presses Enter —
-      running whatever the palette ranked first. `View: Revert File` (the real
-      title is `File: Revert File`) therefore never reverted anything for as
-      long as it has been there, and steps 9 and 10 were leaving dirty
-      buffers; nothing noticed until RFC 0007's step saved one. The titles are
-      fixed. The helper still fails silently: make it throw when the typed
-      title matches no row.
 
 - [ ] **Layer 2 has never run in this workspace.** `task ext:host`
       (`@vscode/test-electron`) needs a display; there is no Xvfb and no GTK
       in the tools container. It runs in CI's `host` job and was green on a
       runner. The real-editor proof here is the heavy suite in the browser
       sidecar. Nothing to fix unless the devfile grows a display.
-- [ ] **No pixel comparison of the panel.** Screenshots are taken in Dark
-      Modern, Light Modern and Dark High Contrast and kept as artifacts;
-      §10's `pixelmatch` gate is not wired, because a renderer-dependent gate
-      needs someone to stand behind its threshold. Decide: wire it with a
-      number, or delete the row from §10.
 - [ ] **The nightly matrix has never run on a runner.** It is written
       (`.github/workflows/nightly.yaml`, VS Code stable × previous ×
       `redhat.java` 1.56.0 / 1.55.0 / pre-release, `17 3 * * *`) and waits for
@@ -295,20 +335,6 @@ three diary entries),
       `tests/contract`. Note that [RFC 0002](docs/rfc/0002-headless-engine-mcp.md)
       phase 1 creates `packages/java-rules`, which is half of it — when that
       lands, re-read decision 31 rather than assuming the split follows.
-
-- [ ] **`THEME-TOKENS-OK` cannot pass as written, and its capture is racy.**
-      Found on 2026-09-30 while proving RFC 0007 phase 2, which is the first
-      time the java driver ran to completion in a while: the assertion reads
-      `d['pick']['string']`, and the driver never captures a `string` key at
-      all, so the step can only fail. Two of the other voices are also wrong
-      and *differ between runs* — `class` came out `#50fa7b` in one run and the
-      theme's `#8be9fd` in the next, `keyword` `#fe5368` then `#ff79c6` — which
-      is TextMate colouring sampled before the semantic tokens arrive, and
-      `annotation` matches the `Test` type span rather than `@Test` in both.
-      The step needs a `settle` on the semantic colours the way `ready` and
-      `format` do, not a fixed `sleep`. It is RFC 0014's step and it blocks the
-      java half before the import steps, which were verified by replaying their
-      assertions against the run's own JSONL.
 
 ## Recurring
 

@@ -9,7 +9,7 @@
 | Author      | Max Batleforc <maxleriche.60@gmail.com>                       |
 | Co-author   | —                                                             |
 | Created     | 2026-09-18                                                    |
-| Revised     | 2026-09-29 — revision 2, the two answerable questions of §11 promoted to decisions 9 and 10: no telemetry write (the guide says how instead), and SonarLint recommended rather than bundled with `ext:licenses` as the gate. The classpath verification and the cap stay phase-0 measurements, and §2.1's list stays owed to the diaries |
+| Revised     | 2026-10-09 — revision 4, phase 1 built: `src/inspections/sonar.ts` — SonarLint's findings as `sonar/<ruleKey>` rows of the Inspections view, the "not installed" row, its server in the resource sum —, `task heavy:view:sonar` (`SONAR-VIEW-OK`, `SONAR-MEM-OK`, `SONAR-ABSENT-OK`) · revision 3, phase 0 measured: SonarLint 5.9.0 ("SonarQube for IDE") in the VS Code web build — diagnostics' source `sonarqube`, codes `java:Sxxxx`, JDT.LS's classpath reused (open question 1, answered yes), its server 608 MiB on `maven-multi` with no `-Xmx` by default, a JRE bundled in the platform builds, LGPL-3.0 confirmed; decisions 11–14 · 2026-09-29 — revision 2, the two answerable questions of §11 promoted to decisions 9 and 10: no telemetry write (the guide says how instead), and SonarLint recommended rather than bundled with `ext:licenses` as the gate. The classpath verification and the cap stay phase-0 measurements, and §2.1's list stays owed to the diaries |
 | Supersedes  | —                                                             |
 | Depends on  | RFC 0001 (the bundle of §6.2, the Inspections view, the manifest, the resource diagnostic of decision 30, the memory rule of §7.1); RFC 0013 (the diagnostics-bridge pattern this reuses); RFC 0012 (`Engine.parse` with bindings); RFC 0005 (the profile that silences a bridged rule, with its reason); RFC 0007 (imported reasons) |
 | Touches     | `extensions/java-core/src/inspections/` (new `sonar.ts`; `bridge.ts`, `view.ts`, `rules.ts`), `src/detect/resources.ts`, `src/coexistence.ts`, `extensions/java-pack` (a recommendation, not a member of the default set), `jdt/batlehub-jdt-core` (`Inspection` gains `needsBindings` and `ceiling`), `jdt/smoke.mjs` and `jdt/fixtures/`, `tests/heavy/java.mjs` (`SONAR-OK`), `docs/guide/java/inspections.md` |
@@ -195,7 +195,7 @@ marked:
 ```jsonc
 "batlehub.java.inspections.sonar": "auto",          // auto | off
 "batlehub.java.inspections.sonar.writeJavaHome": true,
-"batlehub.java.inspections.sonar.estimatedCapMiB": 512,
+"batlehub.java.inspections.sonar.estimatedCapMiB": 768,
 
 // written by the core, workspace scope, through the manifest
 "sonarlint.ls.javaHome": "/home/user/.local/share/mise/installs/java/21",
@@ -210,8 +210,8 @@ marked:
   framework server (the memory rule) and a second JVM is the developer's
   decision per workspace.
 - `estimatedCapMiB` is the figure the diagnostic uses when no `-Xmx` is in
-  `sonarlint.ls.vmargs`. 512 is a starting estimate, replaced by phase 0's
-  measurement.
+  `sonarlint.ls.vmargs`: 768, phase 0's 608 MiB peak plus a margin
+  (decision 14).
 
 ### 4.2 Behaviour rules
 
@@ -503,15 +503,66 @@ flowchart TD
 | 9 | SonarLint telemetry? | **No write.** `sonarlint.disableTelemetry: true` matches the spirit of "nothing sent", but it is a foreign write the feature does not need; the guide says how to set it and the developer owns the choice. |
 | 10 | The licence? | **Recommended only, nothing bundled**, which is what makes LGPL-3.0 workable here. The `ext:licenses` policy is the gate and runs before the pack's `package.json` names the extension — not a reading taken on trust from this document. |
 
+| 11 | Which SonarLint (phase 0) | **5.9.0** (2026-08-31), the newest stable release a fortnight old: 6.0.0/6.0.1 is a new major shipped the week before. Rebranded **"SonarQube for IDE"** — the id is still `SonarSource.sonarlint-vscode`, its commands' category `SonarQube`. LGPL-3.0, confirmed from its `LICENSE.txt`. No extension dependency; it adds a bundle of its own to JDT.LS. |
+| 12 | The facts the bridge pins (§9) | **`source` is `sonarqube`** — neither `sonarlint` nor the product's old name —, the code renders `java:S1135` (`toRows` accepts it as a string or as `{ value }`), and the settings are `sonarlint.ls.javaHome`, `sonarlint.ls.vmargs`, `sonarlint.rules` and `sonarlint.connectedMode.connections.*` as §4.1 assumed. |
+| 13 | `sonarlint.ls.javaHome` (use case 1) | **Only for a build without its own JRE.** The platform builds — linux-x64 is 246 MB — carry a JRE 21 (`extension/jre/21.0.12…`), so a Che pod, which Open VSX serves the platform build, has no newcomer problem for Sonar; the universal build (178 MB) has none and needs a JDK. The write's rule therefore gains a first condition: the installed extension has no `jre/` directory. |
+| 14 | The estimate (open question 2, measured) | **768 MiB**, not 512: SonarLint's own server peaked at **608 MiB** on `maven-multi` (the sampler matched `sonarlint-ls` only — a first reading of 1 356 had counted JDT.LS too, whose command line carries Sonar's bundle). And there is **no `-Xmx` by default** — the server starts with `-jar` and the user's `sonarlint.ls.vmargs`, empty — so its ceiling is the JVM's quarter of the container, 4 GiB in a 16 GiB pod. Whether that earns a declared `-Xmx` in `sonarlint.ls.vmargs` (the one case §11 lets the memory rule outrank decision 9) is decided in phase 2 on a Team A project, the measurement phase 0 could not take here. |
+
+### Measured — phase 0, 2026-10-09
+
+A throwaway probe — no product code — in the VS Code web build 1.136.1:
+`redhat.java` 1.56.0, `java-core`, SonarLint 5.9.0 linux-x64, the
+`maven-multi` fixture plus a `Todo.java` (`// TODO`) and a JUnit 5
+`ProbeTest.java` (`public`, no assertion), the newcomer's environment.
+
+1. **It runs in the web build**: its findings are in the Problems panel 30 s
+   after the language server is ready.
+2. **It reuses JDT.LS's classpath** (open question 1): `java:S5786`
+   (redundant `public` on a JUnit 5 test class) and `java:S2699` (a test
+   without assertion) fired on `ProbeTest.java` — both need
+   `org.junit.jupiter.api.Test`, which only the module's test-scoped
+   dependency provides. The breadth claim stands.
+3. The rows, as the Problems panel renders them: `Complete the task
+   associated to this TODO comment. sonarqube java:S1135`, `Remove this
+   unused "x" local variable. sonarqube java:S1481`, … — beside JDT's own
+   `The value of the local variable x is not used`, which is a different
+   finding from a different owner: one diagnostic per finding holds.
+4. Not measured here: **che-code** (the same web server base; no container
+   engine in this pod to run its image) and **a Team A project** (none in
+   this workspace) — both owed to phase 2, with the cap decision.
+
+### Measured — phase 1, 2026-10-09
+
+`task heavy:view:sonar`: SonarLint 5.9.0 linux-x64 beside `redhat.java` and
+`java-core`, `maven-multi` plus a `Todo.java`; then the same without
+SonarLint.
+
+1. **One view, two sources** (`SONAR-VIEW-OK`): the bundle's rules and
+   `sonar/java:S1068`, `S1135`, `S1155`, `S1643` — each `via SonarLint
+   5.9.0`, no `Fix all` — and no `batlehub` diagnostic for a Sonar rule:
+   the core reads, it does not re-emit.
+2. **SonarLint publishes after the bundle**, some 30 s later, and the view
+   only redraws when a source says it changed: the Inspections view
+   listens to each bridged source (the bundle, cspell, SonarLint), not to
+   the bundle alone. A build where only the bundle's event redrew the view
+   showed Sonar's rows only by the luck of a later bundle refresh.
+3. **Counted** (`SONAR-MEM-OK`): `SonarLint language server (estimated):
+   768 MiB` in the container's sum while it is installed; nothing counted
+   without it.
+4. **Absent** (`SONAR-ABSENT-OK`): one row, `SonarLint is not installed —
+   breadth comes from it`, with `Install`; no notification, no write.
+5. The Inspections pane is short and its list virtualised; the suite pages
+   through it rather than trusting the first screen.
+
 ### Still open
 
-1. **Does Sonar's Java analysis reuse JDT.LS's classpath?** It consumes
+1. ~~**Does Sonar's Java analysis reuse JDT.LS's classpath?**~~ **Yes** — phase 0, finding 2. It consumes
    `redhat.java`'s API for it, which is why it needs Standard mode — stated
    here from its documentation, **to verify in phase 0** on `maven-multi`
    (a finding that needs a dependency's type is the test). If false, Sonar
    runs with a degraded classpath and the breadth claim shrinks to its
    syntactic rules. A measurement, and the one the whole bridge rests on.
-2. **The cap.** Read-only estimate (this draft), or write an `-Xmx` into
+2. **The cap.** *Measured in phase 0 (decision 14): 608 MiB on `maven-multi`, no `-Xmx` by default; the declared-or-not decision waits for a Team A project in phase 2.* Read-only estimate (this draft), or write an `-Xmx` into
    `sonarlint.ls.vmargs` through the manifest so the cap is *declared*
    rather than guessed? Measured in phase 0, and written only if the
    unbounded default is measurably the quarter-of-RAM heap that killed the
@@ -527,8 +578,8 @@ flowchart TD
 
 | Phase | Content |
 | --- | --- |
-| 0 | Verification, no product code: SonarLint from Open VSX in che-code and the web build; its `source` and `code` shape; classpath reuse (open question 1); peak RSS on `maven-multi` and on a Team A project; licence check. The estimate and §9's pinned facts are corrected from it. |
-| 1 | `sonar.ts` read path, rows in the view, the "not installed" row, the resources contributor. Useful alone: one view. |
+| 0 | ~~Verification, no product code: SonarLint from Open VSX in che-code and the web build; its `source` and `code` shape; classpath reuse (open question 1); peak RSS on `maven-multi` and on a Team A project; licence check. The estimate and §9's pinned facts are corrected from it.~~ **Done** (revision 3) in the web build: decisions 11–14, §11 "Measured — phase 0". che-code and a Team A project's peak are owed to phase 2. |
+| 1 | ~~`sonar.ts` read path, rows in the view, the "not installed" row, the resources contributor. Useful alone: one view.~~ **Done** (revision 4): `SONAR-VIEW-OK`, `SONAR-MEM-OK`, `SONAR-ABSENT-OK`. |
 | 2 | The `javaHome` write through the manifest; `sonar/*` profile entries → `sonarlint.rules` (needs RFC 0005 phase 1; until then the key form is reserved and silencing is by hand); `SONAR-OK`. |
 | 3 | The admission policy: `since`, `ceiling`, `effectiveDefault`, the ceilings of the eleven surfaced in the view and the guide. |
 | 4 | `needsBindings`, the single-parse `Handler`, `jdt/fixtures/<area>/` and the smoke loop — with the first type-aware rule a diary names, not before. |

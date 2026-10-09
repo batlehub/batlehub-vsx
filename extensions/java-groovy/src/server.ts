@@ -18,6 +18,13 @@ export function launch(
   return { command: `${jdkPath}/bin/java`, args: ["-Xmx512m", "-jar", jar] };
 }
 
+/**
+ * The cap declared to the core's managed process (RFC 0003 §4.2): the
+ * process's expected resident memory, not its heap — `-Xmx512m` plus the
+ * JVM's metaspace, threads and code cache.
+ */
+export const DECLARED_MIB = 768;
+
 /** What `workspace/didChangeConfiguration` carries: the server reads `groovy.classpath`. */
 export function settingsFor(classpath: string[]): {
   groovy: { classpath: string[] };

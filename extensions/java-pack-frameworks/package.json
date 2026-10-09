@@ -1,0 +1,44 @@
+{
+  "name": "java-pack-frameworks",
+  "displayName": "BatleHub Java Pack: Frameworks",
+  "description": "The framework satellites of BatleHub Java, opt-in: Quarkus dev mode as a managed process with its tab and catalogue (RFC 0011), Spring Boot's profiles, dashboard and run step (RFC 0010).",
+  "version": "0.2.0",
+  "publisher": "batlehub",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/batleforc/batlehub-vsx"
+  },
+  "homepage": "https://github.com/batleforc/batlehub-vsx/tree/main/extensions/java-pack-frameworks",
+  "icon": "media/java.png",
+  "engines": {
+    "vscode": "^1.96.0"
+  },
+  "categories": [
+    "Extension Packs"
+  ],
+  "keywords": [
+    "java",
+    "batlehub",
+    "quarkus",
+    "spring",
+    "spring boot",
+    "framework"
+  ],
+  "extensionPack": [
+    "batlehub.java-quarkus",
+    "batlehub.java-spring"
+  ],
+  "scripts": {
+    "build": "echo 'java-pack-frameworks: nothing to build'",
+    "typecheck": "echo 'java-pack-frameworks: nothing to type-check'",
+    "lint": "prettier --check package.json README.md",
+    "format": "prettier --write package.json README.md",
+    "test": "echo 'java-pack-frameworks: nothing to test'",
+    "package": "vsce package --no-dependencies --skip-license -o java-pack-frameworks.vsix"
+  },
+  "devDependencies": {
+    "@vscode/vsce": "^3.6.0",
+    "prettier": "^3.6.0"
+  }
+}

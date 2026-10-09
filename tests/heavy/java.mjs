@@ -31,6 +31,7 @@
 import { createRequire } from "node:module";
 import { execSync } from "node:child_process";
 import { readFileSync, rmSync, writeFileSync } from "node:fs";
+import * as net from "node:net";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -152,14 +153,23 @@ async function runCommand(page, title, enter = true) {
   await page.keyboard.press("a");
   await page.keyboard.up("Control");
   await page.keyboard.type(`>${title}`);
-  await sleep(1200);
-  const rows = await page.$$eval(".quick-input-widget .monaco-list-row", (els) => els.map((e) => (e.querySelector(".label-name") ?? e).textContent.replace(/\s+/g, " ").trim()));
+  // Poll for the row rather than trust one fixed sleep, and throw when none
+  // matches: pressing Enter anyway ran whatever the palette ranked first, and
+  // a wrong title (`View: Revert File`) then failed silently for months.
+  const match = (r) => r === title || r === `${title}…` || r.startsWith(`${title} `) || r.startsWith(`${title}…`);
+  let rows = [];
+  for (let t0 = Date.now(); Date.now() - t0 < 5000; await sleep(300)) {
+    rows = await page.$$eval(".quick-input-widget .monaco-list-row", (els) => els.map((e) => (e.querySelector(".label-name") ?? e).textContent.replace(/\s+/g, " ").trim())).catch(() => []);
+    if (rows.some(match)) break;
+  }
   if (enter) {
-    const i = rows.findIndex((r) => r === title || r.startsWith(`${title} `) || r.startsWith(`${title}…`) || r === `${title}…`);
-    if (i > 0) {
-      const handles = await page.$$(".quick-input-widget .monaco-list-row");
-      await handles[i]?.click();
-    } else await page.keyboard.press("Enter");
+    const i = rows.findIndex(match);
+    if (i < 0) {
+      await page.keyboard.press("Escape");
+      throw new Error(`runCommand: no palette row is "${title}" — rows: ${JSON.stringify(rows.slice(0, 5))}`);
+    }
+    if (i > 0) (await page.$$(".quick-input-widget .monaco-list-row"))[i]?.click();
+    else await page.keyboard.press("Enter");
     await sleep(800);
   }
   return rows;
@@ -238,8 +248,18 @@ async function openFile(page, name) {
   await chord(page, "Control", "p");
   const input = await page.waitForSelector(".quick-input-widget input", { timeout: 20000 });
   await input.focus();
-  await page.keyboard.type(name);
-  await sleep(1200);
+  // A file the driver has just written is not in Quick Open's index yet:
+  // pressing Enter on "No matching results" leaves the query open and the
+  // next keystrokes land in it. Retype until the file is listed.
+  for (let i = 0; i < 15; i++) {
+    await chord(page, "Control", "a");
+    await page.keyboard.type(name);
+    await sleep(1200);
+    const listed = await page
+      .$$eval(".quick-input-list .monaco-list-row", (els, n) => els.some((e) => e.innerText.includes(n)), name)
+      .catch(() => false);
+    if (listed) break;
+  }
   await page.keyboard.press("Enter");
   await sleep(1500);
 }
@@ -253,7 +273,8 @@ async function clickActivity(page, labelPrefix) {
 
 /** The Java panel's webview lives in a nested iframe: the frame that has our tablist. */
 async function panelFrame(page) {
-  for (let i = 0; i < 20; i++) {
+  // 30 s: the first paint competes with every extension starting (cspell among them).
+  for (let i = 0; i < 60; i++) {
     for (const f of page.frames()) {
       const has = await f.$('[role="tablist"][aria-label="Java panel tabs"]').catch(() => null);
       if (has) return f;
@@ -365,7 +386,9 @@ async function tokenColours(page, wanted) {
       const wanted = at ? text.slice(1) : text;
       const hit = spans.find((s, i) => {
         const t = s.textContent.trim();
-        if (!at) return t === text;
+        // The editor merges neighbouring tokens of one colour into one span,
+        // so a string whose quotes wear its colour reads `"Ada"`.
+        if (!at) return t === text || t === `"${text}"`;
         // The grammar may give "@Test" one span or split off the "@";
         // either way, `Test` in an import is a type and not the annotation.
         return t === text || (t === wanted && spans[i - 1] && spans[i - 1].textContent.trim().endsWith("@"));
@@ -530,12 +553,20 @@ try {
     await openFile(page, "Greeter.java");
     await sleep(2500);
     // `greeting` is a call, so it is the `method` voice; `all` would be a
-    // declaration and ink+bold. The string is read from MainTest.java's
+    // declaration and bold. Likewise the class is read from `Person`, a
+    // reference: `Greeter` here is only ever its own declaration, which is
+    // `class.declaration`, a voice of its own since the editor's colours. The string is read from MainTest.java's
     // "Ada": an empty literal is two punctuation quotes and no string span.
-    const code = await tokenColours(page, { class: "Greeter", method: "greeting", keyword: "public" });
+    // Settled on the theme's own voices rather than a fixed sleep: before the
+    // semantic tokens arrive the spans wear TextMate's colours, and a run
+    // that reads them too early sees `class` as `method`. A voice that never
+    // arrives times out, and the assertion fails on what was last painted.
+    const voices = JSON.parse(readFileSync(path.join(here, "..", "..", "extensions", "batlehub-theme", "themes", "batlehub-dark.json"), "utf8")).semanticTokenColors;
+    const painted = (want) => (r) => Object.keys(want).every((k) => r.pick[k] === String(voices[k]?.foreground ?? voices[k]).toLowerCase());
+    const read = async (want) => (await settle(() => tokenColours(page, want), painted(want), 20000, 1000)).value;
+    const code = await read({ class: "Person", method: "greeting", keyword: "public" });
     await openFile(page, "MainTest.java");
-    await sleep(2500);
-    const rest = await tokenColours(page, { annotation: "@Test", string: "Ada" });
+    const rest = await read({ annotation: "@Test", string: "Ada" });
     await snap(page, "batlehub-tokens");
     emit({ phase: "theme-tokens", pick: { ...code.pick, ...rest.pick }, all: [...new Set([...code.all, ...rest.all])] });
     await setTheme(page, "Dark Modern");
@@ -726,11 +757,79 @@ try {
   await runCommand(page, "Java: Fix all inspections in file");
   await sleep(3000);
   await openFile(page, "Greeter.java");
-  const greeterAfter = await editorText(page);
   await snap(page, "fixed");
-  emit({ phase: "inspections", problems: probs.value, fixedIsEmpty: /isEmpty\(\)/.test(greeterAfter), fixedNoThis: !/this\.people/.test(greeterAfter), fixedNoUnused: !/int unused/.test(greeterAfter) });
+  // Saved and read from disk, for the same reason as the format step: the
+  // golden is byte-for-byte, and `editorText` is not.
+  await chord(page, "Control", "s");
+  const fixed = await settle(
+    async () => readIfPresent(GREETER),
+    (text) => text !== null && text !== greeterBefore,
+    30000,
+    1000,
+  );
+  emit({ phase: "inspections", problems: probs.value, fixed: fixed.value ?? "", golden: readIfPresent(path.join(WS, ".idea", "golden", "Greeter.fixed.java")) });
+  if (greeterBefore !== null) writeFileSync(GREETER, greeterBefore);
+  await sleep(1500);
+  // The file was put back behind the editor: revert the buffer to it, or a
+  // later save meets "the content of the file is newer" and the buffer
+  // stays dirty for every step after this one.
+  await openFile(page, "Greeter.java");
   await runCommand(page, "File: Revert File");
-  await sleep(500);
+  await sleep(800);
+  const greeterDirty = await page.$$eval(".tabs-container .tab.dirty", (els) => els.some((e) => /Greeter\.java/.test(e.getAttribute("aria-label") || e.innerText))).catch(() => false);
+  emit({ phase: "inspections-cleanup", greeterDirty });
+
+  // 9b. RFC 0013 phase 1: cspell's findings in Java as one rule of the
+  // Inspections view, and the core's fix that writes the team's cspell.json.
+  const CSPELL_JSON = path.join(WS, "cspell.json");
+  rmSync(CSPELL_JSON, { force: true });
+  await openFile(page, "Speller.java");
+  const spellProblems = await settle(() => problems(page), (rows) => rows.filter((r) => /cSpell/.test(r)).length >= 3, 120000, 3000);
+  const inspectionsView = async () => {
+    await runCommand(page, "Java: Focus on Inspections View");
+    await sleep(1200);
+    return page.$$eval('.pane:has(.pane-header[aria-label*="Inspections"]) .monaco-list-row', (els) => els.map((e) => e.innerText.replace(/\s+/g, " ").trim()).filter(Boolean)).catch(() => []);
+  };
+  const spellView = await settle(inspectionsView, (rows) => rows.some((r) => /spelling\/unknownWord/.test(r)), 30000, 2000);
+  await snap(page, "spelling");
+  const coreLines = (await outputLines(page)).join(" ");
+  emit({
+    phase: "spelling",
+    problems: (spellProblems.value ?? []).filter((r) => /cSpell/.test(r)).slice(0, 6),
+    view: (spellView.value ?? []).slice(0, 8),
+    detected: /spelling: cspell [\d.]+ detected, bridged/.test(coreLines),
+  });
+  // Case 4: the lightbulb on Mesage — the core's fix beside cspell's own.
+  await openFile(page, "Speller.java");
+  await chord(page, "Control", "g");
+  await sleep(400);
+  await page.keyboard.type("7:31");
+  await page.keyboard.press("Enter");
+  await sleep(600);
+  await runCommand(page, "Quick Fix...");
+  await sleep(2500);
+  const fixes = await page.$$eval(".action-widget .monaco-list-row, .context-view .monaco-list-row", (els) => els.map((e) => e.innerText.replace(/\s+/g, " ").trim()).filter(Boolean)).catch(() => []);
+  const ours = await page.$$(".action-widget .monaco-list-row, .context-view .monaco-list-row");
+  let picked = false;
+  for (const row of ours)
+    if (/Add "Mesage" to project dictionary/.test(await row.evaluate((e) => e.innerText))) {
+      await row.click();
+      picked = true;
+      break;
+    }
+  if (!picked) await page.keyboard.press("Escape");
+  const dict = await settle(() => readIfPresent(CSPELL_JSON), (t) => /Mesage/.test(t ?? ""), 15000, 1000);
+  const spellAfter = await settle(() => problems(page), (rows) => !rows.some((r) => /Mesage/.test(r) && /cSpell/.test(r)), 30000, 2000);
+  emit({
+    phase: "spellDict",
+    fixes: fixes.slice(0, 10),
+    picked,
+    cspellJson: dict.value ?? null,
+    settings: readIfPresent(path.join(WS, ".vscode", "settings.json")),
+    mesageGone: !spellAfter.timedOut,
+    problems: (spellAfter.value ?? []).filter((r) => /cSpell/.test(r)).slice(0, 6),
+  });
+  rmSync(CSPELL_JSON, { force: true });
 
   // 10. Generate on Person.java: the bundle's delegate writes the accessors; without it Red Hat's picker opens.
   await openFile(page, "Person.java");
@@ -775,7 +874,129 @@ try {
     hook(args["after-groovy"]);
     shownAfter = !(await settle(() => statusItems(page, /groovy\.server/), (s) => s.length > 0, 30000)).timedOut;
   }
+  // RFC 0003 case 5: the Groovy server is the core's managed process, and the
+  // JDK tab's sum (the same consumers as this command) lists its cap.
+  const resourcesLog = (await outputLines(page, "Java: Show the container's resources")).join(" ");
+  emit({
+    phase: "procGroovy",
+    started: /started groovy-ls \(pid \d+, 768 MiB declared\)/.test(resourcesLog),
+    inSum: /groovy-ls \(declared\): 768 MiB/.test(resourcesLog),
+    tail: resourcesLog.slice(-600),
+  });
   emit({ phase: "groovy", registered: /language groovy registered/.test(coreLog), serverLog: groovyLog.slice(0, 500), started: /running|started|initialize/i.test(groovyLog), hover, languageMode: mode.map((m) => m.text), statusItemHidden: hiddenBefore, statusItemShownAfterToggle: shownAfter });
+
+  // 11b. RFC 0003 phase 3, cases 1–3: a `batlehub-run` is a debug session.
+  // The long-lived process is the resolved JDK's own `jwebserver` (nothing is
+  // downloaded); the `launch` step is a node launch, since this half installs
+  // no Java debugger and js-debug is built in (decision 14 lists any type).
+  const RUN_PORT = 18080;
+  const LAUNCH_JSON = path.join(WS, ".vscode", "launch.json");
+  const IT = path.join(WS, "it-check.js");
+  const portFree = () =>
+    new Promise((r) => {
+      const s = net.connect({ host: "127.0.0.1", port: RUN_PORT });
+      s.once("connect", () => (s.destroy(), r(false)));
+      s.once("error", () => r(true));
+    });
+  const replLines = async () => {
+    await runCommand(page, "Debug Console: Focus on Debug Console View");
+    await sleep(600);
+    return page.$$eval(".repl .monaco-list-row", (els) => els.map((e) => e.innerText.replace(/\s+/g, " ").trim()).filter(Boolean)).catch(() => []);
+  };
+  const startRun = async (name) => {
+    await runCommand(page, "Debug: Select and Start Debugging");
+    await sleep(800);
+    await page.keyboard.type(name);
+    await sleep(800);
+    await page.keyboard.press("Enter");
+  };
+  const runStatus = async () => (await javaStatus(page)).map((i) => i.text).join(" ");
+
+  // Case 1, from the run editor: template → name → command → memory → probe.
+  await runCommand(page, "Java: New run configuration…");
+  await sleep(800);
+  await page.keyboard.type("Orchestrated run");
+  await sleep(500);
+  await page.keyboard.press("Enter");
+  for (const answer of ["Serve", `jwebserver -p ${RUN_PORT}`, "128", String(RUN_PORT)]) {
+    await sleep(700);
+    await chord(page, "Control", "a");
+    await page.keyboard.type(answer);
+    await page.keyboard.press("Enter");
+  }
+  await sleep(1000);
+  const written = readIfPresent(LAUNCH_JSON) ?? "";
+  await startRun("Serve");
+  const served = await settle(
+    async () => ({ free: await portFree(), status: await runStatus() }),
+    (v) => !v.free && /run ● 1 process/.test(v.status),
+    60000,
+    1000,
+  );
+  await sleep(1000);
+  const termRows = await page.$$eval(".terminal .xterm-rows > div, .xterm-rows > div", (els) => els.map((e) => e.innerText.replace(/ /g, " ").trimEnd()).filter(Boolean)).catch(() => []);
+  const terminals = await page.$$eval(".terminal-tabs-entry, .single-terminal-tab, .tabs-list .monaco-list-row", (els) => els.map((e) => e.innerText.replace(/\s+/g, " ").trim())).catch(() => []);
+  let answered = false;
+  try {
+    answered = (await fetch(`http://127.0.0.1:${RUN_PORT}/`)).ok;
+  } catch {
+    answered = false;
+  }
+  await snap(page, "run-order");
+  const orderLines = await replLines();
+  // Case 4's half the browser can drive: Stop, and the reverse stop's line.
+  await runCommand(page, "Debug: Stop");
+  const stopped = await settle(portFree, (free) => free, 30000, 500);
+  await sleep(1000);
+  const stopLines = await replLines();
+  emit({
+    phase: "runOrder",
+    written: /"batlehub-run"/.test(written) && /"jwebserver"/.test(written) && /"memoryMiB": 128/.test(written),
+    status: served.value?.status ?? "",
+    up: !served.timedOut,
+    answered,
+    terminal: termRows.filter((r) => /Serving|jwebserver|port/.test(r)).slice(0, 4),
+    terminals,
+    console: orderLines,
+    stopConsole: stopLines,
+    portFreeAfter: !stopped.timedOut,
+    statusAfter: await runStatus(),
+  });
+
+  // Case 2, the acceptance run: a task, the server ready by HTTP, a launch that GETs it.
+  // js-debug sends no `exited` event, so the run cannot read the IT's code:
+  // the IT leaves what it got in a file the driver reads.
+  const IT_RESULT = path.join(WS, "it-result.txt");
+  rmSync(IT_RESULT, { force: true });
+  writeFileSync(IT, `const fs = require("fs"); fetch("http://127.0.0.1:${RUN_PORT}/").then((r) => { fs.writeFileSync(${JSON.stringify(IT_RESULT)}, String(r.status)); process.exit(r.status === 200 ? 0 : 1); }, (e) => { fs.writeFileSync(${JSON.stringify(IT_RESULT)}, e.message); process.exit(2); });\n`);
+  const launchText = readIfPresent(LAUNCH_JSON) ?? "";
+  const entries = JSON.parse(launchText.replace(/^\s*\/\/.*$/gm, ""));
+  entries.configurations.push(
+    { type: "node", request: "launch", name: "Run IT", program: "${workspaceFolder}/it-check.js", console: "internalConsole" },
+    {
+      type: "batlehub-run",
+      request: "launch",
+      name: "Acceptance",
+      steps: [
+        { task: "batlehub-java: maven compile" },
+        { process: ["jwebserver", "-p", String(RUN_PORT)], memoryMiB: 128, ready: { http: `http://127.0.0.1:${RUN_PORT}/` } },
+        { launch: "Run IT" },
+      ],
+    },
+    { type: "batlehub-run", request: "launch", name: "Timeout", steps: [{ process: ["jwebserver", "-p", String(RUN_PORT)], memoryMiB: 128, ready: { http: `http://127.0.0.1:${RUN_PORT}/nope`, timeoutMs: 5000 } }] },
+  );
+  writeFileSync(LAUNCH_JSON, JSON.stringify(entries, null, 2));
+  await sleep(1500);
+  await startRun("Acceptance");
+  const accept = await settle(replLines, (l) => l.some((x) => /stopping 1 \(/.test(x)) || l.some((x) => /^step \d.*(failed|not ready|no task|did not start)/.test(x)), 240000, 3000);
+  emit({ phase: "runAccept", console: accept.value ?? [], timedOut: !!accept.timedOut, portFreeAfter: await portFree(), itGot: readIfPresent(IT_RESULT) });
+
+  // Case 3, readiness never comes: the run fails, the process is still stopped.
+  await startRun("Timeout");
+  const timeout = await settle(replLines, (l) => l.some((x) => /stopping 1 \(/.test(x)), 60000, 1000);
+  await sleep(1000);
+  emit({ phase: "runTimeout", console: timeout.value ?? [], timedOut: !!timeout.timedOut, portFreeAfter: await portFree(), statusAfter: await runStatus() });
+  for (const f of [IT, IT_RESULT, LAUNCH_JSON]) rmSync(f, { force: true });
 
   // 12. Spike (a): the classpath before, the m2e preference, the classpath after.
   await openFile(page, "Greeter.java");
@@ -976,6 +1197,87 @@ PY`,
   };
   await snap(page, "chain-undone");
   emit({ phase: "chain", ...chain, chainMs: perf.chainMs, chainOffMs: perf.chainOffMs, chainRank: perf.chainRank });
+
+  // 12c. RFC 0012 phase 2, use case 4: in "auto" the bundle's delegate
+  // answers while typing — no shortcut — and answers the `int` the server's
+  // computer refuses. The phase 1 steps above ran in "shortcut" (the
+  // machine settings of view.sh); the workspace switches to "auto" here,
+  // after the Undo, so the server's key is absent and the delegate is the
+  // one source. Each round types a new variable name, so the bundle's cache
+  // (keyed by the file minus the typed prefix) is cold every time.
+  const setChainMode = (mode) =>
+    hook(
+      `python3 - '${path.join(WS, ".vscode", "settings.json")}' '${mode}' <<'PY'
+import json, sys
+p, mode = sys.argv[1], sys.argv[2]
+d = json.load(open(p))
+if mode == "unset": d.pop("batlehub.java.completion.chain", None)
+else: d["batlehub.java.completion.chain"] = mode
+json.dump(d, open(p, "w"), indent=2)
+PY`,
+    );
+  setChainMode("auto");
+  await sleep(3000);
+  const DELEGATE_ROW = /config\s*\.\s*getServer\s*\(\s*\)\s*\.\s*getPort\s*\(\s*\)/;
+  const delegate = { rounds: [] };
+  await openFile(page, "Main.java");
+  await sleep(800);
+  {
+    const line = readFileSync(MAIN, "utf8")
+      .split("\n")
+      .findIndex((l) => l.includes("System.out.print"));
+    await runCommand(page, "Go to Line/Column...");
+    await page.keyboard.type(String(line + 1));
+    await sleep(400);
+    await page.keyboard.press("Enter");
+    await sleep(500);
+    await page.keyboard.press("End");
+    await page.keyboard.press("Enter");
+    await page.keyboard.type("Config config = new Config();");
+    await page.keyboard.press("Enter");
+    await sleep(1500);
+  }
+  for (let i = 0; i < 10; i++) {
+    await page.keyboard.type(`int p${i} = g`);
+    const rows = await settle(
+      () =>
+        page
+          .$$eval(".suggest-widget .monaco-list-row", (els) =>
+            els.map((e) => e.innerText.replace(/\s+/g, " ").trim()),
+          )
+          .catch(() => []),
+      (r) => r.some((x) => DELEGATE_ROW.test(x)),
+      10000,
+      50,
+    );
+    delegate.rounds.push({ found: !rows.timedOut, ms: rows.ms });
+    if (i === 0) {
+      delegate.items = (rows.value ?? []).slice(0, 8);
+      await snap(page, "chain-delegate");
+    }
+    await page.keyboard.press("Escape");
+    await page.keyboard.press("End");
+    await chord(page, "Shift", "Home");
+    await page.keyboard.press("Backspace");
+    await sleep(300);
+  }
+  delegate.found = delegate.rounds.every((r) => r.found);
+  // The provider's own round trip, from the core's JDT channel: the bundle's
+  // walk plus the command's trip through redhat.java, without the editor's
+  // rendering — what the 150 ms budget is about.
+  const jdtLines = await outputLines(page, "Java: Show the JDT log");
+  const trips = jdtLines
+    .map((l) => /chain delegate (\d+) ms \(bundle [^)]*\): ([1-9]\d*) chain/.exec(l))
+    .filter((m) => m && !/cached/.test(m.input))
+    .map((m) => Number(m[1]));
+  delegate.trips = trips.slice(-10);
+  delegate.truncated = jdtLines.some((l) => /chain delegate .*truncated/.test(l));
+  perf.chainDelegateMs = median(delegate.trips);
+  await runCommand(page, "File: Revert File");
+  await sleep(500);
+  setChainMode("unset");
+  await sleep(1500);
+  emit({ phase: "chainDelegate", ...delegate, chainDelegateMs: perf.chainDelegateMs });
 
   // 13. Clean removal: the modal lists what it restores; settings.json after.
   await runCommand(page, "Java: Remove BatleHub settings");

@@ -1,0 +1,12 @@
+{
+  "capabilities.untrusted": "Detection reads the build and config files and the tab shows them; the run template is not offered and nothing is written in an untrusted workspace.",
+  "config.enabled": "Off: the Spring Boot satellite registers nothing.",
+  "config.activeProfiles": "The Spring profiles the `Spring Boot application` template passes as `-Dspring.profiles.active`. Set from the Spring tab; kept apart from the Maven profiles.",
+  "config.bridge": "`auto`: write `spring-boot.ls.java.home` (workspace scope, through the manifest) only when Spring Tools' language server has no JDK 21 or newer. `never`: do not.",
+  "cmd.pickProfiles": "Choose the active Spring profiles…",
+  "cmd.pairProfiles": "Pair the Spring profiles with the active Maven profiles",
+  "cmd.showLog": "Show the Spring log",
+  "config.dashboard.ports": "The ports the Spring tab polls for running instances (`/actuator/health` on localhost). Empty: every `server.port` the config files set, else 8080.",
+  "config.dashboard.pollMs": "How often the Spring tab polls the instances, in milliseconds, in a trusted workspace.",
+  "config.runMemoryMiB": "The cap a `spring-boot` step of a `batlehub-run` declares — Maven or Gradle plus the application JVM it forks — summed against `#batlehub.java.resources.budgetMiB#` before it starts."
+}

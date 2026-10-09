@@ -35,6 +35,21 @@ tasks:
     cmds:
       - HEAVY_ONLY=seasons bash tests/heavy/view.sh
 
+  view:quarkus:
+    desc: "Only the quarkus half (RFC 0011): java-quarkus with the Red Hat pair, then without it — detection, the MicroProfile bridge, dev mode as a managed process, its refusal and its stop (no BatleHub, no Postgres)"
+    cmds:
+      - HEAVY_ONLY=quarkus bash tests/heavy/view.sh
+
+  view:spring:
+    desc: "Only the spring half (RFC 0010): java-spring with Spring Boot Tools, then without it — detection, the Spring Tools bridge, the Spring tab's profiles, the run template run on the dev port (no BatleHub, no Postgres)"
+    cmds:
+      - HEAVY_ONLY=spring bash tests/heavy/view.sh
+
+  view:sonar:
+    desc: "Only the sonar half (RFC 0016): SonarLint bridged into the Inspections view and counted in the resource sum, then absent (no BatleHub, no Postgres)"
+    cmds:
+      - HEAVY_ONLY=sonar bash tests/heavy/view.sh
+
   shots:
     desc: "List the screenshots of the last heavy run"
     cmds:

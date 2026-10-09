@@ -1,0 +1,19 @@
+{
+  "rules": {
+    "no-restricted-imports": [
+      "error",
+      {
+        "paths": [
+          { "name": "child_process", "message": "A satellite starts long-lived processes through the core's process.start (RFC 0003 §5.2)." },
+          { "name": "node:child_process", "message": "A satellite starts long-lived processes through the core's process.start (RFC 0003 §5.2)." }
+        ]
+      }
+    ]
+  },
+  "overrides": [
+    {
+      "files": ["test/**"],
+      "rules": { "no-restricted-imports": "off" }
+    }
+  ]
+}

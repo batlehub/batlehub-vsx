@@ -14,11 +14,6 @@ import org.eclipse.jdt.core.dom.rewrite.ASTRewrite;
 import org.eclipse.jface.text.BadLocationException;
 import org.eclipse.jface.text.Document;
 import org.eclipse.jface.text.IDocument;
-import org.eclipse.text.edits.DeleteEdit;
-import org.eclipse.text.edits.InsertEdit;
-import org.eclipse.text.edits.MultiTextEdit;
-import org.eclipse.text.edits.ReplaceEdit;
-import org.eclipse.text.edits.TextEdit;
 
 /**
  * The headless core: source in, findings and LSP edits out. Nothing here
@@ -124,26 +119,22 @@ public final class Engine {
     return apply(source, rewrite);
   }
 
-  /** An ASTRewrite as LSP `TextEdit`s over `source` (line/character, 0-based). */
+  /**
+   * An ASTRewrite as LSP `TextEdit`s over `source` (line/character, 0-based): one edit over
+   * the changed span. The tree is applied rather than flattened, because a copy
+   * (`createCopyTarget`) only has text once the whole tree runs against a document.
+   */
   public static List<Map<String, Object>> edits(String source, ASTRewrite rewrite) {
-    Document doc = new Document(source);
-    TextEdit edit = rewrite.rewriteAST(doc, options(source));
-    List<Map<String, Object>> out = new ArrayList<>();
-    flatten(edit, doc, out);
-    return out;
-  }
-
-  private static void flatten(TextEdit edit, IDocument doc, List<Map<String, Object>> out) {
-    if (edit instanceof MultiTextEdit) {
-      for (TextEdit child : edit.getChildren()) flatten(child, doc, out);
-      return;
-    }
-    String text = edit instanceof ReplaceEdit r ? r.getText() : edit instanceof InsertEdit i ? i.getText() : edit instanceof DeleteEdit ? "" : null;
-    if (text == null) return;
+    String after = apply(source, rewrite);
+    int p = 0, max = Math.min(source.length(), after.length());
+    while (p < max && source.charAt(p) == after.charAt(p)) p++;
+    int s = 0;
+    while (s < max - p && source.charAt(source.length() - 1 - s) == after.charAt(after.length() - 1 - s)) s++;
+    if (p == source.length() && p == after.length()) return List.of();
     Map<String, Object> e = new LinkedHashMap<>();
-    e.put("range", range(doc, edit.getOffset(), edit.getLength()));
-    e.put("newText", text);
-    out.add(e);
+    e.put("range", range(new Document(source), p, source.length() - s - p));
+    e.put("newText", after.substring(p, after.length() - s));
+    return List.of(e);
   }
 
   static Map<String, Object> range(CompilationUnit cu, int offset, int length) {

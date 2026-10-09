@@ -2,17 +2,17 @@
 
 | Field       | Value                                                        |
 | ----------- | ------------------------------------------------------------ |
-| Status      | Draft                                                         |
+| Status      | Implemented — revision 6, 2026-10-09; phases 1–4 landed. Phases 1–3 proven in a real editor (`task heavy:view:java`, `ALL-OK`: `PROC-GROOVY-OK`, `RUN-ORDER-OK`, `RUN-ACCEPT-OK`, `RUN-TIMEOUT-OK`); phase 4's `server` step proven over real processes and in the contract, and in the real editor by its first client, RFC 0011's `quarkus-dev` kind (`QUARKUS-DEV-OK`, `QUARKUS-STOP-OK`), the attach included (`QUARKUS-DEBUG-OK`: a breakpoint hit through the child `java` session on `localhost:5005`) |
 | Short       | Orchestrated runs                                             |
 | Settles     | The orchestrator and the managed process: ordered steps with readiness probes and reverse stop in `launch.json`, and the one way anything long-lived is started in the whole series — a declared memory cap, a readiness probe, a clean stop, its peak RSS recorded. The server kinds (Tomcat, Jetty, WildFly, Karaf) are [RFC 0017](/rfc/0017-server-kinds), parked |
 | Closes      | A.4 — acceptance runs: processes started in order, waited ready, stopped in reverse; the managed process every satellite starts through |
 | Author      | Max Batleforc <maxleriche.60@gmail.com>                       |
 | Co-author   | —                                                             |
 | Created     | 2026-09-18                                                    |
-| Revised     | 2026-09-29 — revision 3, the recommendations of §11 promoted to decisions 12–15, and the three questions other RFCs sent here settled as decisions 16–18: the cap ledger RFC 0002's command line appends to, the `estimate` declaration for a JVM another extension starts (RFC 0009, 0010, 0011), and RFC 0008's Kotlin daemon tree declared rather than capped — one change in the core's contract instead of three |
+| Revised     | 2026-10-09 — revision 6, phases 3–4 built: `steps.ts`, the engine `orchestrator.ts` (no `vscode`), the inline adapter `session.ts`, the four probes in `src/process/probe.ts`, reverse stop, the `orchestrated` template, the `server` step and its attach, a fixture kind in the contract test; what the build found is §11 "Measured — phases 3–4" · revision 5, phase 2 built: `process.start` and `process.declare` on contract 1.1, `java-groovy`'s server started through it (`PROC-GROOVY-OK`), the `child_process` lint rule on; `registerRunStepKind` shipped in the same 1.1 for RFCs 0010/0011, held for phases 3–4 · revision 4, phase 1 built: `src/process/` (`managed.ts`, `budget.ts`, `sweep.ts`, `history.ts`), the declared caps in the `JDK` tab's sum, `processes.json` in `Report a problem`, the sweep at activation; what the build found is §11 "Measured — phase 1" · 2026-09-29 — revision 3, the recommendations of §11 promoted to decisions 12–15, and the three questions other RFCs sent here settled as decisions 16–18: the cap ledger RFC 0002's command line appends to, the `estimate` declaration for a JVM another extension starts (RFC 0009, 0010, 0011), and RFC 0008's Kotlin daemon tree declared rather than capped — one change in the core's contract instead of three |
 | Supersedes  | —                                                             |
 | Depends on  | RFC 0001 (the run editor of phase 4, the `batlehub-java` task provider, the contract of §5.2, the resource diagnostic of §4.2, the memory rule of §7.1, the heavy suite); `vscjava.vscode-java-debug` for every `launch` and `attach` step |
-| Touches     | `extensions/java-core/src/run/` (new `steps.ts`, `orchestrator.ts`), `src/process/` (new `managed.ts`, `budget.ts`, `sweep.ts`), `src/detect/resources.ts` (the sum), `api.d.ts` (the members of RFC 0001 §5.2's changelog), `package.json` (`debuggers`, settings), `extensions/java-groovy` (its server started through the managed process), `tests/heavy/` (the java half), `docs/guide/java/run.md` |
+| Touches     | `extensions/java-core/src/run/` (new `steps.ts`, `orchestrator.ts`, `session.ts`), `src/process/probe.ts`, `tests/contract/fixture/`, `src/process/` (new `managed.ts`, `budget.ts`, `sweep.ts`), `src/detect/resources.ts` (the sum), `api.d.ts` (the members of RFC 0001 §5.2's changelog), `package.json` (`debuggers`, settings), `extensions/java-groovy` (its server started through the managed process), `tests/heavy/` (the java half), `docs/guide/java/run.md` |
 
 ---
 
@@ -722,6 +722,111 @@ It defines no version; the changelog is where the next one is written.
 | 17 | A JVM another extension starts — Spring Tools, Quarkus, Metals? | **`process.declare(estimate)`** — an id, a `memoryMiB`, a label, nothing started — the 1.1 row of RFC 0001 §5.2's contract changelog whose shape is owned here. Not a per-framework read of a foreign `*.ls.vmargs` setting inside the core (RFC 0010 decision 15, RFC 0009, RFC 0011). |
 | 18 | The Kotlin server's daemon tree, 2.8 GB measured (RFC 0008)? | **Declared, not capped.** The satellite declares the measured tree to `process.start` and writes nothing into the project's Gradle or Kotlin daemon options: a foreign write to shrink a number the developer can already read in the `JDK` tab is not one this series makes. Kotlin takes a third of the 8 GiB budget and says so. Revisit only if a recorded peak shows the tree is what fills the pod. |
 
+### Measured — phase 1, 2026-10-09
+
+`test/process.test.ts` over real `node -e` children (port, `log` and `http`
+probes; the `term` and `kill` stages; cases 6 and 7), `task check` green,
+and the `java` heavy half `ALL-OK` with the sweep and the manager in the
+activation path. What building it found:
+
+1. **Cases 6 and 7 are Node tests, not host tests.** `managed.ts` takes trust,
+   the over-budget question and its two files from an injected `Host`, so it
+   imports nothing from `vscode` (the repository's rule for modules that hold
+   rules), and a real child process is a plain vitest case. The host layer
+   needs a display this pod does not have; nothing it would add is
+   `vscode`-specific.
+2. **JDT.LS is declared at its `-Xmx`**, the figure the resource diagnostic
+   already uses, not an estimate of its RSS: one number in the tab, not two.
+3. **`Cancel` is not remembered**, only `Skip` and `Start anyway` (§4.2 "per
+   process id for the session"): a cancelled run asks again next time.
+4. **No probe means alive after `intervalMs`** (§4.1's `process` default);
+   a process that exits before readiness rejects `ready` with its exit code
+   whatever the probe, except `exit`.
+5. **Owed:** `Java: Remove BatleHub settings` does not yet delete
+   `processes.json` and the history (§9 Rollback); the off-Linux sweep
+   fallback (`kill(pid, 0)` + `ps -o comm=`) is not built: off Linux the
+   sweep only empties the file.
+
+### Measured — phase 2, 2026-10-09
+
+`task heavy:view:java` `ALL-OK` with `PROC-GROOVY-OK`: the core's log reads
+`started groovy-ls (pid N, 768 MiB declared)` and `Java: Show the
+container's resources` lists `groovy-ls (declared): 768 MiB`.
+
+1. **The Groovy figure moved.** The resource diagnostic counted Groovy as a
+   fixed 512 MiB whenever `java-groovy` was installed; it is now the
+   declared 768 while the server runs, and nothing when it does not —
+   otherwise it was counted twice.
+2. **A 1.0 core still starts Groovy**: with no `api.process` the client
+   spawns the JVM itself, as before. The other direction, a 1.0 satellite on
+   a 1.1 core, is the minor-bump rule.
+3. **Not driven in the heavy half:** the `processes.json` in the report zip
+   (it needs the file dialog); `readHistory` is what the zip calls, and it is
+   what `test/process.test.ts` asserts.
+4. **The lint rule** is oxlint's `no-restricted-imports` in each extension's
+   `.oxlintrc.json`: `java-core` exempts `managed.ts`, `io.ts` and its tests;
+   `java-groovy` exempts nothing but its tests.
+
+### Measured — phases 3–4, 2026-10-09
+
+`test/steps.test.ts` (validation, the plan, `deploy`'s boundary, and the
+engine over real `node -e` children through the real `Manager`: cases 1, 3,
+4 and 6, a fixture `server` kind), `task check` green, `FIXTURE-KIND-OK` in
+`tests/contract`, and the `java` heavy half `ALL-OK` with `RUN-ORDER-OK`,
+`RUN-ACCEPT-OK` and `RUN-TIMEOUT-OK`. What building it found:
+
+1. **The session is two modules, not one.** `orchestrator.ts` is the engine
+   — `Run` (order, probes, the end of the run, the reverse stop),
+   `startProcess`, `startServer` — and imports nothing from `vscode`;
+   `session.ts` is the inline adapter and the four step runners. The same
+   reason as phase 1's finding 1: the order and the stop cascade are plain
+   Node tests over real processes, and the host layer this pod cannot run
+   adds nothing they need. The probes moved out of `managed.ts` into
+   `src/process/probe.ts`, so a wait step, a task and a launch use the very
+   loop a managed process uses.
+2. **js-debug sends no `exited` event.** A `node` launch never has an exit
+   code, so an `exit` probe on it can never be judged. An *implicit* `exit`
+   probe (a last `launch`, a `task`) whose step ends without a code prints
+   `step N ended (its debugger reports no exit code)` and the run goes on;
+   one the user wrote is a check, and fails with `ended without an exit
+   code, expected 0`. The Java debugger reports its code.
+3. **Case 2's launch is a `node` launch in the heavy half**, which installs
+   no Java debugger (installing one would change every other step that reads
+   its absence); decision 14 already lists any type. Because of finding 2,
+   the IT script writes the status it got to a file the driver reads, and
+   `RUN-ACCEPT-OK` asserts `200` from there. Its task is `maven compile`,
+   not `package`: `package` runs the fixture's tests, minutes for nothing
+   the case proves.
+4. **An implicit `exit` probe has no timeout.** The 60 s default is for
+   readiness; inherited by a task's `exit 0`, it would fail any `maven
+   package` longer than a minute. Implicit `exit` probes wait 2³¹−1 ms, the
+   longest timer Node keeps (a larger one fires at once).
+5. **The console lines, as built**: `step 1 ready (port 18080 in 0.4 s)`,
+   `step 1 exited 0`, `step 1 not ready after 5 s: http 404 (last)`,
+   `stopped by user`, then per step `stopping 2 (jwebserver) … stopped
+   (term) · peak 56 MiB of 128 in 0.4 s` or `… already done`. §2.1's
+   sketches differ in wording; the heavy assertions hold these.
+6. **`ServerStep.debugPort`** (default 5005) joins contract 1.1, which is
+   not released yet: the attach needs the JDWP port, and `port` is the
+   kind's HTTP port. The attach is a child `java` session on
+   `localhost:<debugPort>`, started after the step's probe, stopped before
+   the process.
+7. **The template is three inputs** — the command (stored as an array), the
+   memory, the probe (a port, a URL or a regex) — after the name. More
+   steps go in `launch.json`, where `contributes.debuggers`' schema
+   completes them; a list does not fit a quick input.
+8. **`Java: Remove BatleHub settings`** now deletes the process history and
+   the kinds' `servers/` directory, and `processes.json` when no managed
+   process runs — the pid file of a running one is what sweeps it if the
+   host dies. Phase 1's finding 5 is half closed: the off-Linux sweep
+   fallback is still not built.
+9. **Not built, each with what brings it:** the warning when a probe's
+   `timeoutMs` is under the step's last measured ready time (§4.3 — it needs
+   ready times in the history; build it when a probe flaps); the pid of a
+   port's owner in `port 8080 is already in use` (a `/proc/net/tcp` → fd
+   scan; when someone asks who); the status bar segment's click to the
+   terminal (it opens the panel, like the rest of the item).
+
 ### Still open
 
 None at this revision. Decisions 12 and 15 name the measurement that
@@ -737,7 +842,7 @@ This RFC is step 5 of RFC 0001 §14's order of work and sits ahead of RFCs
 
 | Phase | Content |
 | --- | --- |
-| 1 | `src/process/`: `managed.ts`, `budget.ts`, `sweep.ts`, `history.ts`; the sum in `resources.ts` and the `JDK` tab line; `Report a problem` gains `processes.json`; unit + host tests (cases 6, 7). Useful on its own: the memory rule has its mechanism. |
-| 2 | `process.start` on the contract; `java-groovy` moved onto it (`stdio: "streams"`), the lint rule on; heavy case 5. |
-| 3 | `steps.ts`, `orchestrator.ts`: `task`, `launch`, `process`, wait steps; the four probes; reverse stop; the `orchestrated` template; heavy cases 1–3, host case 4. |
-| 4 | The `server` step, `RunStepKind`, the attach, `registerRunStepKind` on the contract; the contract test extended with a fixture kind. RFCs 0010 and 0011 build on this; RFC 0017 too, if it is ever un-parked. |
+| 1 | ~~`src/process/`: `managed.ts`, `budget.ts`, `sweep.ts`, `history.ts`; the sum in `resources.ts` and the `JDK` tab line; `Report a problem` gains `processes.json`; unit + host tests (cases 6, 7).~~ **Done** (revision 4): the settings `resources.budgetMiB` and `run.stopGraceMs`; cases 6 and 7 as Node tests over real processes (§11 Measured — phase 1, finding 1). No consumer starts through it yet — that is phase 2. |
+| 2 | ~~`process.start` on the contract; `java-groovy` moved onto it (`stdio: "streams"`), the lint rule on; heavy case 5.~~ **Done** (revision 5): with contract 1.1, `PROC-GROOVY-OK` (§11 Measured — phase 2). |
+| 3 | ~~`steps.ts`, `orchestrator.ts`: `task`, `launch`, `process`, wait steps; the four probes; reverse stop; the `orchestrated` template; heavy cases 1–3, host case 4.~~ **Done** (revision 6): `RUN-ORDER-OK` (with case 4's Stop), `RUN-ACCEPT-OK`, `RUN-TIMEOUT-OK`; case 4 also a Node test (§11 "Measured — phases 3–4", finding 1). |
+| 4 | ~~The `server` step, `RunStepKind`, the attach, `registerRunStepKind` on the contract; the contract test extended with a fixture kind.~~ **Done** (revision 6) in Node and the contract (`FIXTURE-KIND-OK`); no kind ships in the core. Its first real client is RFC 0011's `quarkus-dev` (phase 2), which added a kind's `goal`, the stdin stop and `process.running()` to contract 1.1. RFCs 0010 and 0011 build on this; RFC 0017 too, if it is ever un-parked. |

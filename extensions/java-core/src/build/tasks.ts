@@ -82,55 +82,106 @@ export function activeMaven(s: Snapshot): MavenConfiguration | undefined {
   );
 }
 
+/**
+ * The command and environment of a goal, as every `batlehub-java` task runs
+ * it — wrapper or Maven home, `-s`, `-P`, the resolved JDK in `JAVA_HOME`
+ * and on `PATH`. A step kind's `goal` (RFC 0003 §6.4, RFC 0011 §5.1) is
+ * started through this too, so a managed dev mode and a task never differ.
+ */
+export function goalCommand(
+  def: JavaTaskDefinition,
+  fs: FolderSnapshot,
+  snap: Snapshot,
+): { cmd: string; args: string[]; env: Record<string, string>; jdk?: string } {
+  const maven = activeMaven(snap);
+  const { cmd, args } = commandFor(
+    def,
+    fs,
+    maven,
+    readSettings().mavenActiveProfiles,
+    { maven: snap.maven.home, gradle: snap.gradle.home },
+  );
+  const jdk = fs.resolution.runtime?.path;
+  const env: Record<string, string> = { ...maven?.env };
+  if (jdk) {
+    env.JAVA_HOME = jdk;
+    env.PATH = `${jdk}/bin${process.platform === "win32" ? ";" : ":"}${process.env.PATH ?? ""}`;
+  }
+  return { cmd, args, env, jdk };
+}
+
+export function buildTask(
+  core: Core,
+  def: JavaTaskDefinition,
+  folder: vscode.WorkspaceFolder,
+  fs: FolderSnapshot,
+  snap: Snapshot,
+): vscode.Task {
+  const { cmd, args, env, jdk } = goalCommand(def, fs, snap);
+  const exec = core.trusted()
+    ? new vscode.ProcessExecution(cmd, args, { cwd: folder.uri.fsPath, env })
+    : new vscode.ProcessExecution(process.execPath, [
+        "-e",
+        "console.error('BatleHub Java: nothing runs in an untrusted workspace (trust it first)'); process.exit(1)",
+      ]);
+  const task = new vscode.Task(
+    def,
+    folder,
+    `${def.tool} ${def.goal}`,
+    "batlehub-java",
+    exec,
+    def.tool === "maven" ? "$batlehub-maven" : "$gradle",
+  );
+  task.group = /^(test|check)\b/.test(def.goal)
+    ? vscode.TaskGroup.Test
+    : vscode.TaskGroup.Build;
+  task.presentationOptions = {
+    reveal: vscode.TaskRevealKind.Always,
+    panel: vscode.TaskPanelKind.Shared,
+    clear: true,
+  };
+  task.detail = `${cmd} ${args.join(" ")}${jdk ? `  (JAVA_HOME=${jdk})` : ""}`;
+  return task;
+}
+
+/**
+ * Contract 1.1 `project.runGoal`: a goal run as a `batlehub-java` task — the
+ * same terminal, environment and trust gate — resolved with its exit code.
+ */
+export async function runGoalTask(
+  core: Core,
+  folder: vscode.WorkspaceFolder,
+  goal: { tool: "maven" | "gradle"; goal: string; args?: string[] },
+): Promise<number | null> {
+  if (!core.trusted())
+    throw new Error("nothing runs in an untrusted workspace");
+  const snap = core.snapshot();
+  const fs =
+    snap?.folders.find((f) => f.folder === folder.uri.fsPath) ??
+    snap?.folders[0];
+  if (!snap || !fs) throw new Error("the project is not detected yet");
+  const task = buildTask(
+    core,
+    { type: "batlehub-java", ...goal },
+    folder,
+    fs,
+    snap,
+  );
+  let exec: vscode.TaskExecution | undefined;
+  const done = new Promise<number | null>((resolve) => {
+    const sub = vscode.tasks.onDidEndTaskProcess((e) => {
+      if (e.execution !== exec) return;
+      sub.dispose();
+      resolve(e.exitCode ?? null);
+    });
+  });
+  exec = await vscode.tasks.executeTask(task);
+  return done;
+}
+
 export class JavaTaskProvider implements vscode.TaskProvider {
   static readonly type = "batlehub-java";
   constructor(private readonly core: Core) {}
-
-  private make(
-    def: JavaTaskDefinition,
-    folder: vscode.WorkspaceFolder,
-    fs: FolderSnapshot,
-    snap: Snapshot,
-  ): vscode.Task {
-    const maven = activeMaven(snap);
-    const { cmd, args } = commandFor(
-      def,
-      fs,
-      maven,
-      readSettings().mavenActiveProfiles,
-      { maven: snap.maven.home, gradle: snap.gradle.home },
-    );
-    const jdk = fs.resolution.runtime?.path;
-    const env: Record<string, string> = { ...maven?.env };
-    if (jdk) {
-      env.JAVA_HOME = jdk;
-      env.PATH = `${jdk}/bin${process.platform === "win32" ? ";" : ":"}${process.env.PATH ?? ""}`;
-    }
-    const exec = this.core.trusted()
-      ? new vscode.ProcessExecution(cmd, args, { cwd: folder.uri.fsPath, env })
-      : new vscode.ProcessExecution(process.execPath, [
-          "-e",
-          "console.error('BatleHub Java: nothing runs in an untrusted workspace (trust it first)'); process.exit(1)",
-        ]);
-    const task = new vscode.Task(
-      def,
-      folder,
-      `${def.tool} ${def.goal}`,
-      "batlehub-java",
-      exec,
-      def.tool === "maven" ? "$batlehub-maven" : "$gradle",
-    );
-    task.group = /^(test|check)\b/.test(def.goal)
-      ? vscode.TaskGroup.Test
-      : vscode.TaskGroup.Build;
-    task.presentationOptions = {
-      reveal: vscode.TaskRevealKind.Always,
-      panel: vscode.TaskPanelKind.Shared,
-      clear: true,
-    };
-    task.detail = `${cmd} ${args.join(" ")}${jdk ? `  (JAVA_HOME=${jdk})` : ""}`;
-    return task;
-  }
 
   provideTasks(): vscode.Task[] {
     const snap = this.core.snapshot();
@@ -145,7 +196,8 @@ export class JavaTaskProvider implements vscode.TaskProvider {
           : GRADLE_COMMON;
       for (const goal of goals)
         out.push(
-          this.make(
+          buildTask(
+            this.core,
             { type: "batlehub-java", tool: fs.tool, goal },
             folder,
             fs,
@@ -167,7 +219,7 @@ export class JavaTaskProvider implements vscode.TaskProvider {
         : vscode.workspace.workspaceFolders?.[0];
     const fs = snap?.folders.find((f) => f.folder === folder?.uri.fsPath);
     if (!snap || !folder || !fs) return undefined;
-    return this.make(def, folder, fs, snap);
+    return buildTask(this.core, def, folder, fs, snap);
   }
 }
 

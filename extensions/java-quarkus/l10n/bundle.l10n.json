@@ -1,0 +1,20 @@
+{
+  "Quarkus: BatleHub Java {0}.{1} lacks the managed process (contract 1.1); update batlehub.java-core.": "Quarkus: BatleHub Java {0}.{1} lacks the managed process (contract 1.1); update batlehub.java-core.",
+  "Quarkus: Quarkus 3 needs a JDK 17 or newer, and BatleHub Java resolved {0}.": "Quarkus: Quarkus 3 needs a JDK 17 or newer, and BatleHub Java resolved {0}.",
+  "none": "none",
+  "Install a JDK…": "Install a JDK…",
+  "Install": "Install",
+  "Quarkus: {0} not installed — dev mode works, application.properties has no completion.": "Quarkus: {0} not installed — dev mode works, application.properties has no completion.",
+  "Quarkus dev mode: stopped": "Quarkus dev mode: stopped",
+  "Quarkus dev mode: running on port {0}": "Quarkus dev mode: running on port {0}",
+  "Stop": "Stop",
+  "Open Dev UI": "Open Dev UI",
+  "Quarkus dev mode is already running (pid {0}, port {1}).": "Quarkus dev mode is already running (pid {0}, port {1}).",
+  "needs the Java debugger (vscjava.vscode-java-debug)": "needs the Java debugger (vscjava.vscode-java-debug)",
+  "batlehub.java.quarkus.debugPort is 0": "batlehub.java.quarkus.debugPort is 0",
+  "Quarkus: the platform is not in the local repository yet — run a build first.": "Quarkus: the platform is not in the local repository yet — run a build first.",
+  "Quarkus: add an extension": "Quarkus: add an extension",
+  "Quarkus: remove an extension": "Quarkus: remove an extension",
+  "Quarkus: {0} {1} failed — see the task's terminal.": "Quarkus: {0} {1} failed — see the task's terminal.",
+  "Quarkus: Debug {0}.": "Quarkus: Debug {0}."
+}

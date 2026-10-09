@@ -6,6 +6,7 @@ import {
   parseXmx,
   readCgroupLimit,
   resourceWarning,
+  withDeclared,
 } from "../src/detect/resources";
 
 const files = (m: Record<string, string>) => (p: string) => m[p];
@@ -53,7 +54,7 @@ describe("the warning of §4.3", () => {
   const read = files({ "/sys/fs/cgroup/memory.max": String(1.5 * 2 ** 30) });
   it("warns below warnBelow and names what gets killed first", () => {
     const w = resourceWarning(
-      budget({ read, jdtVmargs: "-Xmx2G", gradle: false, groovy: false }),
+      budget({ read, jdtVmargs: "-Xmx2G", gradle: false }),
       "2Gi",
     );
     expect(w?.headline).toContain("1.5 GiB");
@@ -64,7 +65,6 @@ describe("the warning of §4.3", () => {
       read,
       jdtVmargs: "-Xmx1G",
       gradle: true,
-      groovy: true,
     });
     expect(resourceWarning(snap, "")).toBeDefined();
     expect(snap.consumers.map((c) => c.name)).toContain("Gradle daemon");
@@ -76,7 +76,6 @@ describe("the warning of §4.3", () => {
           read: files({}),
           jdtVmargs: "-Xmx2G",
           gradle: true,
-          groovy: true,
         }),
         "2Gi",
       ),
@@ -84,9 +83,28 @@ describe("the warning of §4.3", () => {
     const big = files({ "/sys/fs/cgroup/memory.max": "17179869184" });
     expect(
       resourceWarning(
-        budget({ read: big, jdtVmargs: "-Xmx2G", gradle: true, groovy: true }),
+        budget({ read: big, jdtVmargs: "-Xmx2G", gradle: true }),
         "2Gi",
       ),
     ).toBeUndefined();
+  });
+});
+
+describe("declared caps (RFC 0003)", () => {
+  it("lists a managed process and an estimate, and adds them to the plan", () => {
+    const base = budget({
+      read: files({}),
+      jdtVmargs: "-Xmx1G",
+      gradle: false,
+    });
+    const snap = withDeclared(base, [
+      { id: "groovy-ls", mib: 768 },
+      { id: "spring-ls", mib: 1024, label: "Spring Tools", estimate: true },
+    ]);
+    expect(snap.consumers.map((c) => c.name).slice(-2)).toEqual([
+      "groovy-ls (declared)",
+      "Spring Tools (estimated)",
+    ]);
+    expect(snap.planned - base.planned).toBe(1792 * 2 ** 20);
   });
 });

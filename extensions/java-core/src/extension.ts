@@ -2,6 +2,7 @@
 // detect, the status bar, the commands, the satellite host, and export the
 // JavaCoreApi.
 import * as os from "node:os";
+import * as path from "node:path";
 import * as vscode from "vscode";
 import { makeApi } from "./api";
 import type {
@@ -12,10 +13,22 @@ import type {
 } from "./api-types";
 import { readSettings } from "./config";
 import { detect, type Snapshot } from "./detect";
-import { formatSize, resourceWarning } from "./detect/resources";
+import {
+  formatSize,
+  parseXmx,
+  resourceWarning,
+  withDeclared,
+  type ResourceSnapshot,
+} from "./detect/resources";
 import { Jdk } from "./jdk/service";
 import { channelOf, disposeLog, log, setLogLevel } from "./log";
-import { removeBatleHubSettings, resumeForeignWrites } from "./manifest";
+import {
+  removeBatleHubSettings,
+  resumeForeignWrites,
+  writeSatelliteSetting,
+} from "./manifest";
+import { Manager } from "./process/managed";
+import { sweep } from "./process/sweep";
 import { ServerTracker } from "./server/track";
 import { JavaStatusBar } from "./statusbar";
 import { runWired } from "./wire";
@@ -33,8 +46,13 @@ export interface Core {
   registries: ReturnType<typeof makeApi>["registries"];
   /** The web-side views and menus, registered by phase 3+ modules through `wire`. */
   activatedAt: number;
+  /** RFC 0003: the one start path for anything long-lived. */
+  processes: Manager;
+  onDidChangeProcesses: vscode.Event<void>;
+  /** The snapshot's resources with the running processes' declared caps. */
+  resources: () => ResourceSnapshot | undefined;
   /** Phase 6: whether the JDT bundle answered `batlehub.ping` this session. */
-  bundle?: { available: boolean };
+  bundle?: { available: boolean; commands?: string[] };
 }
 
 export let core: Core | undefined;
@@ -50,6 +68,71 @@ export async function activate(
   let snapshot: Snapshot | undefined;
   let warnedResources = false;
   const trusted = () => vscode.workspace.isTrusted;
+
+  // RFC 0003 §4.2: orphans of a host that died are swept before any start.
+  const storage = (context.storageUri ?? context.globalStorageUri).fsPath;
+  const pidFile = path.join(storage, "processes.json");
+  const sweeping = sweep(pidFile, readSettings().stopGraceMs).then(
+    (swept) => {
+      if (swept.length)
+        log.info(
+          `swept ${swept.length} orphan(s): ${swept.map((s) => `${s.entry.id}: ${s.entry.argv0} (pid ${s.entry.pid}, started ${s.entry.startedAt}, ${s.stage})`).join("; ")}`,
+        );
+    },
+    (e: Error) => log.warn(`sweep: ${e.message}`),
+  );
+  const processesChanged = new vscode.EventEmitter<void>();
+  const processes = new Manager({
+    trusted,
+    declaredElsewhere: () => [
+      {
+        id: "jdtls",
+        label: "JDT.LS",
+        mib: Math.round(
+          parseXmx(
+            vscode.workspace
+              .getConfiguration("java")
+              .get<string>("jdt.ls.vmargs") ?? "",
+          ) /
+            2 ** 20,
+        ),
+      },
+    ],
+    budgetMiB: () => readSettings().budgetMiB,
+    limitMiB: () => {
+      const l = snapshot?.resources.limit;
+      return l === undefined ? undefined : Math.floor(l / 2 ** 20);
+    },
+    ask: async (message) => {
+      const start = vscode.l10n.t("Start anyway");
+      const skip = vscode.l10n.t("Skip");
+      const r = await vscode.window.showWarningMessage(
+        vscode.l10n.t("Java: {0}", message),
+        { modal: true },
+        skip,
+        start,
+      );
+      return r === start ? "start" : r === skip ? "skip" : "cancel";
+    },
+    pidFile,
+    historyFile: path.join(
+      context.globalStorageUri.fsPath,
+      "processes-history.json",
+    ),
+    stopGraceMs: () => readSettings().stopGraceMs,
+    log: (l) => log.info(l),
+    changed: () => {
+      statusBar.update({
+        runProcesses: processes
+          .declared()
+          .filter((d) => d.id.startsWith("run:")).length,
+      });
+      if (snapshot) paint(snapshot);
+      processesChanged.fire();
+    },
+  });
+  const resources = () =>
+    snapshot && withDeclared(snapshot.resources, processes.declared());
 
   const redetect = async () => {
     const t0 = Date.now();
@@ -95,7 +178,10 @@ export async function activate(
           ? vscode.l10n.t("no JDK installed — Java: Install a JDK…")
           : vscode.l10n.t("no JDK and no JDK manager found — see the guide"),
       );
-    const rw = resourceWarning(snap.resources, readSettings().warnBelow);
+    const rw = resourceWarning(
+      withDeclared(snap.resources, processes.declared()),
+      readSettings().warnBelow,
+    );
     if (rw) {
       warnings.push(rw.headline);
       if (!warnedResources) {
@@ -159,16 +245,29 @@ export async function activate(
   const project: ProjectService = {
     modules: async () => [],
     onDidChange: new vscode.EventEmitter<vscode.WorkspaceFolder>().event,
+    runGoal: async () => {
+      throw new Error("the build providers are not wired yet");
+    },
   };
   const registry: RegistryLink = {
     enabled: () => readSettings().registryEnabled,
-    token: async () => null,
     url: async () => null,
+    writeCredential: async () => false,
   };
   const { api, registries } = makeApi({
     jdk,
     project,
     registry,
+    process: {
+      start: (spec) => processes.start(spec),
+      declare: (e) => new vscode.Disposable(processes.declare(e).dispose),
+      running: () => processes.running(),
+      onDidChange: processesChanged.event,
+    },
+    manifest: {
+      writeSetting: async (key, value) =>
+        trusted() && (await writeSatelliteSetting(key, value)),
+    },
     statusBar: (i) => statusBar.register(i),
     onLanguage,
   });
@@ -185,6 +284,9 @@ export async function activate(
     api,
     registries,
     activatedAt,
+    processes,
+    onDidChangeProcesses: processesChanged.event,
+    resources,
   };
 
   context.subscriptions.push(
@@ -192,6 +294,7 @@ export async function activate(
     server,
     jdk,
     detected,
+    processesChanged,
     { dispose: disposeLog },
     vscode.commands.registerCommand("batlehub.java.detect", () => {
       resumeForeignWrites();
@@ -220,10 +323,15 @@ export async function activate(
       channelOf().show(true),
     ),
     vscode.commands.registerCommand("batlehub.java.removeSettings", () =>
-      removeBatleHubSettings(blockRemovers),
+      removeBatleHubSettings(blockRemovers, () => [
+        path.join(context.globalStorageUri.fsPath, "processes-history.json"),
+        path.join(storage, "servers"),
+        // The pid file of a process still running is what sweeps it if the host dies.
+        ...(processes.declared().some((d) => !d.estimate) ? [] : [pidFile]),
+      ]),
     ),
     vscode.commands.registerCommand("batlehub.java.showResources", () => {
-      const r = snapshot?.resources;
+      const r = resources();
       const lines = r
         ? [
             `limit: ${r.limit ? `${formatSize(r.limit)} (${r.limitSource})` : "none (no cgroup limit)"}`,
@@ -292,6 +400,7 @@ export async function activate(
   log.info(
     `activated in ${Date.now() - activatedAt} ms (host ${os.hostname()}, ${vscode.env.appName} ${vscode.version}, ${vscode.env.uiKind === vscode.UIKind.Web ? "web" : "desktop"})`,
   );
+  await sweeping;
   runWired(core);
   return api;
 }
@@ -303,6 +412,8 @@ export const blockRemovers: Record<string, (file: string) => void> = {};
 import "./surface";
 import "./build";
 
-export function deactivate(): void {
+export async function deactivate(): Promise<void> {
+  // RFC 0003 §6.3: nothing started here outlives the host on purpose.
+  await core?.processes.stopAll();
   core = undefined;
 }

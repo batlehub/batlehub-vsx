@@ -2,17 +2,17 @@
 
 | Field       | Value                                                        |
 | ----------- | ------------------------------------------------------------ |
-| Status      | Draft                                                         |
+| Status      | Implemented — revision 6, 2026-10-09; phases 1–4 landed and proven in a real editor (`task heavy:view:quarkus`, `ALL-OK`: `QUARKUS-LS-OK`, `-DEV-OK`, `-DEBUG-OK`, `-EXT-OK`, `-STOP-OK`, `-DEGRADED-OK`, `-GRADLE-OK`). `java-pack-frameworks` carries Quarkus and, since RFC 0010 revision 7, Spring Boot |
 | Short       | Quarkus                                                       |
 | Settles     | Dev mode as a managed process, properties, extensions; relationship with redhat.vscode-quarkus |
 | Closes      | A.11 — Quarkus (Team A) |
 | Author      | Max Batleforc <maxleriche.60@gmail.com>                       |
 | Co-author   | —                                                             |
 | Created     | 2026-09-18                                                    |
-| Revised     | 2026-09-29 — revision 3, the recommendations of §11 promoted to decisions 11 and 12: Maven dev mode first with the Gradle debug invocation pinned from a real fixture in phase 3, and the two shape changes folded into RFC 0001 §5.2's existing rows before phase 1 so the core takes one change instead of three |
+| Revised     | 2026-10-09 — revision 6, phase 4: `extensions/java-pack-frameworks` (Quarkus alone for now; Spring joins with RFC 0010), `docs/guide/java/quarkus.md`, the `heavy-quarkus` CI job, both extensions in `cog.toml` · revision 5, phase 3 built: `Debug` (the same step, attached by the core), the offline catalogue with add / remove through `project.runGoal` with the registry client off, Gradle dev mode with its measured flag — cases 4 and 5 and `QUARKUS-GRADLE-OK` in the real editor, decisions 19–22 · revision 4, phase 2 built: `extensions/java-quarkus` v0.1 — detection, the bridge, the `Quarkus` tab, the `Quarkus dev mode` template and the `quarkus-dev` kind — with cases 1, 2, 3 and 6 in the real editor (`task heavy:view:quarkus`); building it corrected the bridged key, the template's shape and three contract details, decisions 13–18 · 2026-09-29 — revision 3, the recommendations of §11 promoted to decisions 11 and 12: Maven dev mode first with the Gradle debug invocation pinned from a real fixture in phase 3, and the two shape changes folded into RFC 0001 §5.2's existing rows before phase 1 so the core takes one change instead of three |
 | Supersedes  | —                                                             |
 | Depends on  | RFC 0001 (the core, its contract, the `batlehub-java` task provider, the registry link); RFC 0003 revision 2 (the orchestrator and the managed process only — dev mode is a managed process with a declared cap, a readiness probe and a stop order; the server kinds moved to the parked RFC 0017), which comes before this RFC in RFC 0001 §14's order of work; RFC 0010 (the bridge pattern), built together with this one (sixth in that order); needs members `manifest.writeSetting`, `process.start`, `registerRunStepKind`, `registerRunTemplate` — RFC 0001 §5.2 contract changelog |
-| Touches     | `extensions/java-quarkus/` (new), `extensions/java-pack-frameworks/` (new, shared with RFC 0010), `tests/heavy/fixtures/quarkus/`, `tests/heavy/java.mjs`, `docs/guide/java/quarkus.md` |
+| Touches     | `extensions/java-quarkus/` (new), `extensions/java-pack-frameworks/` (new, shared with RFC 0010), `tests/heavy/fixtures/quarkus/`, `tests/heavy/quarkus.mjs` and the `quarkus` half of `view.sh`, `docs/guide/java/quarkus.md` |
 
 ---
 
@@ -72,7 +72,7 @@ with the debugger attached on request through Quarkus's own `5005` port.
    different shape: a build-tool task, not a `java` launch.
 2. **The MicroProfile language server has the newcomer problem too.**
    `redhat.vscode-microprofile` starts `microprofile-ls` on
-   `microprofile.tools.server.java.home` (a documented key), else
+   `java.home` (decision 13; revision 3 named a key that does not exist), else
    `JAVA_HOME`, else `PATH`; RFC 0001 §15.1's workspace has none. The
    bridge is one settings key, as in RFC 0010.
 3. **The extensions catalogue is a POM edit nobody sees.** `quarkus ext
@@ -96,11 +96,11 @@ with the debugger attached on request through Quarkus's own `5005` port.
    resource, `application.properties` with `quarkus.http.port=8080` and
    `%dev.quarkus.http.port=8081`). *Action:* trust; the core writes
    `java.jdt.ls.java.home` (RFC 0001 `NEWCOMER-OK`); the satellite detects
-   Quarkus, sees that the MicroProfile server has no usable JDK ≥ 17
-   (§4.1) and writes `microprofile.tools.server.java.home` through
+   Quarkus, sees that the MicroProfile server has no usable JDK ≥ 21
+   (§4.1) and writes `java.home` through
    `manifest.writeSetting`, shown once in the tab with its undo. *Proof:*
    `BatleHub Java: Quarkus` logs `detected Quarkus 3.26.2 (maven, module
-   quarkus)` and `wrote microprofile.tools.server.java.home`; after the
+   quarkus)` and `wrote java.home`; after the
    reload, typing `quarkus.http.` in `application.properties` offers
    `quarkus.http.port` with its documentation (`QUARKUS-LS-OK`).
 2. **Dev mode as a managed process.** *Start:* case 1. *Action:* Run >
@@ -189,7 +189,7 @@ with the debugger attached on request through Quarkus's own `5005` port.
 "batlehub.java.quarkus.debugPort": 5005,          // dev mode's -Ddebug=<port>; 0 disables the attach entry
 "batlehub.java.quarkus.readiness": "/q/health/ready", // the probe path; "" falls back to the log line "Listening on:"
 "batlehub.java.quarkus.devMemoryMiB": 1024,       // the cap declared to the managed process: mvn plus the dev-mode JVM it forks
-"batlehub.java.quarkus.bridge": "auto",           // auto | never — write microprofile.tools.server.java.home
+"batlehub.java.quarkus.bridge": "auto",           // auto | never — write java.home
 "batlehub.java.statusBar.items": { "quarkus.dev": false }
 ```
 
@@ -206,10 +206,10 @@ with the debugger attached on request through Quarkus's own `5005` port.
   and the number written into §11; a project that needs more says so here
   and the resource diagnostic sums what it says.
 - `bridge: auto` is RFC 0010 §4.1's rule with the MicroProfile key: written
-  **only when the MicroProfile language server has no usable JDK ≥ 17** —
+  **only when the MicroProfile language server has no usable JDK ≥ 21** —
   `redhat.vscode-microprofile` installed and its server not running, and
   neither the key, `JAVA_HOME` nor the first `java` on `PATH` naming a JDK
-  whose `release` file says ≥ 17 (a JDK 11 on `PATH` counts as none). At
+  whose `release` file says ≥ 21 (a JDK 11 on `PATH` counts as none). At
   workspace scope, through `manifest.writeSetting`, under the default-on
   rule of RFC 0001 §7.1 (shown once with its undo, never over a user
   value); a running server is never reloaded (RFC 0001 §4.2 revision 7).
@@ -271,9 +271,9 @@ with the debugger attached on request through Quarkus's own `5005` port.
   `registry.quarkus.io`. A BOM not yet downloaded → "run a build first";
   the registry link makes that build go through BatleHub as any other.
 - **Add / remove** run `quarkus:add-extension` / `quarkus:remove-extension`
-  (Maven) or `quarkusExtensions --add`/`--remove`… (Gradle: `addExtension`
-  / `removeExtension` tasks) through the task provider, then ask the
-  core for a re-import (`Java: Reload the Java projects`, the command the
+  (Maven) or `addExtension` / `removeExtension` (Gradle), with
+  `-DquarkusRegistryClient=false` (decision 19), through the core's
+  `project.runGoal` (decision 21), then ask the core for a re-import (`Java: Reload the Java projects`, the command the
   core already sends after a profile switch). Dev mode running → the
   edit is applied live by dev mode itself; the satellite still
   re-imports so the explorer agrees.
@@ -494,7 +494,7 @@ the changelog before phase 1 starts, not defined here (§11 open 2).
 ### Red lines
 
 - **Every write is in the manifest.** One foreign setting,
-  `microprofile.tools.server.java.home`, and the satellite's own
+  `java.home`, and the satellite's own
   `batlehub.java.quarkus.*` workspace keys, through
   `manifest.writeSetting`; no `written.json` of the satellite's, and `Java:
   Remove BatleHub settings` undoes them. The `tasks.json` and `launch.json`
@@ -515,7 +515,7 @@ the changelog before phase 1 starts, not defined here (§11 open 2).
   by default, because without it the newcomer's MicroProfile server never
   starts (§2 point 2) — under the default-on rule: workspace scope,
   manifest, shown once in the tab with its undo, never over a user value,
-  only when that server has no usable JDK ≥ 17. Bridge rather than
+  only when that server has no usable JDK ≥ 21. Bridge rather than
   rebuild is decision 1; the extension downloads nothing at runtime (the
   catalogue is the BOM already in `~/.m2`; what a build downloads is the
   build's, through the registry link); no source or comment text goes to a
@@ -594,9 +594,60 @@ the changelog before phase 1 starts, not defined here (§11 open 2).
 | 11 | The Gradle debug flag for `quarkusDev`? | **Maven first; Gradle in phase 3**, its exact invocation pinned from the fixture's real output as RFC 0001 phase 7 does. The Quarkus Gradle plugin's `jvmArgs`/`debug` options changed between 3.x minors and are not guessed from documentation. |
 | 12 | The two additions to existing changelog rows? | **Carried by the existing 1.1 rows of RFC 0001 §5.2** — `registerRunTemplate` for a template that yields a task (with `upsertTask`, shared with RFC 0004), `registerRunStepKind` for extra arguments on a kind's start task. Neither is a new member; the three RFCs land one change in the core, not three. |
 
+| 13 | The bridged key (phase 2, measured) | **`java.home`, a JDK ≥ 21**, not `microprofile.tools.server.java.home` — that key does not exist: `redhat.vscode-microprofile` 0.18.0 registers only `microprofile.tools.server.vmargs` and reads `java.home`, then `JDK_HOME`, `JAVA_HOME`, `PATH`, and refuses below 21. `java.home` is registered by `redhat.java` (deprecated for `java.jdt.ls.java.home`, which the core writes and which wins), so writing it does not move JDT.LS; it does make `redhat.java` show its "configuration changed, please reload" notice once. The value is the newest JDK ≥ 21 the core found, not the project's (17 is enough for Quarkus, not for the server). |
+| 14 | The template (phase 2) | **A `batlehub-run` of one `quarkus-dev` step**, not a task plus an attach: §4.2's task would be the editor's process, not a managed one — the orphan of §2 point 1 — and RFC 0003 now exists. `Run > Quarkus dev mode` and the tab's `Start` (the same configuration, inline) are one session; `Debug` (phase 3) is the same step with `debug: true`, attached by the core on `localhost:<debugPort>`. |
+| 15 | How the kind starts dev mode | **`RunStepKind.goal`** (contract 1.1): the kind returns `{ tool: "maven", goal: "quarkus:dev", args }` and the core runs it through `goalCommand`, the function every `batlehub-java` task is built by — §5.1's "the engine runs the core's task" as code, so `-s`, `-P`, the wrapper and the JDK cannot differ from a task's. Without `debug` dev mode runs with `-Ddebug=false`: it opens 5005 otherwise, an agent nobody attaches to. |
+| 16 | The stop (measured) | **`q` on stdin, then the core's `SIGTERM` to the group after `stopGraceMs` (5 000, set by the template), `SIGKILL` 5 000 later** — `GracefulStop { stdin }` in contract 1.1. Dev mode's console reads keys only from a terminal, so on a pipe `q` does nothing and `SIGTERM` is what stops it: `stopped (term)` in 5.2 s on the fixture. The `q` stays: it is what a future terminal-backed run needs, and costs the grace. |
+| 17 | Dev mode's state | **`process.running()` and `process.onDidChange`** (contract 1.1), with the kind on each entry: the tab, the status bar item and the refusal read the core's list; the satellite holds no handle. |
+| 18 | Quarkus version of the fixture | **3.40.1**, the current platform at phase 2, not 3.26.x: the fixture is what `quarkus create app` writes, its BOM named through properties — which detection must resolve. |
+| 19 | Add / remove without `registry.quarkus.io` (phase 3, measured) | **`-DquarkusRegistryClient=false`** on `quarkus:add-extension` / `remove-extension` and Gradle's `addExtension` / `removeExtension`. Without it the plugin resolves the Quarkus registry's descriptor from `registry.quarkus.io/maven` — offline it fails, online it is the egress §7 forbids. With it the tool reads the platform's own descriptor, an ordinary artifact (`quarkus-bom-quarkus-platform-descriptor`, JSON) fetched through the build's repositories — the registry link — once, then offline. Measured on both tools, add then remove, remove with `-o` / `--offline`. |
+| 20 | The catalogue's source (phase 3) | **That descriptor**, in `~/.m2` or Gradle's cache: 253 extensions with their names, 59 `unlisted` left out. Without it, the BOM: an `io.quarkus` artifact managed with a `-deployment` twin is an extension, named by its id. Neither → "run a build first". Nothing is downloaded by the satellite. |
+| 21 | How the satellite runs add / remove | **`project.runGoal(folder, goal)`** (contract 1.1): a `batlehub-java` task in its terminal, built by the same function as every task, resolved with its exit code; then the core's `Java: Reload the Java projects`. The satellite never builds a command line. |
+| 22 | Gradle dev mode's debug flag (decision 11, measured) | **The same `-Ddebug=<port>` as Maven**, passed to `quarkusDev` as a system property: `Listening for transport dt_socket at address: 5006` with `-Ddebug=5006`, no JDWP port with `-Ddebug=false`, `/q/health/ready` UP either way, on Quarkus 3.40.1 with Gradle 8.14.5. Not `JAVA_TOOL_OPTIONS` (§4.2). |
+
+### Measured — phase 2, 2026-10-09
+
+`extensions/java-quarkus` v0.1 (10 unit tests over the pure half), the
+core's additions in its own tests, and `task heavy:view:quarkus`: the
+Red Hat pair pinned from Open VSX (`vscode-microprofile` 0.18.0,
+`vscode-quarkus` 1.24.2026082508 and its dependency `vscode-java-debug`
+0.59.0), the newcomer's environment, `~/.m2` warmed once per Quarkus
+version. What building it found:
+
+1. **Dev mode: ready in 27–39 s, peak 688–776 MiB of the 1 024 declared**
+   (decision 9's measurement, five runs) — `mvn` plus the application JVM,
+   on the warmed fixture. 1 024 stays the default.
+2. **A failed foreign write must not fail the activation.** The first run's
+   bridge wrote an unregistered key; VS Code rejected it and the rejection
+   took every command of the satellite with it. The bridge now runs last,
+   after every registration, and logs its failure.
+3. **The MicroProfile server does not retry.** It starts at window load,
+   before the bridge has written its JDK, fails, and stays failed: the
+   reload of case 1 is not optional. After it, the server runs on the
+   bridged JDK and validates `application.properties` against the
+   project's keys (`quarkus.http.port` accepted, a made-up key flagged).
+4. **Completion answers once the server has the project.** Asked once,
+   after the server's diagnostics show it knows the project's keys,
+   `quarkus.http.` is completed with the platform's properties and their
+   defaults (`quarkus.http.accept-backlog = -1`, …). Three earlier runs
+   asked from the moment of the reload and retried `Ctrl+Space` every five
+   seconds for five minutes, and got only word suggestions; why the retries
+   never picked the server's answer up is not pinned. The driver now waits
+   for the diagnostics first, and asserts both.
+5. **The first window does not see the Red Hat pair.** Installed before
+   the server starts, they are absent from `vscode.extensions` in the
+   window that activates first, and present after the newcomer's reload —
+   so that window warns "not installed" once. Harmless, and the second
+   window is right.
+6. **Untrusted, a start is VS Code's own trust question first.** A
+   `batlehub-run` is a debug session, so in Restricted Mode `Start` meets
+   the editor's "Do you trust the authors…" modal before the core's
+   refusal; one gate the user already knows, then ours.
+
 ### Still open
 
-None at this revision.
+None at this revision. Phase 2's finding 4 names the one thing not pinned:
+why completion retried from the reload never showed the server's rows.
 
 ---
 
@@ -604,7 +655,7 @@ None at this revision.
 
 | Phase | Content |
 | --- | --- |
-| 1 | After RFC 0003 (orchestrator, managed process, `registerRunStepKind`) and together with RFC 0010 phase 1 — the members of §6.2 as the contract changelog schedules them, one change in the core: `upsertTask` behind `registerRunTemplate`, `extraArgs` behind the kind's start task |
-| 2 | `java-quarkus` v0.1: detection, the bridge, the tab with state, the templates, the `quarkus-dev` kind; fixture; cases 1, 2, 3, 6 |
-| 3 | v0.2: attach (`Debug`), the offline catalogue with add / remove; cases 4, 5; Gradle dev mode with the real flag |
-| 4 | `java-pack-frameworks` with RFC 0010; `docs/guide/java/quarkus.md` |
+| 1 | ~~After RFC 0003 (orchestrator, managed process, `registerRunStepKind`) and together with RFC 0010 phase 1 — the members of §6.2 as the contract changelog schedules them, one change in the core: `upsertTask` behind `registerRunTemplate`, `extraArgs` behind the kind's start task~~ **Done** (2026-10-09, contract 1.1, with RFC 0010 phase 1): `upsertTask` writes a template's task, `ServerStep.extraArgs` is in the kind's shape; the engine that passes it to the start task is RFC 0003 phases 3–4. |
+| 2 | ~~`java-quarkus` v0.1: detection, the bridge, the tab with state, the templates, the `quarkus-dev` kind; fixture; cases 1, 2, 3, 6~~ **Done** (revision 4): `QUARKUS-LS-OK`, `QUARKUS-DEV-OK`, `QUARKUS-STOP-OK`, `QUARKUS-DEGRADED-OK`; decisions 13–18. |
+| 3 | ~~v0.2: attach (`Debug`), the offline catalogue with add / remove; cases 4, 5; Gradle dev mode with the real flag~~ **Done** (revision 5): `QUARKUS-DEBUG-OK` (a breakpoint in `GreetingResource.hello` hit by `GET /hello` through the core's attach), `QUARKUS-EXT-OK` (`quarkus-jackson` added and removed from the descriptor's catalogue, re-imported), `QUARKUS-GRADLE-OK` (the Gradle fixture's dev mode, ready in 39 s); decisions 19–22. |
+| 4 | ~~`java-pack-frameworks` with RFC 0010; `docs/guide/java/quarkus.md`~~ **Done** (revision 6) ahead of RFC 0010: the pack lists `batlehub.java-quarkus` alone and installs beside it with the real editor's CLI; RFC 0010 phase 5 adds `batlehub.java-spring` to it. The guide page, the `heavy-quarkus` CI job, and `java-quarkus` / `java-pack-frameworks` as cog packages. |

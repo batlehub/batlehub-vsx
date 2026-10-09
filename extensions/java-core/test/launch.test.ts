@@ -6,6 +6,8 @@ import {
   removeConfig,
   TEMPLATES,
   upsertConfig,
+  upsertLaunch,
+  upsertTask,
 } from "../src/run/configs";
 
 const LAUNCH = `{
@@ -77,5 +79,33 @@ describe("launch.json round trip (§4.2)", () => {
       duplicate({ type: "java", name: "X", request: "launch", mainClass: "m" }),
     ).toMatchObject({ name: "X (copy)", mainClass: "m" });
     expect(removeConfig(one, "nope")).toBe(one);
+  });
+});
+
+describe("a satellite's template (contract 1.1)", () => {
+  it("upserts a task by label and a non-Java launch by name, keeping comments", () => {
+    const tasks = `{
+  // ours
+  "version": "2.0.0",
+  "tasks": [{ "label": "quarkus: dev", "type": "batlehub-java", "keep": 1 }]
+}`;
+    const t1 = upsertTask(tasks, {
+      label: "quarkus: dev",
+      type: "batlehub-java",
+      goal: "quarkus:dev",
+    });
+    expect(t1).toContain("// ours");
+    expect(t1).toContain('"keep": 1');
+    expect(t1).toContain('"goal": "quarkus:dev"');
+    const t2 = upsertTask(undefined, { label: "x", type: "shell" });
+    expect(JSON.parse(t2).tasks).toEqual([{ label: "x", type: "shell" }]);
+    const l = upsertLaunch(undefined, {
+      type: "node",
+      name: "Server",
+      request: "launch",
+    } as never);
+    expect(readLaunch(l).configurations).toEqual([
+      { type: "node", name: "Server", request: "launch" },
+    ]);
   });
 });

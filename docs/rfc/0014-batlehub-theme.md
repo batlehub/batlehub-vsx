@@ -86,7 +86,7 @@ and never ahead of something a team is waiting for.
    editor's HC guarantees for users who need them.
 4. **Semantic tokens are where Java is coloured.** `redhat.java` emits
    semantic tokens (`class`, `interface`, `enum`, `method`, `property`,
-   `annotation`, `modifier`…); a theme that only sets TextMate scopes
+   `decorator` for an annotation's name, `annotationMember`, `modifier`…); a theme that only sets TextMate scopes
    colours Java by the grammar's guess and the language server's truth
    in two palettes.
 
@@ -131,7 +131,7 @@ and never ahead of something a team is waiting for.
    width.
 5. **Java semantic colours.** *Start:* case 1, JDT.LS in Standard mode
    (`SERVER-OK`). *Action:* none. *Proof:* in `Greeter.java` the driver
-   reads the rendered span colours of a class name, a method name, a
+   reads the rendered span colours of a class reference (`Person`), a method name, a
    string literal and an annotation and asserts the voices of §4.2:
    the editor's type colour for the class, its function colour for the
    method (bold on the declaration), its keyword colour for `public`, and
@@ -298,7 +298,7 @@ Three rows stay BatleHub's, appended after the borrowed list so they win:
 
 | Voice | Semantic tokens | TextMate scopes |
 | --- | --- | --- |
-| copper | `string`, `annotation`, `annotationMember` | `string`, `storage.type.annotation` |
+| copper | `string`, `decorator`, `annotation`, `annotationMember` | `string`, `storage.type.annotation` |
 | `error` | — | `invalid`, `invalid.illegal` |
 | the editor's comment green, *italic* | `comment` | `comment` |
 

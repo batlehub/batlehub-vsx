@@ -13,6 +13,7 @@ import { redactSnapshot } from "../detect";
 import { formatSize } from "../detect/resources";
 import type { Core } from "../extension";
 import { linesOf } from "../log";
+import { readHistory } from "../process/history";
 import { anonymise, redact } from "../redact";
 import { zip } from "./zip";
 
@@ -79,7 +80,7 @@ export async function reportProblem(core: Core): Promise<void> {
   const ver = versions();
   const summary = [
     ...Object.entries(ver).map(([k, v]) => `${k}: ${v}`),
-    `container limit: ${snap?.resources.limit ? formatSize(snap.resources.limit) : "none"}; planned: ${snap ? formatSize(snap.resources.planned) : "?"}`,
+    `container limit: ${snap?.resources.limit ? formatSize(snap.resources.limit) : "none"}; planned: ${core.resources() ? formatSize(core.resources()!.planned) : "?"}`,
     `runtimes: ${snap?.runtimes.map((r) => `${r.name} (${r.source})`).join(", ") || "none"}`,
     `folders: ${snap?.folders.map((f) => `${f.tool ?? "plain"}${f.required ? ` wants ${f.required.min}` : ""} → ${f.resolution.runtime?.name ?? "none"}`).join("; ") || "none"}`,
     `server mode: ${core.server.mode ?? "unknown"}; trusted: ${core.trusted()}`,
@@ -93,6 +94,20 @@ export async function reportProblem(core: Core): Promise<void> {
     {
       name: "settings.workspace.json",
       data: anon(JSON.stringify(workspaceSettings(), null, 2)),
+    },
+    // RFC 0003 §6.3: ids, caps, peaks and times — no argv, no env.
+    {
+      name: "processes.json",
+      data: JSON.stringify(
+        readHistory(
+          path.join(
+            core.context.globalStorageUri.fsPath,
+            "processes-history.json",
+          ),
+        ),
+        null,
+        2,
+      ),
     },
     ...Object.entries(linesOf()).map(([c, lines]) => ({
       name: `log-${c}.txt`,

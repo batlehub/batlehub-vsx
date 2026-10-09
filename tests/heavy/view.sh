@@ -46,7 +46,10 @@
 #                Standard mode reached; the JDK quick pick; spike (a) — the
 #                m2e preference and the classpath; RFC 0012 use cases 1–3 —
 #                the default-on write of java.completion.chain.enabled, a
-#                chain on the completion shortcut, its cost and its Undo;
+#                chain on the completion shortcut, its cost and its Undo
+#                (run in "shortcut"); RFC 0012 use case 4 — in "auto" the
+#                bundle's delegate answers an `int` chain while typing,
+#                gated at chainDelegateMs < 150 ms;
 #                RFC 0007 use case 1 —
 #                `Java: Import from IntelliJ` → Code style, gated on trust,
 #                planned as a diff, and `Format Document` matching the
@@ -64,7 +67,7 @@
 # when one exists) or BATLEHUB_BIN + BATLEHUB_CLI (release binaries,
 # `task hub:install`); HEAVY_PORT, HEAVY_EDITOR_PORT, VSCODE_VERSION
 # (1.136.1), WEEBO_VERSION (0.5.0), CDP_URL (http://127.0.0.1:9222),
-# HEAVY_ONLY=marketplace|broker|java|registry|seasons, REDHAT_JAVA_VERSION (1.56.0,
+# HEAVY_ONLY=marketplace|broker|java|registry|seasons|quarkus|spring|sonar, REDHAT_JAVA_VERSION (1.56.0,
 # decision 8).
 set -euo pipefail
 
@@ -88,6 +91,9 @@ REGISTRY_BASE="$HEAVY_BASE/proxy/$REG"
 EXT_ID="batleforc.weebo-bridge-notify"
 MATCH="Weebo"
 
+# Each run keeps its editors' data (~100 MB, 8.8 GB after 80 runs): only the
+# newest few are worth reading back. Names start with the epoch, so they sort.
+ls -1d "$REPO"/tests/heavy/work/[0-9]*/ 2>/dev/null | sort | head -n -"${HEAVY_KEEP:-3}" | xargs -r rm -rf
 mkdir -p "$HEAVY_WORK/shots" "$HEAVY_CACHE"
 ln -sfn "$HEAVY_WORK" "$REPO/tests/heavy/work/last"
 LOG="$HEAVY_WORK/suite.log"
@@ -121,7 +127,7 @@ cleanup() {
 trap cleanup EXIT
 
 REDHAT_JAVA_VERSION="${REDHAT_JAVA_VERSION:-1.56.0}"
-NEED_HUB=1; [[ "$ONLY" == "java" || "$ONLY" == "seasons" ]] && NEED_HUB=0
+NEED_HUB=1; [[ "$ONLY" == "java" || "$ONLY" == "seasons" || "$ONLY" == "quarkus" || "$ONLY" == "spring" || "$ONLY" == "sonar" ]] && NEED_HUB=0
 [[ "$NEED_HUB" == 0 || -n "${DATABASE_URL:-}" ]] || fail "DATABASE_URL is required (the Postgres sidecar: postgresql://batlehub:changeme@127.0.0.1:5432/batlehub)"
 command -v node >/dev/null || fail "node is required"
 command -v python3 >/dev/null || fail "python3 is required"
@@ -444,6 +450,11 @@ if [[ "$ONLY" == "all" || "$ONLY" == "java" ]]; then
   [[ -s "$JAVA_GROOVY_VSIX" ]] || fail "no $JAVA_GROOVY_VSIX"
   REDHAT_VSIX="$HEAVY_CACHE/redhat.java-$REDHAT_JAVA_VERSION.vsix"
   [[ -s "$REDHAT_VSIX" ]] || { log "Downloading redhat.java $REDHAT_JAVA_VERSION from Open VSX"; fetch -o "$REDHAT_VSIX" "https://open-vsx.org/api/redhat/java/$REDHAT_JAVA_VERSION/file/redhat.java-$REDHAT_JAVA_VERSION.vsix"; }
+  # RFC 0013: cspell is a pack member; pinned to its newest stable release
+  # (Open VSX's newer versions are pre-releases).
+  CSPELL_VERSION="${CSPELL_VERSION:-4.9.3}"
+  CSPELL_VSIX="$HEAVY_CACHE/streetsidesoftware.code-spell-checker-$CSPELL_VERSION.vsix"
+  [[ -s "$CSPELL_VSIX" ]] || { log "Downloading code-spell-checker $CSPELL_VERSION from Open VSX"; fetch -o "$CSPELL_VSIX" "https://open-vsx.org/api/streetsidesoftware/code-spell-checker/$CSPELL_VERSION/file/streetsidesoftware.code-spell-checker-$CSPELL_VERSION.vsix"; }
   # RFC 0014: the theme is not in the pack and not recommended, so it is not
   # part of the Java story — it is installed here because a theme is only
   # proven by a real client rendering it (§10 heavy).
@@ -470,14 +481,17 @@ if [[ "$ONLY" == "all" || "$ONLY" == "java" ]]; then
   JCFG="$HEAVY_WORK/config-java"
   rm -rf "$JCFG" && cp -r "$REPO/tests/heavy/fixtures/idea-home" "$JCFG"
   [[ -d "${XDG_CONFIG_HOME:-$HOME/.config}/mise" ]] && ln -s "${XDG_CONFIG_HOME:-$HOME/.config}/mise" "$JCFG/mise"
-  INSTALL_VSIX=("$REDHAT_VSIX" "$JAVA_CORE_VSIX" "$JAVA_GROOVY_VSIX" "$THEME_VSIX")
+  INSTALL_VSIX=("$REDHAT_VSIX" "$JAVA_CORE_VSIX" "$JAVA_GROOVY_VSIX" "$THEME_VSIX" "$CSPELL_VSIX")
   EDITOR_FOLDER="$JWS"
   T_START=$SECONDS
   # The suite lives inside the container's memory budget (§2 point 7 is not
   # theory: a 16 GiB tools container with rust-analyzer in it killed this
   # run twice): JDT.LS at 1 GiB, every other JVM the editor spawns (the
   # Groovy server) at 6% of the container through JAVA_TOOL_OPTIONS.
-  start_editor "$J" '{ "workbench.startupEditor": "none", "java.server.launchMode": "Standard", "java.jdt.ls.vmargs": "-XX:+UseParallelGC -XX:GCTimeRatio=4 -XX:AdaptiveSizePolicyWeight=90 -Dsun.zip.disableMemoryMapping=true -Xmx1G -Xms100m -Xlog:disable", "batlehub.java.log.level": "debug", "security.workspace.trust.enabled": false, "extensions.ignoreRecommendations": true, "git.openRepositoryInParentFolders": "never", "terminal.integrated.gpuAcceleration": "off" }' \
+  # cSpell.useGitignore: the suite's workspaces live under tests/heavy/work/,
+  # which this repository git-ignores, and cspell skips git-ignored files —
+  # a user's project is not git-ignored, so the suite says so (RFC 0013).
+  start_editor "$J" '{ "workbench.startupEditor": "none", "cSpell.useGitignore": false, "batlehub.java.completion.chain": "shortcut", "java.server.launchMode": "Standard", "java.jdt.ls.vmargs": "-XX:+UseParallelGC -XX:GCTimeRatio=4 -XX:AdaptiveSizePolicyWeight=90 -Dsun.zip.disableMemoryMapping=true -Xmx1G -Xms100m -Xlog:disable", "batlehub.java.log.level": "debug", "security.workspace.trust.enabled": false, "extensions.ignoreRecommendations": true, "git.openRepositoryInParentFolders": "never", "terminal.integrated.gpuAcceleration": "off" }' \
     JAVA_HOME= JDK_HOME= PATH="$JAVA_ENV_PATH" XDG_CONFIG_HOME="$JCFG" JAVA_TOOL_OPTIONS="-XX:MaxRAMPercentage=6"
   log "Editor (VS Code $VSCODE_VERSION, web) at http://127.0.0.1:$EDITOR_PORT, folder $JWS, started in $(( SECONDS - T_START )) s"
   DUMP_ON_FAIL="$J"; DUMP_JSONL="$HEAVY_WORK/java.jsonl"
@@ -560,14 +574,36 @@ print(f"{r:.2f}")' "$(field "$J_" theme)" >"$HEAVY_WORK/theme-light.txt" || fail
   assert_json "$J_" tasks "any('maven compile' in r or 'maven package' in r for r in d['rows']) and d['ran']" \
     "Tasks: Run Task does not list the batlehub-java Maven goals, or 'maven compile' did not end in BUILD SUCCESS: $(field "$J_" tasks | cut -c1-400)"
   log "TASKS-OK (the batlehub-java provider's goals in the editor's own task picker; 'maven compile' ran to BUILD SUCCESS in the terminal with the resolved JDK)"
-  assert_json "$J_" inspections "any('batlehub' in r for r in d['problems']) and d['fixedIsEmpty']" \
-    "the bundle's inspections did not reach the Problems panel or Fix all did not rewrite size()==0: $(field "$J_" inspections | cut -c1-400)"
-  log "INSPECTIONS-OK (batlehub diagnostics on Greeter.java; Fix all in file rewrote size() == 0 to isEmpty())"
+  assert_json "$J_" inspections "any('batlehub' in r for r in d['problems']) and d.get('golden') and d['fixed'].strip() == d['golden'].strip()" \
+    "the bundle's inspections did not reach the Problems panel, or Fix all in file is not .idea/golden/Greeter.fixed.java: $(field "$J_" inspections | python3 -c 'import sys, json, difflib; d = json.loads(sys.stdin.read() or "{}")
+print("problems:", (d.get("problems") or [])[:3])
+print("".join(list(difflib.unified_diff((d.get("golden") or "").splitlines(True), (d.get("fixed") or "").splitlines(True), "golden", "editor"))[:24]))')"
+  assert_json "$J_" spelling "d['detected'] and len(d['problems']) >= 1 and any('spelling/unknownWord' in r and 'via cspell' in r for r in d['view']) and 'Speller.java3' in d['view']" \
+    "cspell's findings in Speller.java did not reach the Problems panel and the Inspections view as spelling/unknownWord: $(field "$J_" spelling | cut -c1-900)"
+  log "SPELL-OK (cspell $CSPELL_VERSION detected and bridged; recieve, Mesage, retuns in Speller.java: rows with source cSpell in the Problems panel, and one rule in the Inspections view, Speller.java 3 — $(field "$J_" spelling | python3 -c 'import json,sys;print(next((r for r in json.load(sys.stdin)["view"] if "spelling" in r), ""))') — RFC 0013 case 1)"
+  assert_json "$J_" spellDict "d['picked'] and d['cspellJson'] and '\"Mesage\"' in d['cspellJson'] and '\"0.2\"' in d['cspellJson'] and 'target/**' in d['cspellJson'] and 'cSpell' not in (d['settings'] or '') and d['mesageGone']" \
+    "Add to project dictionary did not create cspell.json with the word, or the row stayed, or a cSpell key reached settings.json: $(field "$J_" spellDict | cut -c1-1200)"
+  log "SPELL-DICT-OK (the lightbulb on Mesage: the core's Add to project dictionary beside cspell's own fixes; cspell.json created — version 0.2, words [Mesage], ignorePaths target/** build/** —, nothing in settings.json, the row gone — RFC 0013 case 4)"
+  assert_json "$J_" inspections-cleanup "not d['greeterDirty']" \
+    "Greeter.java stayed dirty after the inspections step put the fixture back: every later step runs over a stale buffer"
+  log "INSPECTIONS-OK (batlehub diagnostics on Greeter.java; Fix all in file left the buffer byte-for-byte .idea/golden/Greeter.fixed.java — receivers kept, size() == 0 now isEmpty())"
   assert_json "$J_" generate "d['generated']" "Java: Getters and setters… did not write the accessors into Person.java: $(field "$J_" generate | cut -c1-300)"
   log "GENERATE-OK (the Generate menu wrote getters and setters through the bundle's delegate)"
   assert_json "$J_" groovy "d['registered'] and d['started'] and 'Groovy' in d['languageMode'] and d['statusItemHidden'] and d['statusItemShownAfterToggle']" \
     "the Groovy satellite did not register and start, or Hello.groovy did not open as Groovy: $(field "$J_" groovy | cut -c1-400)"
   log "GROOVY-OK (java-groovy registered through the contract, the server started on the core's JDK, Hello.groovy in Groovy mode; hover: '$(field "$J_" groovy | python3 -c 'import json,sys;print(json.load(sys.stdin)["hover"][:80])')'; its status bar item hidden by default and shown once batlehub.java.statusBar.items toggles it)"
+  assert_json "$J_" procGroovy "d['started'] and d['inSum']" \
+    "the Groovy server is not a managed process of the core, or its cap is not in the resources sum: $(field "$J_" procGroovy | cut -c1-400)"
+  log "PROC-GROOVY-OK (java-groovy's server started through the contract's process.start — 768 MiB declared, in the JDK tab's sum; RFC 0003 case 5)"
+  assert_json "$J_" runOrder "d['written'] and d['up'] and d['answered'] and 'run ● 1 process' in d['status'] and any(l.startswith('step 1 ready (port 18080 in') for l in d['console']) and any('Serving' in r for r in d['terminal']) and 'stopped by user' in d['stopConsole'] and any(l.startswith('stopping 1 (jwebserver) … stopped (term)') for l in d['stopConsole']) and d['portFreeAfter'] and 'run ●' not in d['statusAfter']" \
+    "case 1/4: the orchestrated run did not start jwebserver in order, show it, or stop it: $(field "$J_" runOrder | cut -c1-900)"
+  log "RUN-ORDER-OK (Java: New run configuration → Orchestrated run wrote a batlehub-run entry; F5: jwebserver in the terminal 'step 1: jwebserver', ready on port 18080, the status bar reads run ● 1 process; Debug: Stop → SIGTERM, the port free, the segment gone — RFC 0003 cases 1 and 4)"
+  assert_json "$J_" runAccept "not d['timedOut'] and 'step 1 exited 0' in d['console'] and any(l.startswith('step 2 ready (http') for l in d['console']) and 'step 3 ended (its debugger reports no exit code)' in d['console'] and d.get('itGot') == '200' and 'stopping 3 (Run IT) … already done' in d['console'] and any(l.startswith('stopping 2 (jwebserver) … stopped') for l in d['console']) and 'stopping 1 (batlehub-java: maven compile) … already done' in d['console'] and d['portFreeAfter']" \
+    "case 2: the acceptance run did not go task → server ready by HTTP → launch exited 0 → reverse stop: $(field "$J_" runAccept | cut -c1-900)"
+  log "RUN-ACCEPT-OK (maven compile exited 0, jwebserver ready by HTTP, the Run IT node launch GETs it (200) and ends — js-debug reports no exit code, and the run says so — then stopping 3 already done, 2 stopped, 1 already done; the port free — RFC 0003 case 2)"
+  assert_json "$J_" runTimeout "not d['timedOut'] and 'step 1 not ready after 5 s: http 404 (last)' in d['console'] and any(l.startswith('stopping 1 (jwebserver) … stopped') for l in d['console']) and d['portFreeAfter'] and 'run ●' not in d['statusAfter']" \
+    "case 3: a probe that never answers did not fail the run and still stop the process: $(field "$J_" runTimeout | cut -c1-900)"
+  log "RUN-TIMEOUT-OK (http 404 for 5 s fails the run with the last answer named, and the reverse stop still ran: the port free, the status bar segment gone — RFC 0003 case 3)"
   CP="$(field "$J_" classpath)"
   log "SPIKE-A: $(printf '%s' "$CP" | cut -c1-300)"
   python3 -c 'import json,sys; d=json.loads(sys.argv[1]); assert "classpath of" in d["tail"] or d["entriesAfter"]>0, "no classpath read at all"; assert not d["before"], "commons-lang3 on the classpath before any profile — the fixture is wrong"' "$CP" || fail "spike (a) baseline"
@@ -630,6 +666,9 @@ print("".join(list(difflib.unified_diff((d.get("golden") or "").splitlines(True)
   assert_json "$J_" chain "d['afterUndo']['clicked'] and d['afterUndo']['setting'] is None and not d['afterUndo']['manifestHas'] and d['afterUndo']['manifestOther'] > 0" \
     "Undo did not remove the setting and its one manifest entry, or it removed more than that: $(field "$J_" chain | python3 -c 'import json,sys;print(json.load(sys.stdin)["afterUndo"])')"
   log "UNDO-OK (Undo restored java.completion.chain.enabled to unset and dropped that one manifest entry, leaving every other write alone)"
+  assert_json "$J_" chainDelegate "d['found'] and not d['truncated']" \
+    "the delegate did not answer config.getServer().getPort() for an int while typing in \"auto\", or it was truncated on the fixture: $(field "$J_" chainDelegate | cut -c1-400)"
+  log "CHAIN-DELEGATE-OK (int p = g → $(field "$J_" chainDelegate | python3 -c 'import json,sys;d=json.load(sys.stdin);print(next((r for r in d["items"] if "getPort" in r), "?"))'), no shortcut; provider round trips $(field "$J_" chainDelegate | python3 -c 'import json,sys;print(json.load(sys.stdin)["trips"])') ms)"
   log "CHAIN-RANK $(field "$J_" chain | python3 -c 'import json,sys;d=json.load(sys.stdin);print("rank", d["chainRank"], "of", d.get("rankedCount"), "after typing con; the server sorts every chain last (sortText 999999979) —", d["rankedItems"][:4])')"
   assert_json "$J_" remove "any(c.startswith('Restore') for c in d['clicked']) and (d['settings'] is None or 'java.configuration.runtimes' not in d['settings'])" \
     "Remove BatleHub settings did not restore java.configuration.runtimes"
@@ -650,8 +689,9 @@ d = json.loads(sys.argv[1]); f = float(sys.argv[2])
 # chainMs is RFC 0012 §2.1 use case 3: the median of ten completion round
 # trips with chain completion on, read from redhat.java's own request trace.
 # chainOffMs is the same with it off, printed beside it so the cost of the
-# feature is a delta in the log rather than a feeling.
-gates = {"statusBarMs": 10000, "detectionMs": 3000, "readyMs": 60000, "activationMs": 5000, "chainMs": 800}
+# feature is a delta in the log rather than a feeling. chainDelegateMs is
+# use case 4: the median of ten provider round trips in "auto", cold cache.
+gates = {"statusBarMs": 10000, "detectionMs": 3000, "readyMs": 60000, "activationMs": 5000, "chainMs": 800, "chainDelegateMs": 150}
 bad = [f"{k}={d.get(k)} > {v*f:.0f}" for k, v in gates.items() if d.get(k, -1) < 0 or d.get(k) > v * f]
 if bad: print("PERF-GATE failed: " + ", ".join(bad)); sys.exit(1)
 print("PERF-GATE ok: " + ", ".join(f"{k}={d[k]} ms (< {v*f:.0f})" for k, v in gates.items())
@@ -785,6 +825,234 @@ SEEDPY
     "after a reload the glyph or the status bar item came back"
   log "PERSIST-OK (a window reload finds nothing of ours left to reapply)"
   log "SEASONS-HALF-OK"
+fi
+
+# ---- 8. The quarkus half (RFC 0011 section 10) ---------------------------
+if [[ "$ONLY" == "all" || "$ONLY" == "quarkus" ]]; then
+  log "Quarkus half: java-quarkus with the Red Hat pair, then without it - the quarkus fixture, dev mode as a managed process"
+  QUARKUS_VERSION="3.40.1"
+  MICROPROFILE_VERSION="${MICROPROFILE_VERSION:-0.18.0}"
+  VSCODE_QUARKUS_VERSION="${VSCODE_QUARKUS_VERSION:-1.24.2026082508}"
+  JAVA_DEBUG_VERSION="${JAVA_DEBUG_VERSION:-0.59.0}"
+  for p in java-core java-quarkus; do
+    (cd "$REPO/extensions/$p" && pnpm run package >>"$HEAVY_WORK/package.log" 2>&1) || { tail -20 "$HEAVY_WORK/package.log" >&2; fail "packaging $p failed"; }
+  done
+  JAVA_CORE_VSIX="$REPO/extensions/java-core/java-core.vsix"
+  QUARKUS_VSIX="$REPO/extensions/java-quarkus/java-quarkus.vsix"
+  ovsx() { # ovsx <namespace> <name> <version>: a pinned VSIX from Open VSX, cached
+    local f="$HEAVY_CACHE/$1.$2-$3.vsix"
+    [[ -s "$f" ]] || { log "Downloading $1.$2 $3 from Open VSX"; fetch -o "$f" "https://open-vsx.org/api/$1/$2/$3/file/$1.$2-$3.vsix"; }
+    printf '%s' "$f"
+  }
+  REDHAT_VSIX="$(ovsx redhat java "$REDHAT_JAVA_VERSION")"
+  MP_VSIX="$(ovsx redhat vscode-microprofile "$MICROPROFILE_VERSION")"
+  DEBUG_VSIX="$(ovsx vscjava vscode-java-debug "$JAVA_DEBUG_VERSION")"
+  RHQ_VSIX="$(ovsx redhat vscode-quarkus "$VSCODE_QUARKUS_VERSION")"
+  log "PACKAGE-OK (java-quarkus $(stat -c %s "$QUARKUS_VSIX") bytes; redhat.java $REDHAT_JAVA_VERSION, vscode-microprofile $MICROPROFILE_VERSION, vscode-java-debug $JAVA_DEBUG_VERSION, vscode-quarkus $VSCODE_QUARKUS_VERSION)"
+  # Dev mode's first start resolves the platform from Central: warm ~/.m2 once
+  # per Quarkus version, outside the editor, so the probe measures dev mode.
+  QWARM="$HEAVY_CACHE/quarkus-warm-v2-$QUARKUS_VERSION"
+  if [[ ! -e "$QWARM" ]]; then
+    log "Warming ~/.m2 for Quarkus $QUARKUS_VERSION (mvn package on a copy of the fixture)"
+    rm -rf "$HEAVY_WORK/quarkus-warm" && cp -r "$REPO/tests/heavy/fixtures/quarkus" "$HEAVY_WORK/quarkus-warm"
+    mise exec java@temurin-21.0.11+10.0.LTS maven@3.9.16 -- mvn -B -q -f "$HEAVY_WORK/quarkus-warm/pom.xml" package -DskipTests >>"$HEAVY_WORK/package.log" 2>&1 \
+      || { tail -30 "$HEAVY_WORK/package.log" >&2; fail "warming ~/.m2 for the quarkus fixture failed"; }
+    # The catalogue reads the platform's descriptor from ~/.m2 (case 5), and
+    # the Gradle fixture needs the plugin and the platform in ~/.gradle.
+    mise exec java@temurin-21.0.11+10.0.LTS maven@3.9.16 -- mvn -B -q dependency:get -Dartifact="io.quarkus.platform:quarkus-bom-quarkus-platform-descriptor:$QUARKUS_VERSION:json:$QUARKUS_VERSION" >>"$HEAVY_WORK/package.log" 2>&1 \
+      || { tail -30 "$HEAVY_WORK/package.log" >&2; fail "fetching the Quarkus platform descriptor failed"; }
+    rm -rf "$HEAVY_WORK/quarkus-gradle-warm" && cp -r "$REPO/tests/heavy/fixtures/quarkus-gradle" "$HEAVY_WORK/quarkus-gradle-warm"
+    (cd "$HEAVY_WORK/quarkus-gradle-warm" && mise exec java@temurin-21.0.11+10.0.LTS gradle@8.14.5 -- gradle --no-daemon -q quarkusBuild) >>"$HEAVY_WORK/package.log" 2>&1 \
+      || { tail -30 "$HEAVY_WORK/package.log" >&2; fail "warming ~/.gradle for the quarkus-gradle fixture failed"; }
+    touch "$QWARM"
+  fi
+  QENV_PATH="$(printf '%s' "$PATH" | tr ':' '\n' | grep -v -E '/java|/jdk|/jvm' | paste -sd: -)"
+  QSETTINGS='{ "workbench.startupEditor": "none", "java.server.launchMode": "Standard", "java.jdt.ls.vmargs": "-XX:+UseParallelGC -Xmx1G -Xms100m -Xlog:disable", "security.workspace.trust.enabled": false, "extensions.ignoreRecommendations": true, "git.openRepositoryInParentFolders": "never", "terminal.integrated.gpuAcceleration": "off", "batlehub.java.statusBar.items": { "quarkus.dev": true }, "redhat.telemetry.enabled": false }'
+  quarkus_run() { # quarkus_run <label> <jsonl> <fixture> [--degraded 1 | --gradle 1]: one editor, one driver run
+    local label="$1" out="$2" fixture="$3"; shift 3
+    local QE="$HEAVY_WORK/editor-$label" QWS="$HEAVY_WORK/$label-ws"
+    rm -rf "$QWS" && cp -r "$REPO/tests/heavy/fixtures/$fixture" "$QWS"
+    EDITOR_FOLDER="$QWS"
+    start_editor "$QE" "$QSETTINGS" JAVA_HOME= JDK_HOME= PATH="$QENV_PATH" JAVA_TOOL_OPTIONS="-XX:MaxRAMPercentage=6"
+    log "Editor ($label) at http://127.0.0.1:$EDITOR_PORT, folder $QWS"
+    DUMP_ON_FAIL="$QE"; DUMP_JSONL="$out"
+    node tests/heavy/quarkus.mjs --url "http://127.0.0.1:$EDITOR_PORT/?folder=$QWS" --shots "$HEAVY_WORK/shots" --cdp "$CDP_URL" --workspace "$QWS" "$@" \
+      >"$out" 2>"$out.err" || { cat "$out.err" >&2; cat "$out" >&2; fail "the quarkus driver failed ($label)"; }
+    stop_editor
+    cat "$out" >>"$LOG"
+  }
+  # The Red Hat pair in dependency order: an extension's dependencies are installed before it.
+  INSTALL_VSIX=("$REDHAT_VSIX" "$MP_VSIX" "$DEBUG_VSIX" "$RHQ_VSIX" "$JAVA_CORE_VSIX" "$QUARKUS_VSIX")
+  quarkus_run quarkus "$HEAVY_WORK/quarkus.jsonl" quarkus
+  Q_="$HEAVY_WORK/quarkus.jsonl"
+  assert_json "$Q_" detect "'detected Quarkus 3.40.1 (maven, module quarkus-fixture)' in ' '.join(d['lines']) and 'wrote java.home = ' in ' '.join(d['lines'])" \
+    "the satellite did not detect Quarkus 3.40.1, or did not bridge the MicroProfile server's JDK: $(field "$Q_" detect | cut -c1-900)"
+  assert_json "$Q_" completion "not d['timedOut'] and any(\"Unrecognized property 'quarkus.http.nope'\" in r for r in d['problems']) and not any('quarkus.http.port' in r for r in d['problems']) and any(r.startswith('quarkus.http.') and ' = ' in r for r in d['rows'])" \
+    "the MicroProfile server did not validate application.properties against the project's Quarkus keys: $(field "$Q_" completion | cut -c1-900)"
+  log "QUARKUS-LS-OK (detected Quarkus 3.40.1 from the core's model; java.home — the MicroProfile server's JDK, ≥ 21 — written through the manifest for the newcomer; after the reload the server runs on it and knows the project's keys: quarkus.http.port accepted, quarkus.http.nope flagged in $(field "$Q_" completion | python3 -c 'import json,sys;print(json.load(sys.stdin)["ms"])') ms, quarkus.http. completed with $(field "$Q_" completion | python3 -c 'import json,sys;print(json.load(sys.stdin)["rows"][:2])') — RFC 0011 case 1)"
+  assert_json "$Q_" dev "not d['timedOut'] and d['health']['status'] == 200 and d['started'] and d['inSum'] and ':8081' in d['status'] and 'running · pid' in d['tab'] and 'port 8081' in d['tab']" \
+    "dev mode did not come up as a managed process, ready on /q/health/ready, in the sum, the status bar and the tab: $(field "$Q_" dev | cut -c1-1200)"
+  log "QUARKUS-DEV-OK (Quarkus: Start dev mode → quarkus:dev through the core's managed process, 1024 MiB declared and in the sum, /q/health/ready UP on 8081 in $(field "$Q_" dev | python3 -c 'import json,sys;print(json.load(sys.stdin)["ms"])') ms, the status bar and the Quarkus tab say running — RFC 0011 case 2)"
+  assert_json "$Q_" stop "any('already running (pid' in n and 'port 8081' in n for n in d['refused']) and d['portFree'] and any(l.startswith('stopping 1 (quarkus-dev) … stopped (') for l in d['console']) and ':8081' not in d['statusAfter'] and 'Dev mode: stopped' in d['tabAfter']" \
+    "a second start was not refused, or Stop did not free 8081 and say so: $(field "$Q_" stop | cut -c1-1200)"
+  assert_json "$Q_" debug "d['up'] and d['paused'] and any('paused on breakpoint' in r.lower() for r in d['stack']) and d['body'] == 'Hello from Quarkus' and d['portFree']" \
+    "Debug dev mode did not stop on the breakpoint in GreetingResource.hello, or did not answer after Continue: $(field "$Q_" debug | cut -c1-900)"
+  log "QUARKUS-DEBUG-OK (Quarkus: Debug dev mode → the same run step with debug: true, -Ddebug=5005 and the core's attach on localhost; GET /hello stopped in GreetingResource.hello, Continue answered 'Hello from Quarkus', Stop freed 8081 — RFC 0011 case 4)"
+  assert_json "$Q_" extensions "d['added'] and 'quarkus-jackson' in d['tabAdded'] and d['removed'] and d['reimported'] and any('quarkus-jackson' in r for r in d['addRows'])" \
+    "adding then removing quarkus-jackson from the catalogue did not change the POM, the tab and re-import each time: $(field "$Q_" extensions | cut -c1-900)"
+  log "QUARKUS-EXT-OK (Add… lists the platform's catalogue from ~/.m2, quarkus:add-extension with the registry client off wrote quarkus-jackson into the POM, the core re-imported and the tab lists it; Remove… took it out again — RFC 0011 case 5)"
+  log "QUARKUS-STOP-OK (a second start refused naming pid and port; Stop: q, then the group — 8081 free, the tab and the status bar say stopped — RFC 0011 case 3)"
+
+  # Case 6: the satellite and the core alone.
+  INSTALL_VSIX=("$JAVA_CORE_VSIX" "$QUARKUS_VSIX")
+  quarkus_run quarkus-degraded "$HEAVY_WORK/quarkus-degraded.jsonl" quarkus --degraded 1
+  QD_="$HEAVY_WORK/quarkus-degraded.jsonl"
+  assert_json "$QD_" detect "any('redhat.vscode-quarkus, redhat.vscode-microprofile not installed' in n for n in d['notifications'])" \
+    "without the Red Hat pair there was no warning naming both: $(field "$QD_" detect | cut -c1-900)"
+  assert_json "$QD_" dev "not d['timedOut'] and d['health']['status'] == 200 and d['started']" \
+    "without the Red Hat pair dev mode did not come up: $(field "$QD_" dev | cut -c1-900)"
+  assert_json "$QD_" stop "d['portFree']" "without the Red Hat pair Stop did not free 8081"
+  log "QUARKUS-DEGRADED-OK (no Red Hat pair: one warning naming both with Install; dev mode starts, is ready and stops unchanged — RFC 0011 case 6)"
+  # Gradle: the kind's quarkusDev with the measured flag (decision 11), core and satellite only.
+  quarkus_run quarkus-gradle "$HEAVY_WORK/quarkus-gradle.jsonl" quarkus-gradle --gradle 1
+  QG_="$HEAVY_WORK/quarkus-gradle.jsonl"
+  assert_json "$QG_" detect "'detected Quarkus 3.40.1 (gradle, module' in ' '.join(d['lines'])" \
+    "the Gradle fixture was not detected as Quarkus 3.40.1 (gradle.properties): $(field "$QG_" detect | cut -c1-600)"
+  assert_json "$QG_" dev "not d['timedOut'] and d['health']['status'] == 200 and d['started']" \
+    "Gradle dev mode did not come up as a managed process: $(field "$QG_" dev | cut -c1-900)"
+  assert_json "$QG_" stop "d['portFree']" "Gradle dev mode's Stop did not free 8081"
+  log "QUARKUS-GRADLE-OK (the Gradle fixture: Quarkus 3.40.1 from gradle.properties, quarkusDev -Ddebug=false through the core's managed process, ready on /q/health/ready in $(field "$QG_" dev | python3 -c 'import json,sys;print(json.load(sys.stdin)["ms"])') ms, stopped — RFC 0011 decision 11)"
+  log "QUARKUS-HALF-OK"
+fi
+
+# ---- 9. The spring half (RFC 0010 section 10) ----------------------------
+if [[ "$ONLY" == "all" || "$ONLY" == "spring" ]]; then
+  log "Spring half: java-spring with Spring Boot Tools, then without it - the spring-boot fixture"
+  BOOT_VERSION="4.1.1"
+  VMWARE_SPRING_VERSION="${VMWARE_SPRING_VERSION:-2.4.0}"
+  VSCODE_MAVEN_VERSION="${VSCODE_MAVEN_VERSION:-0.45.3}"
+  JAVA_DEBUG_VERSION="${JAVA_DEBUG_VERSION:-0.59.0}"
+  for p in java-core java-spring; do
+    (cd "$REPO/extensions/$p" && pnpm run package >>"$HEAVY_WORK/package.log" 2>&1) || { tail -20 "$HEAVY_WORK/package.log" >&2; fail "packaging $p failed"; }
+  done
+  JAVA_CORE_VSIX="$REPO/extensions/java-core/java-core.vsix"
+  SPRING_VSIX="$REPO/extensions/java-spring/java-spring.vsix"
+  ovsx() { # ovsx <namespace> <name> <version>: a pinned VSIX from Open VSX, cached
+    local f="$HEAVY_CACHE/$1.$2-$3.vsix"
+    [[ -s "$f" ]] || { log "Downloading $1.$2 $3 from Open VSX"; fetch -o "$f" "https://open-vsx.org/api/$1/$2/$3/file/$1.$2-$3.vsix"; }
+    printf '%s' "$f"
+  }
+  REDHAT_VSIX="$(ovsx redhat java "$REDHAT_JAVA_VERSION")"
+  MAVEN_EXT_VSIX="$(ovsx vscjava vscode-maven "$VSCODE_MAVEN_VERSION")"
+  DEBUG_VSIX="$(ovsx vscjava vscode-java-debug "$JAVA_DEBUG_VERSION")"
+  VMWARE_VSIX="$(ovsx vmware vscode-spring-boot "$VMWARE_SPRING_VERSION")"
+  log "PACKAGE-OK (java-spring $(stat -c %s "$SPRING_VSIX") bytes; redhat.java $REDHAT_JAVA_VERSION, vscode-maven $VSCODE_MAVEN_VERSION, vscode-java-debug $JAVA_DEBUG_VERSION, vscode-spring-boot $VMWARE_SPRING_VERSION — the newest stable release, not a daily pre-release)"
+  SWARM="$HEAVY_CACHE/spring-warm-$BOOT_VERSION"
+  if [[ ! -e "$SWARM" ]]; then
+    log "Warming ~/.m2 for Spring Boot $BOOT_VERSION (mvn package on a copy of the fixture)"
+    rm -rf "$HEAVY_WORK/spring-warm" && cp -r "$REPO/tests/heavy/fixtures/spring-boot" "$HEAVY_WORK/spring-warm"
+    mise exec java@temurin-21.0.11+10.0.LTS maven@3.9.16 -- mvn -B -q -f "$HEAVY_WORK/spring-warm/pom.xml" package -DskipTests >>"$HEAVY_WORK/package.log" 2>&1 \
+      || { tail -30 "$HEAVY_WORK/package.log" >&2; fail "warming ~/.m2 for the spring-boot fixture failed"; }
+    touch "$SWARM"
+  fi
+  SENV_PATH="$(printf '%s' "$PATH" | tr ':' '\n' | grep -v -E '/java|/jdk|/jvm' | paste -sd: -)"
+  SSETTINGS='{ "workbench.startupEditor": "none", "java.server.launchMode": "Standard", "java.jdt.ls.vmargs": "-XX:+UseParallelGC -Xmx1G -Xms100m -Xlog:disable", "security.workspace.trust.enabled": false, "extensions.ignoreRecommendations": true, "git.openRepositoryInParentFolders": "never", "terminal.integrated.gpuAcceleration": "off", "redhat.telemetry.enabled": false }'
+  spring_run() { # spring_run <label> <jsonl> [--degraded 1]
+    local label="$1" out="$2"; shift 2
+    local SE="$HEAVY_WORK/editor-$label" SWS2="$HEAVY_WORK/$label-ws"
+    rm -rf "$SWS2" && cp -r "$REPO/tests/heavy/fixtures/spring-boot" "$SWS2"
+    EDITOR_FOLDER="$SWS2"
+    start_editor "$SE" "$SSETTINGS" JAVA_HOME= JDK_HOME= PATH="$SENV_PATH" JAVA_TOOL_OPTIONS="-XX:MaxRAMPercentage=6"
+    log "Editor ($label) at http://127.0.0.1:$EDITOR_PORT, folder $SWS2"
+    DUMP_ON_FAIL="$SE"; DUMP_JSONL="$out"
+    node tests/heavy/spring.mjs --url "http://127.0.0.1:$EDITOR_PORT/?folder=$SWS2" --shots "$HEAVY_WORK/shots" --cdp "$CDP_URL" --workspace "$SWS2" "$@" \
+      >"$out" 2>"$out.err" || { cat "$out.err" >&2; cat "$out" >&2; fail "the spring driver failed ($label)"; }
+    stop_editor
+    cat "$out" >>"$LOG"
+  }
+  # Dependencies first: vscode-spring-boot needs redhat.java and vscode-maven; running needs the debugger.
+  INSTALL_VSIX=("$REDHAT_VSIX" "$MAVEN_EXT_VSIX" "$DEBUG_VSIX" "$VMWARE_VSIX" "$JAVA_CORE_VSIX" "$SPRING_VSIX")
+  spring_run spring "$HEAVY_WORK/spring.jsonl"
+  P_="$HEAVY_WORK/spring.jsonl"
+  assert_json "$P_" detect "'detected Spring Boot 4.1.1 (maven, module spring-boot-fixture)' in ' '.join(d['lines']) and 'wrote spring-boot.ls.java.home = ' in ' '.join(d['lines'])" \
+    "the satellite did not detect Spring Boot 4.1.1, or did not bridge Spring Tools' JDK: $(field "$P_" detect | cut -c1-900)"
+  assert_json "$P_" hover "not d['timedOut']" "Spring Tools never documented server.port in application.yml: $(field "$P_" hover | cut -c1-600)"
+  log "SPRING-LS-OK (detected Spring Boot 4.1.1 through the parent; spring-boot.ls.java.home — a JDK ≥ 21 — written through the manifest for the newcomer; after the reload Spring Tools documents server.port: '$(field "$P_" hover | python3 -c 'import json,sys;print(json.load(sys.stdin)["text"][:80])')' — RFC 0010 case 1)"
+  assert_json "$P_" profiles "d['clicked'] and 'dev' in (d['settings'] or '') and 'activeProfiles' in (d['settings'] or '') and 'Maven profiles' in d['after'] and 'dev 8081' in d['after']" \
+    "ticking dev in the Spring tab did not write batlehub.java.spring.activeProfiles, or the tab does not show both profile systems: $(field "$P_" profiles | cut -c1-900)"
+  assert_json "$P_" template "not d['timedOut'] and '-Dspring.profiles.active=dev' in d['launch'] and '\"template\": \"spring-boot\"' in d['launch'] and 'com.acme.demo.DemoApplication' in d['launch']" \
+    "the Spring Boot application template did not write the entry with the dev profile: $(field "$P_" template | cut -c1-900)"
+  assert_json "$P_" run "not d['timedOut'] and d['health']['status'] == 200 and d['activeProfiles'] == ['dev'] and d['stopped']" \
+    "the Spring Boot entry did not start on the dev port, or did not stop: $(field "$P_" run | cut -c1-900)"
+  assert_json "$P_" devtools "'UP' in d['row1'] and d['restarted'] and d['hello'] == 'Hello after a restart' and d['rowRestarted'] and d['restartReason'] and d['stopFromTab'] and d['stopped']" \
+    "a saved edit did not restart the app through devtools, the row did not show it, or the tab's Stop did not end it: $(field "$P_" devtools | cut -c1-900)"
+  log "SPRING-DEVTOOLS-OK (the row for localhost:8081 (started by the editor); a saved HelloController restarted the context through devtools — /hello answered the new string, the row's uptime reset and says restarted 1×, the JVM's process.uptime did not; Restart disabled with its reason — Boot 4 has no restart endpoint; the tab's Stop ended it — RFC 0010 case 4)"
+  assert_json "$P_" dashboard "d['up'] and 'UP' in d['row'] and d['rowAfterMs'] <= 15000 and d['stopDisabled'] and d['opened'] and d['appStopped'] and 0 <= d['rowGoneMs'] <= 15000" \
+    "the dashboard did not see the spring-boot:run instance, open it, or drop it after Ctrl+C: $(field "$P_" dashboard | cut -c1-900)"
+  log "SPRING-DASH-OK (spring-boot:run as a batlehub-java task: its row appeared $(field "$P_" dashboard | python3 -c 'import json,sys;print(json.load(sys.stdin)["rowAfterMs"])') ms after it answered, Stop disabled — started outside the editor —, Open showed localhost:8080 in the simple browser; Ctrl+C, and the row went $(field "$P_" dashboard | python3 -c 'import json,sys;print(json.load(sys.stdin)["rowGoneMs"])') ms later — RFC 0010 case 3)"
+  assert_json "$P_" accept "not d['timedOut'] and any(l.startswith('step 1 ready (http http://localhost:8081/actuator/health in') for l in d['console']) and 'step 2 exited 0' in d['console'] and 'stopping 2 (node) … already done' in d['console'] and any(l.startswith('stopping 1 (spring-boot) … stopped (term)') for l in d['console']) and d['portFree']" \
+    "the acceptance run did not go app ready on /actuator/health → client exited 0 → reverse stop: $(field "$P_" accept | cut -c1-1200)"
+  log "SPRING-ACCEPT-OK (a batlehub-run: step 1 the spring-boot kind — spring-boot:run with the dev profile through the core's managed process, ready on /actuator/health —, step 2 a client that GETs /hello and exits 0, then stopping 2 already done, 1 stopped by SIGTERM: $(field "$P_" accept | python3 -c 'import json,sys;d=json.load(sys.stdin);print(next((l for l in d["console"] if l.startswith("stopping 1")), "")[:90])'); graceful shutdown in its terminal: $(field "$P_" accept | python3 -c 'import json,sys;print(json.load(sys.stdin)["graceful"])') — RFC 0010 case 6)"
+  log "SPRING-RUN-OK (dev ticked in the Spring tab → batlehub.java.spring.activeProfiles; Java: New run configuration → Spring Boot application wrote mainClass com.acme.demo.DemoApplication with -Dspring.profiles.active=dev; F5: /actuator/health UP on 8081, the dev document's port, in $(field "$P_" run | python3 -c 'import json,sys;print(json.load(sys.stdin)["ms"])') ms, /actuator/env says activeProfiles [dev] — RFC 0010 case 2)"
+
+  # Case 5: the satellite and the core alone.
+  INSTALL_VSIX=("$JAVA_CORE_VSIX" "$SPRING_VSIX")
+  spring_run spring-degraded "$HEAVY_WORK/spring-degraded.jsonl" --degraded 1
+  PD_="$HEAVY_WORK/spring-degraded.jsonl"
+  assert_json "$PD_" detect "any('need Spring Boot Tools (vmware.vscode-spring-boot)' in n for n in d['notifications']) and 'wrote spring-boot.ls.java.home' not in ' '.join(d['lines'])" \
+    "without Spring Boot Tools there was no warning naming it, or the bridge wrote anyway: $(field "$PD_" detect | cut -c1-900)"
+  assert_json "$PD_" profiles "d['clicked'] and 'dev' in (d['settings'] or '')" "without Spring Boot Tools the Spring tab's profiles did not work"
+  assert_json "$PD_" template "not d['timedOut'] and '-Dspring.profiles.active=dev' in d['launch']" "without Spring Boot Tools the template did not work"
+  log "SPRING-DEGRADED-OK (no Spring Boot Tools: one warning naming it, nothing bridged; the tab's profiles and the template work unchanged — RFC 0010 case 5)"
+  log "SPRING-HALF-OK"
+fi
+
+# ---- 10. The sonar half (RFC 0016 phase 1) --------------------------------
+if [[ "$ONLY" == "all" || "$ONLY" == "sonar" ]]; then
+  log "Sonar half: SonarLint bridged into the Inspections view, then absent - the maven-multi fixture plus a TODO"
+  SONARLINT_VERSION="${SONARLINT_VERSION:-5.9.0}"
+  (cd "$REPO/extensions/java-core" && pnpm run package >>"$HEAVY_WORK/package.log" 2>&1) || { tail -20 "$HEAVY_WORK/package.log" >&2; fail "packaging java-core failed"; }
+  JAVA_CORE_VSIX="$REPO/extensions/java-core/java-core.vsix"
+  REDHAT_VSIX="$HEAVY_CACHE/redhat.java-$REDHAT_JAVA_VERSION.vsix"
+  [[ -s "$REDHAT_VSIX" ]] || fetch -o "$REDHAT_VSIX" "https://open-vsx.org/api/redhat/java/$REDHAT_JAVA_VERSION/file/redhat.java-$REDHAT_JAVA_VERSION.vsix"
+  # The linux-x64 build, as Open VSX serves a Che pod: it carries its own JRE (RFC 0016 decision 13).
+  SONAR_VSIX="$HEAVY_CACHE/SonarSource.sonarlint-vscode-$SONARLINT_VERSION@linux-x64.vsix"
+  [[ -s "$SONAR_VSIX" ]] || { log "Downloading SonarLint $SONARLINT_VERSION (linux-x64) from Open VSX"; fetch -o "$SONAR_VSIX" "https://open-vsx.org/api/SonarSource/sonarlint-vscode/linux-x64/$SONARLINT_VERSION/file/SonarSource.sonarlint-vscode-$SONARLINT_VERSION@linux-x64.vsix"; }
+  log "PACKAGE-OK (java-core; redhat.java $REDHAT_JAVA_VERSION, SonarLint $SONARLINT_VERSION linux-x64)"
+  OENV_PATH="$(printf '%s' "$PATH" | tr ':' '\n' | grep -v -E '/java|/jdk|/jvm' | paste -sd: -)"
+  OSETTINGS='{ "workbench.startupEditor": "none", "java.server.launchMode": "Standard", "java.jdt.ls.vmargs": "-XX:+UseParallelGC -Xmx1G -Xms100m -Xlog:disable", "security.workspace.trust.enabled": false, "extensions.ignoreRecommendations": true, "redhat.telemetry.enabled": false, "sonarlint.disableTelemetry": true }'
+  sonar_run() { # sonar_run <label> <jsonl> [--absent 1]
+    local label="$1" out="$2"; shift 2
+    local OE="$HEAVY_WORK/editor-$label" OWS="$HEAVY_WORK/$label-ws"
+    rm -rf "$OWS" && cp -r "$REPO/tests/heavy/fixtures/maven-multi" "$OWS"
+    # One Sonar-only finding, in the copy: Greeter.java is held by two golden files.
+    printf 'package com.acme.core;\n\npublic class Todo {\n    // TODO finish this\n    public int answer() {\n        return 42;\n    }\n}\n' >"$OWS/core/src/main/java/com/acme/core/Todo.java"
+    EDITOR_FOLDER="$OWS"
+    start_editor "$OE" "$OSETTINGS" JAVA_HOME= JDK_HOME= PATH="$OENV_PATH" JAVA_TOOL_OPTIONS="-XX:MaxRAMPercentage=6"
+    log "Editor ($label) at http://127.0.0.1:$EDITOR_PORT, folder $OWS"
+    DUMP_ON_FAIL="$OE"; DUMP_JSONL="$out"
+    node tests/heavy/sonar.mjs --url "http://127.0.0.1:$EDITOR_PORT/?folder=$OWS" --shots "$HEAVY_WORK/shots" --cdp "$CDP_URL" --workspace "$OWS" "$@" \
+      >"$out" 2>"$out.err" || { cat "$out.err" >&2; cat "$out" >&2; fail "the sonar driver failed ($label)"; }
+    stop_editor
+    cat "$out" >>"$LOG"
+  }
+  INSTALL_VSIX=("$REDHAT_VSIX" "$JAVA_CORE_VSIX" "$SONAR_VSIX")
+  sonar_run sonar "$HEAVY_WORK/sonar.jsonl"
+  O_="$HEAVY_WORK/sonar.jsonl"
+  assert_json "$O_" view "not d['timedOut'] and any(r.startswith('sonar/java:S1135') and 'via SonarLint $SONARLINT_VERSION' in r for r in d['rows']) and any(r.startswith('collections/sizeIsZero') for r in d['rows']) and not any('batlehub' in p and 'S1135' in p for p in d['problems'])" \
+    "SonarLint's findings did not join the Inspections view beside the bundle's, or the core re-emitted one: $(field "$O_" view | cut -c1-1200)"
+  log "SONAR-VIEW-OK (one view, two sources: the bundle's rules and sonar/java:S1135 via SonarLint $SONARLINT_VERSION — read from its diagnostics, nothing re-emitted, no Fix all on it — RFC 0016 case 2)"
+  assert_json "$O_" resources "'SonarLint language server (estimated): 768 MiB' in d['tail']" \
+    "SonarLint's language server is not in the resource sum as an estimate: $(field "$O_" resources | cut -c1-700)"
+  log "SONAR-MEM-OK (the SonarLint language server counted in the container's sum: 768 MiB, estimated — the core does not start it, so it declares it — RFC 0016 case 4)"
+  INSTALL_VSIX=("$REDHAT_VSIX" "$JAVA_CORE_VSIX")
+  sonar_run sonar-absent "$HEAVY_WORK/sonar-absent.jsonl" --absent 1
+  OA_="$HEAVY_WORK/sonar-absent.jsonl"
+  assert_json "$OA_" view "not d['timedOut'] and any('SonarLint is not installed' in r for r in d['rows']) and 'SonarLint language server' not in ' '.join(d['rows'])" \
+    "without SonarLint the view did not say where breadth comes from: $(field "$OA_" view | cut -c1-900)"
+  assert_json "$OA_" resources "'SonarLint language server' not in d['tail']" "without SonarLint its server was still counted: $(field "$OA_" resources | cut -c1-600)"
+  log "SONAR-ABSENT-OK (no SonarLint: one row, SonarLint is not installed — breadth comes from it, with Install; nothing counted — RFC 0016 case 3)"
+  log "SONAR-HALF-OK"
 fi
 
 log "ALL-OK — screenshots in $HEAVY_WORK/shots, logs in $HEAVY_WORK"

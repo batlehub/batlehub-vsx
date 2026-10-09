@@ -34,15 +34,19 @@ export class Bridge implements vscode.Disposable {
   /** Once the server is ready and Standard: is the bundle there? */
   async ping(): Promise<void> {
     let ok: boolean | undefined;
+    let commands: string[] | undefined;
     if (this.c.server.mode === "Standard") {
       try {
         log.debug("ping: waiting for serverReady()", "JDT");
         await this.c.server.api?.serverReady?.();
         log.debug("ping: server ready, sending batlehub.ping", "JDT");
-        const r = await this.exec<{ version?: string; inspections?: string[] }>(
-          "batlehub.ping",
-        );
+        const r = await this.exec<{
+          version?: string;
+          inspections?: string[];
+          commands?: string[];
+        }>("batlehub.ping");
         ok = !!r?.version;
+        commands = r?.commands;
         if (ok)
           log.info(
             `bundle loaded: version ${r!.version}, ${r!.inspections?.length ?? 0} inspection(s)`,
@@ -54,7 +58,7 @@ export class Bridge implements vscode.Disposable {
       }
     }
     const decision = pingDecision(this.c.server.mode, ok, this.offeredRestart);
-    this.c.bundle = { available: decision === "loaded" };
+    this.c.bundle = { available: decision === "loaded", commands };
     void vscode.commands.executeCommand(
       "setContext",
       "batlehub.java.bundle",

@@ -14,6 +14,11 @@ the BatleHub registry as the build's mirror. The design is
 keymap. The core alone needs only `redhat.java` (≥ 1.56.0, the version pinned
 in its `package.json`).
 
+The framework satellites are opt-in, in `batlehub.java-pack-frameworks`:
+[Quarkus](./quarkus.md) and [Spring Boot](./spring.md). Each is inert without its framework, and
+each framework's language server is one more JVM, so they are not in the
+default pack.
+
 ## The first minute
 
 1. Open a Maven or Gradle folder. The status bar gains one item, **Java**:

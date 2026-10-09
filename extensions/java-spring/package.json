@@ -1,0 +1,136 @@
+{
+  "name": "java-spring",
+  "displayName": "BatleHub Java: Spring Boot",
+  "description": "Spring Boot in the Java panel: detection, Spring profiles beside the Maven ones, a run template, and Spring Tools' language server on the JDK BatleHub Java resolved (RFC 0010).",
+  "version": "0.3.0",
+  "publisher": "batlehub",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/batleforc/batlehub-vsx"
+  },
+  "homepage": "https://github.com/batleforc/batlehub-vsx/tree/main/extensions/java-spring",
+  "icon": "media/java.png",
+  "engines": {
+    "vscode": "^1.96.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "keywords": [
+    "spring",
+    "spring boot",
+    "java",
+    "batlehub"
+  ],
+  "extensionKind": [
+    "workspace"
+  ],
+  "extensionDependencies": [
+    "batlehub.java-core"
+  ],
+  "main": "./dist/extension.js",
+  "l10n": "./l10n",
+  "activationEvents": [
+    "workspaceContains:pom.xml",
+    "workspaceContains:*/pom.xml",
+    "workspaceContains:build.gradle",
+    "workspaceContains:*/build.gradle",
+    "workspaceContains:build.gradle.kts",
+    "workspaceContains:*/build.gradle.kts"
+  ],
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": "limited",
+      "description": "%capabilities.untrusted%"
+    },
+    "virtualWorkspaces": false
+  },
+  "contributes": {
+    "configuration": {
+      "title": "BatleHub Java: Spring Boot",
+      "properties": {
+        "batlehub.java.spring.enabled": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "%config.enabled%"
+        },
+        "batlehub.java.spring.activeProfiles": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "markdownDescription": "%config.activeProfiles%"
+        },
+        "batlehub.java.spring.bridge": {
+          "type": "string",
+          "enum": [
+            "auto",
+            "never"
+          ],
+          "default": "auto",
+          "markdownDescription": "%config.bridge%"
+        },
+        "batlehub.java.spring.dashboard.ports": {
+          "type": "array",
+          "items": {
+            "type": "integer"
+          },
+          "default": [],
+          "markdownDescription": "%config.dashboard.ports%"
+        },
+        "batlehub.java.spring.dashboard.pollMs": {
+          "type": "integer",
+          "default": 5000,
+          "minimum": 1000,
+          "markdownDescription": "%config.dashboard.pollMs%"
+        },
+        "batlehub.java.spring.runMemoryMiB": {
+          "type": "integer",
+          "default": 768,
+          "minimum": 1,
+          "markdownDescription": "%config.runMemoryMiB%",
+          "scope": "machine-overridable"
+        }
+      }
+    },
+    "commands": [
+      {
+        "command": "batlehub.java.spring.pickProfiles",
+        "title": "%cmd.pickProfiles%",
+        "category": "Spring Boot"
+      },
+      {
+        "command": "batlehub.java.spring.pairProfiles",
+        "title": "%cmd.pairProfiles%",
+        "category": "Spring Boot"
+      },
+      {
+        "command": "batlehub.java.spring.showLog",
+        "title": "%cmd.showLog%",
+        "category": "Spring Boot",
+        "icon": "$(output)"
+      }
+    ]
+  },
+  "scripts": {
+    "build": "node esbuild.mjs",
+    "watch": "node esbuild.mjs --watch",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "lint": "oxlint src test && prettier --check \"src/**/*.ts\" \"test/**/*.ts\" esbuild.mjs",
+    "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\" esbuild.mjs",
+    "test": "vitest run",
+    "package": "node esbuild.mjs && vsce package --no-dependencies --skip-license -o java-spring.vsix"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "@types/vscode": "^1.96.0",
+    "@vscode/vsce": "^3.6.0",
+    "esbuild": "^0.25.0",
+    "oxlint": "^1.0.0",
+    "prettier": "^3.6.0",
+    "typescript": "^5.9.0",
+    "vitest": "^3.2.0"
+  }
+}

@@ -31,7 +31,8 @@
     "redhat.java",
     "vscjava.vscode-java-debug",
     "vscjava.vscode-java-test",
-    "k--kato.intellij-idea-keybindings"
+    "k--kato.intellij-idea-keybindings",
+    "streetsidesoftware.code-spell-checker"
   ],
   "scripts": {
     "build": "echo 'java-pack: nothing to build'",

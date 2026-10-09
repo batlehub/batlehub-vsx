@@ -207,7 +207,6 @@ export async function detect(trusted: boolean): Promise<Snapshot> {
   const jdtVmargs =
     vscode.workspace.getConfiguration("java").get<string>("jdt.ls.vmargs") ??
     "";
-  const groovy = !!vscode.extensions.getExtension("batlehub.java-groovy");
   return {
     at: new Date().toISOString(),
     runtimes,
@@ -224,7 +223,7 @@ export async function detect(trusted: boolean): Promise<Snapshot> {
       home: gradleHome,
       wrapper: folders.some((f) => f.tool === "gradle" && !!f.wrapper),
     },
-    resources: budget({ read: io.readFile, jdtVmargs, gradle, groovy }),
+    resources: budget({ read: io.readFile, jdtVmargs, gradle }),
     trusted,
     origins: {
       "jdk.sources": isOverridden("jdk.sources")

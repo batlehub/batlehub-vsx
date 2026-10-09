@@ -21,6 +21,10 @@ export interface Settings {
   matchProject: boolean;
   logLevel: Level;
   warnBelow: string;
+  budgetMiB: number;
+  stopGraceMs: number;
+  defaultMemoryMiB: number;
+  showTerminals: boolean;
   statusBarItems: Record<string, boolean>;
   mavenConfigurations: MavenConfiguration[] | undefined;
   mavenActiveConfiguration: string | undefined;
@@ -37,6 +41,11 @@ export interface Settings {
     finalFields: "keepSetters" | "skipSetters";
   };
   inspections: { enabled: boolean; severityOverrides: Record<string, string> };
+  completion: {
+    chain: "auto" | "shortcut" | "off";
+    chainBudgetMs: number;
+    chainMaxDepth: number;
+  };
 }
 
 export const SECTION = "batlehub.java";
@@ -80,6 +89,10 @@ export function readSettings(scope?: vscode.ConfigurationScope): Settings {
       ? lvl
       : "info",
     warnBelow: c.get<string>("resources.warnBelow") ?? "2Gi",
+    budgetMiB: c.get<number>("resources.budgetMiB") ?? 8192,
+    stopGraceMs: c.get<number>("run.stopGraceMs") ?? 10000,
+    defaultMemoryMiB: c.get<number>("run.defaultMemoryMiB") ?? 512,
+    showTerminals: c.get<boolean>("run.showTerminals") ?? true,
     statusBarItems: c.get<Record<string, boolean>>("statusBar.items") ?? {},
     mavenConfigurations: c.get<MavenConfiguration[]>("maven.configurations"),
     mavenActiveConfiguration: c.get<string>("maven.activeConfiguration"),
@@ -103,6 +116,11 @@ export function readSettings(scope?: vscode.ConfigurationScope): Settings {
       enabled: c.get<boolean>("inspections.enabled") ?? true,
       severityOverrides:
         c.get<Record<string, string>>("inspections.severityOverrides") ?? {},
+    },
+    completion: {
+      chain: c.get<"auto" | "shortcut" | "off">("completion.chain") ?? "auto",
+      chainBudgetMs: c.get<number>("completion.chainBudgetMs") ?? 150,
+      chainMaxDepth: c.get<number>("completion.chainMaxDepth") ?? 3,
     },
   };
 }

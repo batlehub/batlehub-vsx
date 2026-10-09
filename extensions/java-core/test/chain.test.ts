@@ -1,9 +1,17 @@
 import { describe, expect, it } from "vitest";
-import { CHAIN_KEY, chainPlan } from "../src/completion/chain";
+import {
+  CHAIN_COMMAND,
+  CHAIN_KEY,
+  chainPlan,
+  clampBudget,
+  delegateDecision,
+  toItems,
+} from "../src/completion/chain";
 import { parseManifest, record, takeEntry } from "../src/written";
 
 const plan = (o: Partial<Parameters<typeof chainPlan>[0]> = {}) =>
   chainPlan({
+    mode: "shortcut",
     inspected: undefined,
     coreWrote: false,
     undone: false,
@@ -118,5 +126,82 @@ describe("RFC 0012 §4.2 — Undo is the removal of that one manifest entry", ()
     // put back — the key disappears rather than becoming `false`, because
     // `false` would be a value the user never chose.
     expect(entry && "before" in entry && entry.before).toBeUndefined();
+  });
+});
+
+describe("RFC 0012 phase 2 — one source of chains at a time (decision 4)", () => {
+  it('"auto" and "off" take the core\'s own write back, and write nothing new', () => {
+    for (const mode of ["auto", "off"] as const) {
+      expect(plan({ mode, coreWrote: true })).toMatchObject({
+        write: false,
+        unwrite: true,
+        notice: false,
+      });
+      expect(plan({ mode })).toMatchObject({ write: false, notice: false });
+      expect(plan({ mode }).unwrite).toBeUndefined();
+    }
+  });
+
+  it("never takes back a value the user set: only the manifest entry is the core's", () => {
+    expect(
+      plan({ mode: "auto", inspected: { workspaceValue: true } }).unwrite,
+    ).toBeUndefined();
+  });
+
+  it("answers only in auto, with the bundle's command, and never over a true server key", () => {
+    const ok = {
+      mode: "auto" as const,
+      commands: [CHAIN_COMMAND],
+      serverKey: undefined,
+    };
+    expect(delegateDecision(ok)).toBe("delegate");
+    expect(delegateDecision({ ...ok, serverKey: false })).toBe("delegate");
+    expect(delegateDecision({ ...ok, mode: "shortcut" })).toBe("not-auto");
+    expect(delegateDecision({ ...ok, mode: "off" })).toBe("not-auto");
+    expect(delegateDecision({ ...ok, serverKey: true })).toBe(
+      "server-key-true",
+    );
+    expect(delegateDecision({ ...ok, commands: undefined })).toBe("absent");
+    expect(delegateDecision({ ...ok, commands: ["batlehub.ping"] })).toBe(
+      "absent",
+    );
+  });
+
+  it("clamps the budget below 30 ms, and leaves 0 to the server", () => {
+    expect(clampBudget(5)).toBe(30);
+    expect(clampBudget(0)).toBe(0);
+    expect(clampBudget(150)).toBe(150);
+  });
+});
+
+describe("RFC 0012 §4.2 — the rank as sortText", () => {
+  const row = (label: string, rank: number) => ({
+    label,
+    insertText: label,
+    depth: 3,
+    locality: 1,
+    kind: "method" as const,
+    rank,
+  });
+
+  it("keeps the bundle's order and sorts every chain after JDT's own nine-digit sortText", () => {
+    const items = toItems(
+      { rows: [row("a.b().c()", 0), row("x.y().z()", 1)], truncated: false },
+      150,
+    );
+    expect(items.map((i) => i.label)).toEqual(["a.b().c()", "x.y().z()"]);
+    expect(items[0]!.sortText < items[1]!.sortText).toBe(true);
+    // The server's own chains are 999999979, a plain local sorts lower still.
+    for (const i of items) expect(i.sortText > "999999999").toBe(true);
+    expect(items[0]!.detail).toBe("chain · 3 · field");
+  });
+
+  it("says on the last item that the search was cut by the budget", () => {
+    const items = toItems(
+      { rows: [row("a.b().c()", 0), row("x.y().z()", 1)], truncated: true },
+      150,
+    );
+    expect(items[0]!.detail).not.toContain("truncated");
+    expect(items[1]!.detail).toContain("chains truncated at 150 ms");
   });
 });

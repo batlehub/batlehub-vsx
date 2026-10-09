@@ -8,6 +8,7 @@
       <command id="batlehub.generate.accessors"/>
       <command id="batlehub.inspections.list"/>
       <command id="batlehub.inspections.fixAll"/>
+      <command id="batlehub.completion.chain"/>
     </delegateCommandHandler>
   </extension>
 </plugin>

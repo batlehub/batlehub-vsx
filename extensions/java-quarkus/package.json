@@ -1,0 +1,71 @@
+{
+  "name": "java-quarkus",
+  "displayName": "BatleHub Java: Quarkus",
+  "description": "Quarkus dev mode as a managed process — the core's JDK, Maven and profiles, a readiness probe, a real stop — a Quarkus tab, and the MicroProfile language server on the JDK BatleHub Java resolved (RFC 0011).",
+  "version": "0.2.0",
+  "publisher": "batlehub",
+  "license": "Apache-2.0",
+  "repository": { "type": "git", "url": "https://github.com/batleforc/batlehub-vsx" },
+  "homepage": "https://github.com/batleforc/batlehub-vsx/tree/main/extensions/java-quarkus",
+  "icon": "media/java.png",
+  "engines": { "vscode": "^1.96.0" },
+  "categories": ["Programming Languages", "Debuggers"],
+  "keywords": ["quarkus", "microprofile", "java", "batlehub"],
+  "extensionKind": ["workspace"],
+  "extensionDependencies": ["batlehub.java-core"],
+  "main": "./dist/extension.js",
+  "l10n": "./l10n",
+  "activationEvents": [
+    "workspaceContains:pom.xml",
+    "workspaceContains:*/pom.xml",
+    "workspaceContains:build.gradle",
+    "workspaceContains:*/build.gradle",
+    "workspaceContains:build.gradle.kts",
+    "workspaceContains:*/build.gradle.kts"
+  ],
+  "capabilities": {
+    "untrustedWorkspaces": { "supported": "limited", "description": "%capabilities.untrusted%" },
+    "virtualWorkspaces": false
+  },
+  "contributes": {
+    "configuration": {
+      "title": "BatleHub Java: Quarkus",
+      "properties": {
+        "batlehub.java.quarkus.enabled": { "type": "boolean", "default": true, "markdownDescription": "%config.enabled%" },
+        "batlehub.java.quarkus.devPort": { "type": "integer", "default": 0, "minimum": 0, "markdownDescription": "%config.devPort%" },
+        "batlehub.java.quarkus.debugPort": { "type": "integer", "default": 5005, "minimum": 0, "markdownDescription": "%config.debugPort%" },
+        "batlehub.java.quarkus.readiness": { "type": "string", "default": "/q/health/ready", "markdownDescription": "%config.readiness%" },
+        "batlehub.java.quarkus.devMemoryMiB": { "type": "integer", "default": 1024, "minimum": 1, "markdownDescription": "%config.devMemoryMiB%", "scope": "machine-overridable" },
+        "batlehub.java.quarkus.bridge": { "type": "string", "enum": ["auto", "never"], "default": "auto", "markdownDescription": "%config.bridge%" }
+      }
+    },
+    "commands": [
+      { "command": "batlehub.java.quarkus.start", "title": "%cmd.start%", "category": "Quarkus" },
+      { "command": "batlehub.java.quarkus.debug", "title": "%cmd.debug%", "category": "Quarkus" },
+      { "command": "batlehub.java.quarkus.stop", "title": "%cmd.stop%", "category": "Quarkus" },
+      { "command": "batlehub.java.quarkus.addExtension", "title": "%cmd.addExtension%", "category": "Quarkus" },
+      { "command": "batlehub.java.quarkus.removeExtension", "title": "%cmd.removeExtension%", "category": "Quarkus" },
+      { "command": "batlehub.java.quarkus.openDevUi", "title": "%cmd.openDevUi%", "category": "Quarkus" },
+      { "command": "batlehub.java.quarkus.showLog", "title": "%cmd.showLog%", "category": "Quarkus", "icon": "$(output)" }
+    ]
+  },
+  "scripts": {
+    "build": "node esbuild.mjs",
+    "watch": "node esbuild.mjs --watch",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "lint": "oxlint src test && prettier --check \"src/**/*.ts\" \"test/**/*.ts\" esbuild.mjs",
+    "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\" esbuild.mjs",
+    "test": "vitest run",
+    "package": "node esbuild.mjs && vsce package --no-dependencies --skip-license -o java-quarkus.vsix"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "@types/vscode": "^1.96.0",
+    "@vscode/vsce": "^3.6.0",
+    "esbuild": "^0.25.0",
+    "oxlint": "^1.0.0",
+    "prettier": "^3.6.0",
+    "typescript": "^5.9.0",
+    "vitest": "^3.2.0"
+  }
+}

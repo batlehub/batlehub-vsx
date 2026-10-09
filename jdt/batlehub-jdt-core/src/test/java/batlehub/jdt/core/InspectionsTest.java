@@ -3,6 +3,8 @@ package batlehub.jdt.core;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
@@ -113,12 +115,38 @@ class InspectionsTest {
     assertEquals("warning", rows.get(0).get("severity"));
   }
 
+  /** The LSP edits of `fixAll`, applied the way a client does (last first). */
+  @SuppressWarnings("unchecked")
+  static String applyLsp(String src, List<Map<String, Object>> edits) {
+    StringBuilder out = new StringBuilder(src);
+    for (int i = edits.size() - 1; i >= 0; i--) {
+      var r = (Map<String, Map<String, Integer>>) edits.get(i).get("range");
+      int a = Engine.offsetOf(src, r.get("start").get("line"), r.get("start").get("character"));
+      int b = Engine.offsetOf(src, r.get("end").get("line"), r.get("end").get("character"));
+      out.replace(a, b, (String) edits.get(i).get("newText"));
+    }
+    return out.toString();
+  }
+
   @Test
-  void fixAllIsOneEditListAndOtherRulesAreLeftAlone() {
-    String src = "class A {\n  private int unused;\n  boolean f(java.util.List<String> l) { return l.size() == 0; }\n}\n";
-    var edits = Engine.fixAll(src, null);
-    assertTrue(edits.size() >= 2, "edits: " + edits);
+  void fixAllEditsKeepTheReceiverOfCopiedNodes() {
+    // maven-multi's shape: a fix that copies a node (`this.people`, `people`) used to lose it.
+    String src = "import java.util.*;\nclass A {\n  private int unused;\n  List<String> people;\n  void add(String p) { this.people.add(p); }\n  boolean e() { return people.size() == 0; }\n}\n";
+    String want = "import java.util.*;\nclass A {\n  List<String> people;\n  void add(String p) { people.add(p); }\n  boolean e() { return people.isEmpty(); }\n}\n";
+    assertEquals(want, Engine.applyFixAll(src, null));
+    assertEquals(want, applyLsp(src, Engine.fixAll(src, null)));
     assertEquals(List.of(), Engine.fixAll("class A {}", null));
-    assertEquals("class A {\n  private int unused;\n  boolean f(java.util.List<String> l) { return l.isEmpty(); }\n}\n", fixed(src, "sizeIsZero"));
+    assertEquals("class A {\n  private int unused;\n  boolean f(java.util.List<String> l) { return l.isEmpty(); }\n}\n",
+        fixed("class A {\n  private int unused;\n  boolean f(java.util.List<String> l) { return l.size() == 0; }\n}\n", "sizeIsZero"));
+  }
+
+  @Test
+  void fixAllOnTheHeavyFixtureIsItsGolden() throws Exception {
+    // The golden INSPECTIONS-OK compares the editor's buffer to; this keeps it the bundle's own answer.
+    Path mm = Path.of("../../tests/heavy/fixtures/maven-multi");
+    String src = Files.readString(mm.resolve("core/src/main/java/com/acme/core/Greeter.java"));
+    String golden = Files.readString(mm.resolve(".idea/golden/Greeter.fixed.java"));
+    assertEquals(golden, Engine.applyFixAll(src, null));
+    assertEquals(golden, applyLsp(src, Engine.fixAll(src, null)));
   }
 }

@@ -12,11 +12,12 @@ import org.eclipse.jdt.ls.core.internal.JDTUtils;
 
 /**
  * The one delegate (RFC 0001 §6.2): `batlehub.ping`, `batlehub.generate.accessors`,
- * `batlehub.inspections.list`, `batlehub.inspections.fixAll`. Arguments arrive
+ * `batlehub.inspections.list`, `batlehub.inspections.fixAll`, `batlehub.completion.chain`
+ * (RFC 0012 phase 2). Arguments arrive
  * Gson-deserialised (Map/List/String); answers are plain maps and lists.
  */
 public class Handler implements IDelegateCommandHandler {
-  public static final String VERSION = "0.1.0";
+  public static final String VERSION = "0.2.1";
 
   @Override
   public Object executeCommand(String commandId, List<Object> arguments, IProgressMonitor monitor) throws Exception {
@@ -25,7 +26,19 @@ public class Handler implements IDelegateCommandHandler {
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("version", VERSION);
         out.put("inspections", Engine.inspections().stream().map(i -> i.area() + "/" + i.id()).toList());
+        // The core decides its fallbacks from this list, not from a failed call (RFC 0012 §4.3).
+        out.put("commands", List.of("batlehub.generate.accessors", "batlehub.inspections.list", "batlehub.inspections.fixAll", "batlehub.completion.chain"));
         return out;
+      }
+      case "batlehub.completion.chain": {
+        // (uri, line, character, budgetMs, maxDepth)
+        String uri = String.valueOf(arguments.get(0));
+        ICompilationUnit cu = JDTUtils.resolveCompilationUnit(uri);
+        if (cu == null) throw new IllegalArgumentException("batlehub: not a Java compilation unit: " + uri);
+        int offset = Engine.offsetOf(cu.getSource(), ((Number) arguments.get(1)).intValue(), ((Number) arguments.get(2)).intValue());
+        long budget = arguments.size() > 3 ? ((Number) arguments.get(3)).longValue() : 150;
+        int maxDepth = arguments.size() > 4 ? ((Number) arguments.get(4)).intValue() : 3;
+        return Chains.find(cu, offset, budget, maxDepth);
       }
       case "batlehub.inspections.list": {
         String uri = String.valueOf(arguments.get(0));

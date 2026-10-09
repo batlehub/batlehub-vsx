@@ -14,7 +14,7 @@ suite("java-core in the extension host", () => {
     const ext = vscode.extensions.getExtension("batlehub.java-core")!;
     assert.ok(ext, "extension present");
     const api = await ext.activate();
-    assert.deepStrictEqual(api.contractVersion, { major: 1, minor: 0 });
+    assert.deepStrictEqual(api.contractVersion, { major: 1, minor: 1 });
     assert.throws(() => api.assertContract(2), /does not match/);
   });
 

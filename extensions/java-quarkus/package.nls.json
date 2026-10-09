@@ -1,0 +1,16 @@
+{
+  "capabilities.untrusted": "Detection reads the build files and the tab shows; dev mode does not start in an untrusted workspace.",
+  "config.enabled": "Off: the Quarkus satellite registers nothing.",
+  "config.devPort": "Dev mode's HTTP port. `0`: `%dev.quarkus.http.port`, then `quarkus.http.port` from `application.properties`, then `8080`.",
+  "config.debugPort": "Dev mode's `-Ddebug=<port>` when a run asks for the debugger. Without it dev mode runs with `-Ddebug=false`, so no JDWP port is open.",
+  "config.readiness": "The path dev mode's readiness probe GETs. Empty: the log line `Listening on:` instead (a project without `quarkus-smallrye-health`).",
+  "config.devMemoryMiB": "The cap dev mode declares to the core's managed process — Maven plus the application JVM it forks — summed against `#batlehub.java.resources.budgetMiB#` before it starts.",
+  "config.bridge": "`auto`: write `microprofile.tools.server.java.home` (workspace scope, through the manifest) only when the MicroProfile language server has no JDK 17 or newer. `never`: do not.",
+  "cmd.start": "Start dev mode",
+  "cmd.stop": "Stop dev mode",
+  "cmd.openDevUi": "Open the Dev UI",
+  "cmd.showLog": "Show the Quarkus log",
+  "cmd.debug": "Debug dev mode",
+  "cmd.addExtension": "Add an extension…",
+  "cmd.removeExtension": "Remove an extension…"
+}

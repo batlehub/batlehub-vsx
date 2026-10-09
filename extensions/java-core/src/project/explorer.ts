@@ -3,6 +3,8 @@
 // conflicts and, when the registry is linked, verdicts) / the JDK. Fed by
 // the BuildToolProviders through the ProjectService; usable before indexing
 // because it reads build files itself.
+import { runGoalTask } from "../build/tasks";
+import type { KindGoal } from "../api-types";
 import * as path from "node:path";
 import * as vscode from "vscode";
 import type { Module, ProjectService } from "../api-types";
@@ -27,6 +29,14 @@ export class Project implements ProjectService {
   private readonly changed = new vscode.EventEmitter<vscode.WorkspaceFolder>();
   readonly onDidChange = this.changed.event;
   private readonly cache = new Map<string, Module[]>();
+
+  /** Contract 1.1: a goal run as a `batlehub-java` task. */
+  runGoal(
+    folder: vscode.WorkspaceFolder,
+    goal: KindGoal,
+  ): Promise<number | null> {
+    return runGoalTask(this.core, folder, goal);
+  }
 
   constructor(
     private readonly core: Core,

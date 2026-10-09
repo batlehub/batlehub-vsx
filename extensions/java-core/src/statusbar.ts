@@ -25,6 +25,8 @@ export interface Facts {
   warnings: string[];
   errors: string[];
   importing?: boolean;
+  /** RFC 0003 §6.2: managed processes a `batlehub-run` holds. */
+  runProcesses?: number;
 }
 
 export class JavaStatusBar implements vscode.Disposable {
@@ -62,7 +64,10 @@ export class JavaStatusBar implements vscode.Disposable {
   private render(): void {
     const s = this.state();
     const f = this.facts;
-    this.item.text = `${GLYPH[s]} Java${s === "warning" && f.jdk ? ` ${f.jdk}` : ""}`;
+    const run = f.runProcesses
+      ? ` · run ● ${f.runProcesses} process${f.runProcesses > 1 ? "es" : ""}`
+      : "";
+    this.item.text = `${GLYPH[s]} Java${s === "warning" && f.jdk ? ` ${f.jdk}` : ""}${run}`;
     const lines = [
       f.jdk ? `JDK: ${f.jdk}` : "JDK: none resolved",
       f.buildTool ? `Build: ${f.buildTool}` : undefined,

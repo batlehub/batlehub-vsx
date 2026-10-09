@@ -41,7 +41,8 @@
     "workspaceContains:settings.gradle",
     "workspaceContains:settings.gradle.kts",
     "workspaceContains:.classpath",
-    "onLanguage:java"
+    "onLanguage:java",
+    "onDebugResolve:batlehub-run"
   ],
   "capabilities": {
     "untrustedWorkspaces": {
@@ -115,6 +116,32 @@
           "markdownDescription": "%config.generate.fluentSetters%",
           "scope": "resource"
         },
+        "batlehub.java.completion.chain": {
+          "type": "string",
+          "enum": [
+            "auto",
+            "shortcut",
+            "off"
+          ],
+          "default": "auto",
+          "markdownDescription": "%config.completion.chain%",
+          "scope": "resource"
+        },
+        "batlehub.java.completion.chainBudgetMs": {
+          "type": "number",
+          "default": 150,
+          "minimum": 0,
+          "markdownDescription": "%config.completion.chainBudgetMs%",
+          "scope": "resource"
+        },
+        "batlehub.java.completion.chainMaxDepth": {
+          "type": "number",
+          "default": 3,
+          "minimum": 2,
+          "maximum": 6,
+          "markdownDescription": "%config.completion.chainMaxDepth%",
+          "scope": "resource"
+        },
         "batlehub.java.generate.finalFields": {
           "type": "string",
           "enum": [
@@ -158,6 +185,32 @@
           "default": "2Gi",
           "markdownDescription": "%config.resources.warnBelow%",
           "scope": "machine-overridable"
+        },
+        "batlehub.java.resources.budgetMiB": {
+          "type": "integer",
+          "default": 8192,
+          "minimum": 256,
+          "markdownDescription": "%config.resources.budgetMiB%",
+          "scope": "machine-overridable"
+        },
+        "batlehub.java.run.stopGraceMs": {
+          "type": "integer",
+          "default": 10000,
+          "minimum": 0,
+          "markdownDescription": "%config.run.stopGraceMs%",
+          "scope": "machine-overridable"
+        },
+        "batlehub.java.run.defaultMemoryMiB": {
+          "type": "integer",
+          "default": 512,
+          "minimum": 1,
+          "markdownDescription": "%config.run.defaultMemoryMiB%",
+          "scope": "machine-overridable"
+        },
+        "batlehub.java.run.showTerminals": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "%config.run.showTerminals%"
         },
         "batlehub.java.inspections.enabled": {
           "type": "boolean",
@@ -265,6 +318,22 @@
           },
           "markdownDescription": "%config.experimental%",
           "scope": "resource"
+        },
+        "batlehub.java.inspections.sonar": {
+          "type": "string",
+          "enum": [
+            "auto",
+            "off"
+          ],
+          "default": "auto",
+          "markdownDescription": "%config.inspections.sonar%"
+        },
+        "batlehub.java.inspections.sonar.estimatedCapMiB": {
+          "type": "integer",
+          "default": 768,
+          "minimum": 1,
+          "markdownDescription": "%config.inspections.sonar.estimatedCapMiB%",
+          "scope": "machine-overridable"
         }
       }
     },
@@ -538,6 +607,22 @@
         "title": "%cmd.showJdtLog%",
         "category": "Java",
         "icon": "$(output)"
+      },
+      {
+        "command": "batlehub.java.spelling.openConfig",
+        "title": "%cmd.spelling.openConfig%",
+        "category": "Java",
+        "icon": "$(json)"
+      },
+      {
+        "command": "batlehub.java.spelling.install",
+        "title": "%cmd.spelling.install%",
+        "category": "Java"
+      },
+      {
+        "command": "batlehub.java.sonar.install",
+        "title": "%cmd.sonar.install%",
+        "category": "Java"
       }
     ],
     "menus": {
@@ -645,6 +730,14 @@
         {
           "command": "batlehub.java.goto.workspaceSymbol",
           "when": "editorLangId == java"
+        },
+        {
+          "command": "batlehub.java.spelling.install",
+          "when": "false"
+        },
+        {
+          "command": "batlehub.java.sonar.install",
+          "when": "false"
         }
       ],
       "editor/context": [
@@ -824,6 +917,11 @@
           "command": "batlehub.java.inspections.fixAll",
           "when": "view == batlehub.java.inspections && viewItem =~ /^(rule|file)$/",
           "group": "inline@1"
+        },
+        {
+          "command": "batlehub.java.spelling.openConfig",
+          "when": "view == batlehub.java.inspections && viewItem == spelling-rule",
+          "group": "inline@1"
         }
       ]
     },
@@ -909,6 +1007,375 @@
         "view": "batlehub.java.inspections",
         "contents": "%view.inspections.welcome%",
         "when": "batlehub.java.active && !batlehub.java.bundle"
+      }
+    ],
+    "debuggers": [
+      {
+        "type": "batlehub-run",
+        "label": "BatleHub run",
+        "languages": [
+          "java"
+        ],
+        "configurationAttributes": {
+          "launch": {
+            "required": [
+              "steps"
+            ],
+            "properties": {
+              "steps": {
+                "type": "array",
+                "minItems": 1,
+                "items": {
+                  "type": "object",
+                  "oneOf": [
+                    {
+                      "required": [
+                        "task"
+                      ],
+                      "properties": {
+                        "task": {
+                          "type": "string",
+                          "description": "%debug.run.task%"
+                        },
+                        "ready": {
+                          "type": "object",
+                          "description": "%debug.run.probe%",
+                          "additionalProperties": false,
+                          "properties": {
+                            "port": {
+                              "type": "integer",
+                              "description": "%debug.run.probe.port%"
+                            },
+                            "http": {
+                              "type": "string",
+                              "description": "%debug.run.probe.http%"
+                            },
+                            "status": {
+                              "type": "integer",
+                              "description": "%debug.run.probe.status%"
+                            },
+                            "log": {
+                              "type": "string",
+                              "description": "%debug.run.probe.log%"
+                            },
+                            "exit": {
+                              "type": "integer",
+                              "description": "%debug.run.probe.exit%"
+                            },
+                            "timeoutMs": {
+                              "type": "integer",
+                              "default": 60000
+                            },
+                            "intervalMs": {
+                              "type": "integer",
+                              "default": 500
+                            }
+                          }
+                        }
+                      }
+                    },
+                    {
+                      "required": [
+                        "launch"
+                      ],
+                      "properties": {
+                        "launch": {
+                          "type": "string",
+                          "description": "%debug.run.launch%"
+                        },
+                        "ready": {
+                          "type": "object",
+                          "description": "%debug.run.probe%",
+                          "additionalProperties": false,
+                          "properties": {
+                            "port": {
+                              "type": "integer",
+                              "description": "%debug.run.probe.port%"
+                            },
+                            "http": {
+                              "type": "string",
+                              "description": "%debug.run.probe.http%"
+                            },
+                            "status": {
+                              "type": "integer",
+                              "description": "%debug.run.probe.status%"
+                            },
+                            "log": {
+                              "type": "string",
+                              "description": "%debug.run.probe.log%"
+                            },
+                            "exit": {
+                              "type": "integer",
+                              "description": "%debug.run.probe.exit%"
+                            },
+                            "timeoutMs": {
+                              "type": "integer",
+                              "default": 60000
+                            },
+                            "intervalMs": {
+                              "type": "integer",
+                              "default": 500
+                            }
+                          }
+                        }
+                      }
+                    },
+                    {
+                      "required": [
+                        "process"
+                      ],
+                      "properties": {
+                        "process": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          },
+                          "minItems": 1,
+                          "description": "%debug.run.process%"
+                        },
+                        "cwd": {
+                          "type": "string"
+                        },
+                        "env": {
+                          "type": "object",
+                          "additionalProperties": {
+                            "type": "string"
+                          }
+                        },
+                        "memoryMiB": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "description": "%debug.run.memoryMiB%"
+                        },
+                        "ready": {
+                          "type": "object",
+                          "description": "%debug.run.probe%",
+                          "additionalProperties": false,
+                          "properties": {
+                            "port": {
+                              "type": "integer",
+                              "description": "%debug.run.probe.port%"
+                            },
+                            "http": {
+                              "type": "string",
+                              "description": "%debug.run.probe.http%"
+                            },
+                            "status": {
+                              "type": "integer",
+                              "description": "%debug.run.probe.status%"
+                            },
+                            "log": {
+                              "type": "string",
+                              "description": "%debug.run.probe.log%"
+                            },
+                            "exit": {
+                              "type": "integer",
+                              "description": "%debug.run.probe.exit%"
+                            },
+                            "timeoutMs": {
+                              "type": "integer",
+                              "default": 60000
+                            },
+                            "intervalMs": {
+                              "type": "integer",
+                              "default": 500
+                            }
+                          }
+                        },
+                        "stop": {
+                          "type": "object",
+                          "properties": {
+                            "cmd": {
+                              "type": "string"
+                            },
+                            "args": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
+                            }
+                          }
+                        }
+                      }
+                    },
+                    {
+                      "required": [
+                        "server"
+                      ],
+                      "properties": {
+                        "server": {
+                          "type": "string",
+                          "description": "%debug.run.server%"
+                        },
+                        "deploy": {
+                          "type": "string"
+                        },
+                        "port": {
+                          "type": "integer"
+                        },
+                        "debug": {
+                          "type": "boolean"
+                        },
+                        "debugPort": {
+                          "type": "integer",
+                          "default": 5005
+                        },
+                        "jvmArgs": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "extraArgs": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "memoryMiB": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "description": "%debug.run.memoryMiB%"
+                        },
+                        "ready": {
+                          "type": "object",
+                          "description": "%debug.run.probe%",
+                          "additionalProperties": false,
+                          "properties": {
+                            "port": {
+                              "type": "integer",
+                              "description": "%debug.run.probe.port%"
+                            },
+                            "http": {
+                              "type": "string",
+                              "description": "%debug.run.probe.http%"
+                            },
+                            "status": {
+                              "type": "integer",
+                              "description": "%debug.run.probe.status%"
+                            },
+                            "log": {
+                              "type": "string",
+                              "description": "%debug.run.probe.log%"
+                            },
+                            "exit": {
+                              "type": "integer",
+                              "description": "%debug.run.probe.exit%"
+                            },
+                            "timeoutMs": {
+                              "type": "integer",
+                              "default": 60000
+                            },
+                            "intervalMs": {
+                              "type": "integer",
+                              "default": 500
+                            }
+                          }
+                        }
+                      }
+                    },
+                    {
+                      "required": [
+                        "ready"
+                      ],
+                      "not": {
+                        "anyOf": [
+                          {
+                            "required": [
+                              "task"
+                            ]
+                          },
+                          {
+                            "required": [
+                              "launch"
+                            ]
+                          },
+                          {
+                            "required": [
+                              "process"
+                            ]
+                          },
+                          {
+                            "required": [
+                              "server"
+                            ]
+                          }
+                        ]
+                      },
+                      "properties": {
+                        "ready": {
+                          "type": "object",
+                          "description": "%debug.run.probe%",
+                          "additionalProperties": false,
+                          "properties": {
+                            "port": {
+                              "type": "integer",
+                              "description": "%debug.run.probe.port%"
+                            },
+                            "http": {
+                              "type": "string",
+                              "description": "%debug.run.probe.http%"
+                            },
+                            "status": {
+                              "type": "integer",
+                              "description": "%debug.run.probe.status%"
+                            },
+                            "log": {
+                              "type": "string",
+                              "description": "%debug.run.probe.log%"
+                            },
+                            "exit": {
+                              "type": "integer",
+                              "description": "%debug.run.probe.exit%"
+                            },
+                            "timeoutMs": {
+                              "type": "integer",
+                              "default": 60000
+                            },
+                            "intervalMs": {
+                              "type": "integer",
+                              "default": 500
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                },
+                "description": "%debug.run.steps%"
+              },
+              "stopGraceMs": {
+                "type": "integer",
+                "minimum": 0,
+                "description": "%config.run.stopGraceMs%"
+              }
+            }
+          }
+        },
+        "configurationSnippets": [
+          {
+            "label": "BatleHub: Orchestrated run (steps)",
+            "description": "%debug.run.snippet%",
+            "body": {
+              "type": "batlehub-run",
+              "request": "launch",
+              "name": "Orchestrated run",
+              "steps": [
+                {
+                  "process": [
+                    "jwebserver",
+                    "-p",
+                    "8000"
+                  ],
+                  "memoryMiB": 128,
+                  "ready": {
+                    "port": 8000
+                  }
+                }
+              ]
+            }
+          }
+        ]
       }
     ],
     "taskDefinitions": [

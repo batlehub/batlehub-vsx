@@ -247,6 +247,7 @@
       "italic": true
     },
     "string": "#974c12",
+    "decorator": "#974c12",
     "annotation": "#974c12",
     "annotationMember": "#974c12",
     "number": "#cb3a2a",

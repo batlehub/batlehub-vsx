@@ -157,3 +157,172 @@ jobs:
           name: heavy-java
           path: tests/heavy/work/last/
           if-no-files-found: ignore
+
+  heavy-quarkus:
+    name: Heavy (quarkus half)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: pnpm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+      - uses: jdx/mise-action@v2
+        with:
+          install: false
+      - run: pnpm install --frozen-lockfile
+      - name: A Chrome with its DevTools port, standing in for the sidecar
+        run: |
+          google-chrome --headless=new --no-sandbox --disable-gpu --remote-debugging-port=9222 --user-data-dir=/tmp/chrome about:blank >/tmp/chrome.log 2>&1 &
+          for _ in $(seq 1 30); do curl -sf http://127.0.0.1:9222/json/version >/dev/null && break; sleep 1; done
+      - name: The JDK as mise would hold it
+        # The newcomer story removes JAVA_HOME and the PATH JDK; the core
+        # must find a JDK through a manager. `mise` is on the runner; give it
+        # the runner's Temurin as an installed version.
+        run: |
+          mise use -g "java@temurin-21" || true
+          mise ls java
+      - name: No system JDK, as a Che workspace has none
+        # §2 point 1's "no JDK but a manager" is a precondition the suite must
+        # create, not assume (RFC 0001 §15.5): ubuntu-latest ships Temurin
+        # under /usr/lib/jvm, which redhat.java scans on its own, so with it
+        # there the newcomer never happens. The opposite case — redhat.java
+        # with a JDK of its own — is the suite's DESKTOP step, which hands it
+        # a JAVA_HOME instead. setup-java's JDK lives under
+        # /opt/hostedtoolcache and keeps serving mvn through JAVA_HOME.
+        run: sudo mv /usr/lib/jvm /usr/lib/jvm.hidden
+      - name: task, for the java-core package view.sh builds
+        run: curl -fsSL https://raw.githubusercontent.com/go-task/task/main/install-task.sh | sh -s -- -d -b /usr/local/bin >/dev/null
+      - name: Run
+        # RFC 0011: three editors — the Maven fixture with the Red Hat pair
+        # (cases 1–5), without it (case 6), the Gradle fixture. view.sh warms
+        # ~/.m2 and ~/.gradle for the Quarkus platform first.
+        env:
+          HEAVY_ONLY: quarkus
+          CDP_URL: http://127.0.0.1:9222
+        run: bash tests/heavy/view.sh
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: heavy-quarkus
+          path: tests/heavy/work/last/
+          if-no-files-found: ignore
+
+  heavy-sonar:
+    name: Heavy (sonar half)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: pnpm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+      - uses: jdx/mise-action@v2
+        with:
+          install: false
+      - run: pnpm install --frozen-lockfile
+      - name: A Chrome with its DevTools port, standing in for the sidecar
+        run: |
+          google-chrome --headless=new --no-sandbox --disable-gpu --remote-debugging-port=9222 --user-data-dir=/tmp/chrome about:blank >/tmp/chrome.log 2>&1 &
+          for _ in $(seq 1 30); do curl -sf http://127.0.0.1:9222/json/version >/dev/null && break; sleep 1; done
+      - name: The JDK as mise would hold it
+        # The newcomer story removes JAVA_HOME and the PATH JDK; the core
+        # must find a JDK through a manager. `mise` is on the runner; give it
+        # the runner's Temurin as an installed version.
+        run: |
+          mise use -g "java@temurin-21" || true
+          mise ls java
+      - name: No system JDK, as a Che workspace has none
+        # §2 point 1's "no JDK but a manager" is a precondition the suite must
+        # create, not assume (RFC 0001 §15.5): ubuntu-latest ships Temurin
+        # under /usr/lib/jvm, which redhat.java scans on its own, so with it
+        # there the newcomer never happens. The opposite case — redhat.java
+        # with a JDK of its own — is the suite's DESKTOP step, which hands it
+        # a JAVA_HOME instead. setup-java's JDK lives under
+        # /opt/hostedtoolcache and keeps serving mvn through JAVA_HOME.
+        run: sudo mv /usr/lib/jvm /usr/lib/jvm.hidden
+      - name: task, for the java-core package view.sh builds
+        run: curl -fsSL https://raw.githubusercontent.com/go-task/task/main/install-task.sh | sh -s -- -d -b /usr/local/bin >/dev/null
+      - name: Run
+        # RFC 0016: SonarLint's findings in the Inspections view and its
+        # server in the resource sum, then the same editor without it.
+        env:
+          HEAVY_ONLY: sonar
+          CDP_URL: http://127.0.0.1:9222
+        run: bash tests/heavy/view.sh
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: heavy-sonar
+          path: tests/heavy/work/last/
+          if-no-files-found: ignore
+
+  heavy-spring:
+    name: Heavy (spring half)
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: pnpm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+      - uses: jdx/mise-action@v2
+        with:
+          install: false
+      - run: pnpm install --frozen-lockfile
+      - name: A Chrome with its DevTools port, standing in for the sidecar
+        run: |
+          google-chrome --headless=new --no-sandbox --disable-gpu --remote-debugging-port=9222 --user-data-dir=/tmp/chrome about:blank >/tmp/chrome.log 2>&1 &
+          for _ in $(seq 1 30); do curl -sf http://127.0.0.1:9222/json/version >/dev/null && break; sleep 1; done
+      - name: The JDK as mise would hold it
+        # The newcomer story removes JAVA_HOME and the PATH JDK; the core
+        # must find a JDK through a manager. `mise` is on the runner; give it
+        # the runner's Temurin as an installed version.
+        run: |
+          mise use -g "java@temurin-21" || true
+          mise ls java
+      - name: No system JDK, as a Che workspace has none
+        # §2 point 1's "no JDK but a manager" is a precondition the suite must
+        # create, not assume (RFC 0001 §15.5): ubuntu-latest ships Temurin
+        # under /usr/lib/jvm, which redhat.java scans on its own, so with it
+        # there the newcomer never happens. The opposite case — redhat.java
+        # with a JDK of its own — is the suite's DESKTOP step, which hands it
+        # a JAVA_HOME instead. setup-java's JDK lives under
+        # /opt/hostedtoolcache and keeps serving mvn through JAVA_HOME.
+        run: sudo mv /usr/lib/jvm /usr/lib/jvm.hidden
+      - name: task, for the java-core package view.sh builds
+        run: curl -fsSL https://raw.githubusercontent.com/go-task/task/main/install-task.sh | sh -s -- -d -b /usr/local/bin >/dev/null
+      - name: Run
+        # RFC 0010: two editors — the Boot fixture with Spring Boot Tools
+        # (cases 1–2), without it (case 5). view.sh warms ~/.m2 first.
+        env:
+          HEAVY_ONLY: spring
+          CDP_URL: http://127.0.0.1:9222
+        run: bash tests/heavy/view.sh
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: heavy-spring
+          path: tests/heavy/work/last/
+          if-no-files-found: ignore

@@ -1,0 +1,11 @@
+{
+  "Spring Boot: BatleHub Java {0}.{1} lacks contract 1.1; update batlehub.java-core.": "Spring Boot: BatleHub Java {0}.{1} lacks contract 1.1; update batlehub.java-core.",
+  "Spring Boot: Boot 3 needs a JDK 17 or newer, and BatleHub Java resolved {0}.": "Spring Boot: Boot 3 needs a JDK 17 or newer, and BatleHub Java resolved {0}.",
+  "none": "none",
+  "Install a JDK…": "Install a JDK…",
+  "Install": "Install",
+  "Spring Boot: properties completion and bean navigation need Spring Boot Tools ({0}).": "Spring Boot: properties completion and bean navigation need Spring Boot Tools ({0}).",
+  "No Spring Boot instance answers on the declared ports.": "No Spring Boot instance answers on the declared ports.",
+  "Spring Boot: which @SpringBootApplication?": "Spring Boot: which @SpringBootApplication?",
+  "Spring Boot: the active profiles": "Spring Boot: the active profiles"
+}

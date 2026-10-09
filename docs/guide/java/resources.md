@@ -13,13 +13,25 @@ up what this workspace is about to run:
 | The editor's server, the shell, the JVM's off-heap | 768 MiB |
 | JDT.LS | the `-Xmx` of `java.jdt.ls.vmargs` (default 2 GiB) |
 | A Gradle daemon | 512 MiB, when the workspace has a Gradle build |
-| The Groovy language server | 512 MiB, when `java-groovy` is installed |
+| A managed process — the Groovy language server, and from RFC 0003 every long-lived process of the series | its declared cap while it runs: `groovy-ls (declared): 768 MiB` |
+| A JVM another extension starts (Spring Tools, MicroProfile, Metals) | the estimate its satellite declares: `(estimated)` |
 
 Below `batlehub.java.resources.warnBelow` (default `2Gi`), or whenever the
 sum exceeds the limit, the status bar turns `⚠` once per session and the
 JDK tab names what gets killed first (the biggest consumer). `Java: Show the
 container's resources` prints the table to the log. Empty `warnBelow`
 disables the threshold; the over-limit warning stays.
+
+Before a managed process starts, the declared caps — JDT.LS's `-Xmx`, every
+managed process running, and the new one — are summed against
+`batlehub.java.resources.budgetMiB` (default 8192: the pod's memory
+*request*, never above the cgroup limit). Over it, a modal names the sum and
+offers `Skip` or `Start anyway`; the answer holds for the session. On a
+laptop (no cgroup limit) nothing is asked. A process's peak RSS is recorded
+when it stops, and `Java: Report a problem` zips the last 50 as
+`processes.json` — ids, caps, peaks and times, never a command line. If the
+editor dies with one running, the next activation stops it (only if its pid
+still has the same kernel start time).
 
 ## What to put in the devfile
 

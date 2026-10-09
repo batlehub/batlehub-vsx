@@ -9,7 +9,7 @@
 | Author      | Max Batleforc <maxleriche.60@gmail.com>                       |
 | Co-author   | —                                                             |
 | Created     | 2026-09-18                                                    |
-| Revised     | 2026-09-29 — revision 4, the recommendations of §11 promoted to decisions 10–12: the upstream issue opened at phase 1 with the measured numbers and phase 2 built only if it goes unowned, depth-1 chains left to JDT with the ranking special-cased so a chain never outranks a plain local, and `ignore_types` a constant |
+| Revised     | 2026-10-09 — revision 5, decision 10 amended (the upstream issue cannot be filed for now, so phase 2 is earned by the coverage finding alone) and phases 2–3 built: the delegate over `ChainFinder`, `batlehub.java.completion.chain` defaulting to `"auto"`, `SMOKE-OK` with use case 6; what the build found is §11 "Measured — phase 2", whose findings 12–13 came from the first real-editor runs · 2026-09-29 — revision 4, the recommendations of §11 promoted to decisions 10–12: the upstream issue opened at phase 1 with the measured numbers and phase 2 built only if it goes unowned, depth-1 chains left to JDT with the ranking special-cased so a chain never outranks a plain local, and `ignore_types` a constant |
 | Supersedes  | —                                                             |
 | Depends on  | RFC 0001 (the bundle of §6.2, the `written.json` manifest of §4.2, the heavy suite's performance gate of §15.2); RFC 0002 for the headless proof of the delegate; RFC 0016 shares the bindings entry point of `Engine.parse` (§6.2) |
 | Touches     | `extensions/java-core` (`src/completion/chain.ts`, one setting, one manifest write), `jdt/batlehub-jdt-core` (one delegate, the first binding-aware code path in `Engine`), `tests/heavy/java.mjs` (a `CHAIN-OK` step and its two latency lines), `docs/guide/java/editing.md` |
@@ -505,7 +505,7 @@ bridge uses.
 | 7 | May the core turn on `redhat.java`'s key by default? (revision 2) | **Yes, under RFC 0001 §7.1's default-on rule, with every condition stated**: workspace scope, through the manifest, shown once in the panel with its undo, never written when the user has already set the key — either value. |
 | 8 | Is the delegate path gated too? (revision 2) | **Yes: `chainDelegateMs < 150 ms`** in the heavy suite, the same number as the budget — a delegate that returns truncated sets on the fixture to stay under it fails use case 5's flag instead. |
 | 9 | Is the `sortText` ranking known to work under the editor's fuzzy score? (revision 2) | **No — it is measured in phase 1** (`chainRank`), and phase 2's ranking is designed from that number. *Measured*: the server sends `sortText` `999999979` on every chain, so there is no server ordering to preserve — a delegate supplies the whole one. |
-| 10 | Upstream first? | **The issue at phase 1, carrying the measured numbers; phase 2 built only if the measurement earns it *and* the issue has no owner by the next `redhat.java` pin bump.** A JDT.LS that gained on-typing invocation and a relevance for chain proposals would make the provider redundant, and that is the better outcome. |
+| 10 | Upstream first? | ~~The issue at phase 1, carrying the measured numbers; phase 2 built only if the measurement earns it *and* the issue has no owner by the next `redhat.java` pin bump.~~ **Amended in revision 5: the issue cannot be filed for now (for reasons outside this RFC), so "no owner by the next pin bump" can never be checked; phase 2 is earned by the coverage finding of §11 alone — no `int`, no `String`, chains sorted last.** The issue text stays ready in `todo.md` and is filed when it can be. A fork of JDT.LS was considered and refused: `redhat.java` has no supported way to run another server, the bundle already runs *inside* the pinned one, and the delegate is deleted the day upstream fixes the computer — the better outcome is unchanged. |
 | 11 | Depth-1 chains? | **Left to JDT**, with rule 1 of §4.2's ranking special-cased so a depth-2 chain never sorts above a plain local. No duplicate proposals; use case 4 asserts the ordering. |
 | 12 | `ignore_types`? | **A constant in the delegate** — `java.lang.Object` and the server's own few — until someone needs to add to it. |
 
@@ -588,10 +588,107 @@ and it ranks them last. A developer leaving IDEA gets `config.getServer()`
 and never the `int`/`String` chains they used most. Whether that earns a
 delegate is still decision 2's call — but it is now a decision about
 coverage, not about latency, and phase 1 ships the useful half either way.
+### Measured — phase 2, 2026-10-09
+
+`task jdt:smoke` (use case 6), headless, the pinned `redhat.java` 1.56.0
+(JDT.LS 1.61), the bundle at 0.2.0 (0.2.1 after finding 13), on an unsaved `Main.java` with a field
+`Config config`:
+
+| Position | Rows | Bundle time |
+| --- | --- | --- |
+| `int port = get⎸` | `config.getServer().getPort()` — depth 3, locality 1, rank 0 | 252 ms (first call: class loading) |
+| `String host = ⎸` | `config.getServer().getHost()` | 35 ms |
+
+Both are the expected types the stock computer refuses (finding 1), and
+the labels are Java (finding 3). What building it found — each one a place
+where the text above was wrong or silent:
+
+1. **`ChainFinder.startChainSearch` takes no timeout** (`entrypoints,
+   maxChains, minDepth, maxDepth`); the server's computer runs it on an
+   executor and `cancel()`s it on a `future.get(timeout)`. The delegate
+   does the same with one delayed `cancel()` — §4.2's "passed as its
+   `timeout`" was not an API that exists.
+2. **`org.eclipse.jdt.internal.ui.text` is an `x-friends` package**
+   (`org.eclipse.jdt.ui` and its tests). Equinox does not wire it to a
+   stranger's `Import-Package` — the bundle resolved and the class was "not
+   found". `Require-Bundle: org.eclipse.jdt.core.manipulation` sees it, as
+   JDT.LS itself does; the pom excludes the package from bnd's imports.
+3. **A changed bundle must change its version.** `redhat.java` keeps the
+   OSGi state in its configuration area across sessions, and a bundle at
+   the same location and version is not re-read: the first smoke after
+   the manifest change ran the *old* 0.1.0 manifest. The bundle is 0.2.0;
+   every manifest change bumps it.
+4. **Depth counts every segment.** `config.getServer().getPort()` is 3
+   (the finder's chain length, and what `chainMaxDepth` means); use case
+   4's "a field, depth 2" was counting accesses. `minDepth` is 2 (decision
+   11: depth 1 is JDT's own proposal).
+5. **The finder walks `java.lang.Object`'s members**, so every `int`
+   gained `config.hashCode()` and every `String` `config.toString()`. The
+   finder excludes a member by *name* against the ignore list, so decision
+   12's constant names them: `java.lang.Object`, `hashCode`, `toString`,
+   `getClass`, `clone`, `equals`.
+6. **`"auto"` writes nothing.** §4.1/§4.2 had it write
+   `java.completion.chain.enabled: false` through the manifest; absent *is*
+   `false`, so `"auto"` and `"off"` instead take back the core's own
+   `"shortcut"` write (the manifest entry), and write nothing where there
+   is none. One fewer foreign write; the user's own value stands either
+   way, and a user's `true` makes `"auto"` stand down (no provider items,
+   one channel line).
+7. **No session fallback to `"shortcut"` when the delegate is absent**
+   (§4.3): that would be a write made for one session. The provider
+   answers nothing and the channel names the setting once.
+8. **The rank is `sortText` `999999999` + rank**, not `"0" + locality +
+   depth + label` (§4.2): JDT's own items carry nine digits, so this
+   prefix keeps every chain below any ordinary proposal of equal fuzzy
+   score — decision 11 — while the rank orders the chains. Rule 3 (the
+   prefix matching the last segment) is left to the editor's fuzzy score.
+9. **The cache is keyed by the file with the typed prefix cut out**, plus
+   the cursor's token start and `maxDepth` (32 entries): typing the next
+   character of a prefix hits it, any other edit of the file misses. An
+   edit to *another* file is not seen until this one changes — the
+   `onDidClasspathUpdate` invalidation is not built. Truncated answers are
+   never cached.
+10. **`AbstractProjectsManagerBasedTest` is not in the pinned jars** (it is
+    JDT.LS's test bundle), so layer 1b covers the pure half — rank,
+    cut, token start — and the walk itself is proven by `task jdt:smoke`
+    (use case 6) and the heavy half (use case 4), over the real server.
+    Use case 5 (budget and `truncated` on a synthetic graph) is not built.
+11. **Members with parameters end no chain** — the RFC said "end a
+    chain"; the delegate drops any chain holding one, and any chain that
+    meets an array before its last segment. Argument guessing stays a
+    non-goal.
+12. **The provider needs the space trigger and incomplete answers.** The
+    first heavy run had `CHAIN-DELEGATE-OK` fail with the provider never
+    called: at `int p = ` redhat.java's own trigger character (the space)
+    opens the suggest session, and when the `g` arrives the editor re-asks
+    only that session's *incomplete* providers. A provider with neither is
+    never asked while typing, only on the shortcut, which is every step of
+    phase 1. The provider registers `" "` and answers a `CompletionList`
+    marked incomplete, so every keystroke reaches the bundle; finding 9's
+    prefix-keyed cache is what makes that cheap.
+13. **A root that cannot start a row still uses up `MAX_CHAINS`.** In a
+    `static main` the visible elements are `String[] args`, `main` and the
+    locals; the walk through `args` hit the 200-chain cap, `row()` dropped
+    every one of them (finding 11), and `config.getServer().getPort()` was
+    never reached. Use case 6 had passed because its probe was an instance
+    method with a field. Array roots and roots with parameters are now
+    dropped before the walk, and `task jdt:smoke` gained the heavy half's
+    document (a local of a static `main`, the next statement unterminated).
+    The bundle is 0.2.1 (finding 3), and the smoke now runs on a fresh copy
+    of the OSGi configuration area, so it always loads the jar it is given.
+
+`task heavy:view:java` **`ALL-OK`** with these: `CHAIN-DELEGATE-OK`
+(`int p = g` → `config.getServer().getPort()`, no shortcut),
+`chainDelegateMs` 55 ms against the 150 ms gate. One later run failed one
+round of ten with the bundle's walk at 344 ms, cut by the budget
+(`truncated`, no rows), on a pod at load average 44; the rerun at load 15
+was 10/10 at 41 ms. Under that kind of contention the budget does what §4.3
+says — no chains for that keystroke, never a slow list — and the gate
+reports it, by design (decision 8).
+
 ### Still open
 
-None at this revision. Decision 10 names the condition under which
-phase 2 is not built at all.
+None at this revision.
 
 ---
 
@@ -600,5 +697,5 @@ phase 2 is not built at all.
 | Phase | Content |
 | --- | --- |
 | 1 | ~~The manifest write of `java.completion.chain.enabled` under the default-on rule … the guide section; the upstream issue with the numbers.~~ **Done** (revision 3): the write with its panel line, `Undo` and `Keep it`; `CHAIN-WRITE-OK`, `CHAIN-OK` and `UNDO-OK` in the heavy half with `chainMs` gated and `chainRank` printed; `docs/guide/java/editing.md`; the fixture's `Config.java`/`Server.java`. The upstream issue is **owed** — §11 Measured findings 3 and 5 are its content. |
-| 2 | Only if earned (decision 2): `Engine.parse` with bindings (the entry point shared with RFC 0016), `Chains.java` over `ChainFinder` with budget, rank and cache, the delegate, `ChainsTest` on `AbstractProjectsManagerBasedTest`, `task jdt:smoke` use case 6. |
-| 3 | `src/completion/chain.ts`, the three settings, the manifest flip, use case 4 in the heavy half with the `chainDelegateMs` gate (150 ms); RFC 0002's engine picks the delegate up for free. |
+| 2 | ~~Only if earned (decision 2): `Engine.parse` with bindings …~~ **Done** (revision 5, earned under amended decision 10): `Chains.java` over `ChainFinder` with budget, rank and cache, `batlehub.completion.chain` in the delegate and in `batlehub.ping`'s `commands`, `ChainsTest` (the pure half — §11 Measured phase 2, finding 10), `task jdt:smoke` use case 6. `Engine.parse` with bindings was not needed: the finder works on the Java model (`codeComplete`'s extended context), not on a DOM — RFC 0016 adds that entry point for itself. |
+| 3 | ~~`src/completion/chain.ts`, the three settings, the manifest flip, use case 4 …~~ **Done** (revision 5): the provider, `delegateDecision`/`toItems` in vitest, the three settings, the flip as a take-back (finding 6), `CHAIN-DELEGATE-OK` in the heavy half with `chainDelegateMs` gated at 150 ms; the phase 1 steps run in `"shortcut"`. RFC 0002's engine picks the delegate up for free. |

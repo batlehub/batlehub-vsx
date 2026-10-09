@@ -8,6 +8,7 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import * as vscode from "vscode";
 import type { Core } from "../extension";
+import { readSettings } from "../config";
 import { log } from "../log";
 import {
   duplicate,
@@ -17,7 +18,10 @@ import {
   removeConfig,
   TEMPLATES,
   upsertConfig,
+  upsertLaunch,
+  upsertTask,
 } from "./configs";
+import type { RunTemplate } from "../api-types";
 
 function launchPath(folder: vscode.WorkspaceFolder): string {
   return path.join(folder.uri.fsPath, ".vscode", "launch.json");
@@ -212,11 +216,26 @@ export async function editForm(
 export async function newConfig(core: Core): Promise<void> {
   const folder = vscode.workspace.workspaceFolders?.[0];
   if (!folder) return;
-  const t = await vscode.window.showQuickPick(
-    TEMPLATES.map((x) => ({ label: x.label, t: x })),
+  // Contract 1.1: a satellite's templates, offered where they apply.
+  const extra: (vscode.QuickPickItem & { r: RunTemplate })[] = [];
+  for (const r of core.registries.templates.values())
+    if (await r.applies(folder).catch(() => false))
+      extra.push({ label: r.title, r });
+  const orchestrated = vscode.l10n.t("Orchestrated run (steps)");
+  const t = await vscode.window.showQuickPick<
+    vscode.QuickPickItem & { t?: (typeof TEMPLATES)[number]; r?: RunTemplate }
+  >(
+    [
+      ...TEMPLATES.map((x) => ({ label: x.label, t: x })),
+      { label: orchestrated },
+      ...extra,
+    ],
     { title: vscode.l10n.t("Run configuration: template") },
   );
   if (!t) return;
+  if (t.r) return writeTemplate(folder, t.r);
+  if (t.label === orchestrated) return newOrchestrated(folder);
+  if (!t.t) return;
   const first = (await mainClasses(folder))[0];
   const draft = t.t.make({
     mainClass: first?.mainClass ?? "",
@@ -235,6 +254,110 @@ export async function newConfig(core: Core): Promise<void> {
       c.name,
     ),
   );
+}
+
+/**
+ * RFC 0003's `orchestrated` template: a run whose first step is a process,
+ * asked as three inputs. More steps are added in launch.json, where the
+ * schema completes them — the quick input is no place for a list.
+ */
+async function newOrchestrated(folder: vscode.WorkspaceFolder): Promise<void> {
+  const title = vscode.l10n.t("Orchestrated run");
+  const name = await vscode.window.showInputBox({
+    title,
+    prompt: vscode.l10n.t("Name"),
+    value: "Orchestrated run",
+  });
+  if (!name) return;
+  const command = await vscode.window.showInputBox({
+    title,
+    prompt: vscode.l10n.t(
+      "Step 1: the command, its arguments separated by spaces (no shell: it is stored as an array)",
+    ),
+    placeHolder: "jwebserver -p 8080",
+  });
+  if (!command?.trim()) return;
+  const memory = await vscode.window.showInputBox({
+    title,
+    prompt: vscode.l10n.t("Step 1: the declared memory, in MiB"),
+    value: String(readSettings().defaultMemoryMiB),
+    validateInput: (v) =>
+      /^[1-9]\d*$/.test(v.trim())
+        ? undefined
+        : vscode.l10n.t("A positive integer"),
+  });
+  if (!memory) return;
+  const ready = await vscode.window.showInputBox({
+    title,
+    prompt: vscode.l10n.t(
+      "Step 1 is ready when: a port, an http:// URL, or a log line (regex); empty: alive",
+    ),
+  });
+  if (ready === undefined) return;
+  const r = ready.trim();
+  const entry = {
+    type: "batlehub-run",
+    request: "launch",
+    name,
+    steps: [
+      {
+        process: command.trim().split(/\s+/),
+        memoryMiB: Number(memory),
+        ...(r
+          ? {
+              ready: /^\d+$/.test(r)
+                ? { port: Number(r) }
+                : /^https?:\/\//.test(r)
+                  ? { http: r }
+                  : { log: r },
+            }
+          : {}),
+      },
+    ],
+  };
+  writeAll(folder, upsertLaunch(readAll(folder).text, entry));
+  log.info(`run configuration "${name}" written to launch.json (orchestrated)`);
+  void vscode.window.showInformationMessage(
+    vscode.l10n.t(
+      'Java: run configuration "{0}" written to .vscode/launch.json.',
+      name,
+    ),
+  );
+}
+
+/** A satellite's template: its launch entry and its task, written by the core. */
+async function writeTemplate(
+  folder: vscode.WorkspaceFolder,
+  r: RunTemplate,
+): Promise<void> {
+  const { launch, task } = await r.build(folder);
+  if (task) {
+    const file = path.join(folder.uri.fsPath, ".vscode", "tasks.json");
+    let text: string | undefined;
+    try {
+      text = fs.readFileSync(file, "utf8");
+    } catch {
+      text = undefined;
+    }
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.writeFileSync(file, upsertTask(text, task));
+    log.info(`task "${task.label}" written to tasks.json (template ${r.id})`);
+  }
+  if (launch) {
+    writeAll(folder, upsertLaunch(readAll(folder).text, launch));
+    log.info(
+      `run configuration "${launch.name}" written to launch.json (template ${r.id})`,
+    );
+  }
+  const name = launch?.name ?? task?.label;
+  if (name)
+    void vscode.window.showInformationMessage(
+      vscode.l10n.t(
+        'Java: "{0}" written from the {1} template.',
+        name,
+        r.title,
+      ),
+    );
 }
 
 export async function editConfigs(core: Core, name?: string): Promise<void> {
@@ -306,7 +429,15 @@ export async function startConfig(
 ): Promise<void> {
   const folder = vscode.workspace.workspaceFolders?.[0];
   if (!folder) return;
-  if (!vscode.extensions.getExtension("vscjava.vscode-java-debug")) {
+  // Any entry by name: a `batlehub-run` needs the debugger only for the steps that do (RFC 0003 §6.5).
+  const c = readLaunch(readAll(folder).text).configurations.find(
+    (x) => x.name === name,
+  );
+  if (!c) return;
+  if (
+    c.type === "java" &&
+    !vscode.extensions.getExtension("vscjava.vscode-java-debug")
+  ) {
     void vscode.window.showWarningMessage(
       vscode.l10n.t(
         "Java: running needs the Java debugger (vscjava.vscode-java-debug); the configuration is in launch.json for when it is installed.",
@@ -314,10 +445,8 @@ export async function startConfig(
     );
     return;
   }
-  const c = readAll(folder).configs.find((x) => x.name === name);
-  if (!c) return;
   await vscode.debug.startDebugging(folder, {
-    ...c,
+    ...(c as vscode.DebugConfiguration),
     noDebug,
-  } as vscode.DebugConfiguration);
+  });
 }

@@ -17,6 +17,7 @@ import {
   removeGitignoreLine,
   replay,
   takeEntry,
+  targetOf,
 } from "./written";
 
 /**
@@ -132,6 +133,30 @@ export async function writeForeignSetting(
 }
 
 /**
+ * Contract 1.1 `manifest.writeSetting`: a satellite's foreign write, under
+ * the default-on rule of RFC 0001 §7.1 — never over a value the user set at
+ * any scope (one the core recorded is its own, and may be rewritten).
+ */
+export async function writeSatelliteSetting(
+  key: string,
+  value: unknown,
+): Promise<boolean> {
+  const { section, leaf } = splitKey(key);
+  const i = vscode.workspace.getConfiguration(section).inspect(leaf);
+  const ours = readManifest().entries.some(
+    (e) => targetOf(e) === `setting:${key}`,
+  );
+  const users =
+    !ours &&
+    (i?.globalValue !== undefined ||
+      i?.workspaceValue !== undefined ||
+      i?.workspaceFolderValue !== undefined);
+  if (users || writesSuspended) return false;
+  await writeForeignSetting(section, leaf, value);
+  return true;
+}
+
+/**
  * Undo one recorded setting write: put the previous value back and drop that
  * entry, leaving every other write alone. Returns false when the manifest has
  * no such entry — the key was the user's, and was never the core's to undo.
@@ -231,9 +256,15 @@ function restoreMode(p: string, mode: number | null | undefined): void {
   }
 }
 
-/** `Java: Remove BatleHub settings`: list, ask, replay backwards, delete the manifest. */
+/**
+ * `Java: Remove BatleHub settings`: list, ask, replay backwards, delete the
+ * manifest — and `ownStorage`, the extension's own files that have no
+ * previous value to restore (RFC 0003 §9: the process history, a step kind's
+ * base directories).
+ */
 export async function removeBatleHubSettings(
   blockRemovers: Record<string, (file: string) => void>,
+  ownStorage: () => string[] = () => [],
 ): Promise<void> {
   const m = readManifest();
   const lines = describe(m);
@@ -295,6 +326,7 @@ export async function removeBatleHubSettings(
   suspendForeignWrites();
   const mp = manifestPath();
   if (mp) fs.rmSync(path.dirname(mp), { recursive: true, force: true });
+  for (const p of ownStorage()) fs.rmSync(p, { recursive: true, force: true });
   for (const e of errors) log.error(`remove: ${e}`);
   void vscode.window.showInformationMessage(
     errors.length

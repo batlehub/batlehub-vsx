@@ -1,5 +1,5 @@
 name: Java problem
-description: A problem with BatleHub Java (java-core, java-groovy, java-pack) — prefilled by "Java: Report a problem"
+description: A problem with BatleHub Java (java-core, java-groovy, java-quarkus, java-spring, java-pack, java-pack-frameworks) — prefilled by "Java: Report a problem"
 title: "Java: "
 labels: ["java"]
 body:

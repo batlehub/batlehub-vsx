@@ -3,7 +3,8 @@
 // pinned redhat.java's own server, from the VSIX `jdt/deps.sh` unpacked —
 // started with our jar in `initializationOptions.bundles`, then
 // `batlehub.ping`, `batlehub.inspections.list` on Greeter.java and
-// `batlehub.generate.accessors` on Person.java of the maven-multi fixture.
+// `batlehub.generate.accessors` on Person.java of the maven-multi fixture,
+// and `batlehub.completion.chain` on Main.java (RFC 0012 use case 6).
 // Prints what came back; exits non-zero when any of the three is missing.
 //
 //   node jdt/smoke.mjs        (JDK 21 as `java` on PATH; `task jdt:smoke` wraps mise)
@@ -26,6 +27,10 @@ const work = mkdtempSync(path.join(tmpdir(), "batlehub-jdt-smoke-"));
 const ws = path.join(work, "maven-multi");
 cpSync(path.join(REPO, "tests/heavy/fixtures/maven-multi"), ws, { recursive: true });
 const data = path.join(work, "data");
+// A fresh OSGi configuration area: the shared one caches a bundle by location
+// and version, so a rebuilt jar at the same version would never be read.
+const config = path.join(work, "config");
+cpSync(path.join(SERVER, "config_linux", "config.ini"), path.join(config, "config.ini"));
 
 const java = process.env.JAVA_HOME ? path.join(process.env.JAVA_HOME, "bin", "java") : "java";
 const proc = spawn(java, [
@@ -35,7 +40,7 @@ const proc = spawn(java, [
   "-Dlog.level=ALL",
   "-Xmx1G",
   "-jar", path.join(SERVER, "plugins", launcher),
-  "-configuration", path.join(SERVER, "config_linux"),
+  "-configuration", config,
   "-data", data,
 ], { stdio: ["pipe", "pipe", "pipe"] });
 const stderr = [];
@@ -130,6 +135,29 @@ try {
   console.log(`batlehub.generate.accessors(Person.java) → ${edits.length} edit(s); newText:\n${edits.map((e) => e.newText).join("")}`);
   const all = edits.map((e) => e.newText).join("");
   if (!/getName\(\)/.test(all) || !/setAge\(int age\)/.test(all)) ok = false;
+
+  // RFC 0012 use case 6: the chain delegate, on an unsaved Main.java (the
+  // working copy is what the command reads). An `int` and a `String` — the two
+  // expected types the stock computer refuses — reached from a field.
+  const main = path.join(ws, "app/src/main/java/com/acme/app/Main.java");
+  const probe = ["package com.acme.app;", "", "public class Main {", "    private final Config config = new Config();", "", "    void m() {", "        int fallback = 1;", "        int port = get", "        String host = ", "    }", "}", ""];
+  notify("textDocument/didOpen", { textDocument: { uri: uri(main), languageId: "java", version: 1, text: probe.join("\n") } });
+  const chains = async (line, character) => request("workspace/executeCommand", { command: "batlehub.completion.chain", arguments: [uri(main), line, character, 2000, 3] });
+  const intChains = await chains(7, probe[7].length);
+  console.log(`batlehub.completion.chain(int port = get|) → ${JSON.stringify(intChains)}`);
+  const strChains = await chains(8, probe[8].length);
+  console.log(`batlehub.completion.chain(String host = |) → ${JSON.stringify(strChains)}`);
+  if (intChains?.rows?.[0]?.label !== "config.getServer().getPort()" || intChains.truncated) ok = false;
+  if (!strChains?.rows?.some((r) => r.label === "config.getServer().getHost()")) ok = false;
+  if (!ping?.commands?.includes("batlehub.completion.chain")) ok = false;
+  // The heavy half's document: `config` a local of a static `main`, the caret
+  // mid-block with the next statement unterminated below it. `String[] args`
+  // once filled the finder's cap with chains no row can use.
+  const local = ["package com.acme.app;", "", "public class Main {", "    public static void main(String[] args) {", "        Config config = new Config();", "        int p0 = g", "        Config other = new Config();", "    }", "}", ""];
+  notify("textDocument/didChange", { textDocument: { uri: uri(main), version: 2 }, contentChanges: [{ text: local.join("\n") }] });
+  const localChains = await chains(5, local[5].length);
+  console.log(`batlehub.completion.chain(local; int p0 = g|) → ${JSON.stringify(localChains)}`);
+  if (localChains?.rows?.[0]?.label !== "config.getServer().getPort()") ok = false;
 
   await request("shutdown", null, 30000).catch(() => {});
   notify("exit", null);

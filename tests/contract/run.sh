@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
 # Layer 5 of RFC 0001 §10 (phase 8): the contract between java-core and its
-# satellite. Two checks:
+# satellite. Three checks:
 #   (a) java-groovy type-checks against the *current* core's api.d.ts — the
 #       contract test that exists from day one;
+#   (a') a fixture satellite (tests/contract/fixture/) registering a run step
+#       kind type-checks too (RFC 0003 phase 4);
 #   (b) when tagged releases exist, the last tagged VSIX of each side is
 #       installed beside the other's PR build into a scratch VS Code web
 #       server, proving the pair installs together (activation is the heavy
@@ -15,6 +17,10 @@ log() { printf '[contract] %s\n' "$*" >&2; }
 # (a)
 (cd extensions/java-core && pnpm run api >/dev/null)
 (cd extensions/java-groovy && pnpm exec tsc --noEmit -p tsconfig.json) && log "TYPES-OK (java-groovy against the current api.d.ts, contract $(python3 -c 'import re;print(re.search(r"major: (\d+), minor: (\d+)", open("extensions/java-core/src/api.ts").read()).group(0))'))"
+
+# (a') a fixture satellite that registers a run step kind and starts a managed
+# process (RFC 0003 §10): contract 1.1's surface, held without a real satellite.
+extensions/java-groovy/node_modules/.bin/tsc -p tests/contract/fixture/tsconfig.json && log "FIXTURE-KIND-OK (RunStepKind, ServerStep and process.start against the current api.d.ts)"
 
 # (b)
 if ! command -v gh >/dev/null || ! gh release list --repo batleforc/batlehub-vsx --limit 100 2>/dev/null | grep -qE "java-(core|groovy)-v"; then

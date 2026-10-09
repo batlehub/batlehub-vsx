@@ -6,14 +6,18 @@ import type {
   JavaCoreApi,
   JdkService,
   LanguageProvider,
+  ManifestService,
   PanelTab,
+  ProcessService,
   ProjectService,
   RegistryLink,
+  RunStepKind,
+  RunTemplate,
   SatelliteStatusBarItem,
 } from "./api-types";
 import { log } from "./log";
 
-export const CONTRACT: ContractVersion = { major: 1, minor: 0 };
+export const CONTRACT: ContractVersion = { major: 1, minor: 1 };
 
 /** Pure: the refusal of §4.3, with both versions named. */
 export function checkContract(
@@ -28,6 +32,9 @@ export interface Registries {
   languages: Map<string, LanguageProvider>;
   tabs: Map<string, PanelTab>;
   bundles: Map<string, InspectionBundle>;
+  templates: Map<string, RunTemplate>;
+  /** Read by the run engine (RFC 0003 phases 3–4), not before. */
+  kinds: Map<string, RunStepKind>;
   onDidChange: vscode.EventEmitter<void>;
 }
 
@@ -35,6 +42,8 @@ export function makeApi(deps: {
   jdk: JdkService;
   project: ProjectService;
   registry: RegistryLink;
+  process: ProcessService;
+  manifest: ManifestService;
   statusBar: (item: SatelliteStatusBarItem) => vscode.Disposable;
   onLanguage: (p: LanguageProvider) => Promise<vscode.Disposable>;
 }): { api: JavaCoreApi; registries: Registries } {
@@ -42,6 +51,8 @@ export function makeApi(deps: {
     languages: new Map(),
     tabs: new Map(),
     bundles: new Map(),
+    templates: new Map(),
+    kinds: new Map(),
     onDidChange: new vscode.EventEmitter(),
   };
   const add = <T extends { id: string }>(
@@ -71,6 +82,10 @@ export function makeApi(deps: {
     jdk: deps.jdk,
     project: deps.project,
     registry: deps.registry,
+    process: deps.process,
+    manifest: deps.manifest,
+    registerRunTemplate: (t) => add(registries.templates, t),
+    registerRunStepKind: (k) => add(registries.kinds, k),
     assertContract: (major) => {
       const problem = checkContract(CONTRACT, major);
       if (problem) {

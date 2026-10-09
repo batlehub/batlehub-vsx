@@ -19,12 +19,21 @@ defaults. This table is checked against `package.json` by `task lint`
 | `batlehub.java.generate.booleanPrefix` | `is` | Generator option (JDT bundle) |
 | `batlehub.java.generate.fluentSetters` | `false` | Setters return `this` |
 | `batlehub.java.generate.finalFields` | `keepSetters` | `keepSetters` or `skipSetters` for final fields |
+| `batlehub.java.completion.chain` | `auto` | Chained-call completion: `auto` (BatleHub's chains on every completion, ranked, `int`/`String` included), `shortcut` (the server's own, on Ctrl+Space), `off` |
+| `batlehub.java.completion.chainBudgetMs` | `150` | Time budget of one chain search (`auto`); `0` is the server's 3 s, below 30 is raised to 30 |
+| `batlehub.java.completion.chainMaxDepth` | `3` | Longest chain proposed, every segment counted (`config.getServer().getPort()` is 3) |
 | `batlehub.java.report.url` | `""` | Where `Report a problem` opens its issue; empty is the GitHub template of batlehub-vsx |
 | `batlehub.java.log.level` | `info` | `error`, `warn`, `info`, `debug`, `trace` |
 | `batlehub.java.statusBar.items` | `{}` | Satellite status bar items by id, shown or hidden |
 | `batlehub.java.resources.warnBelow` | `2Gi` | Container memory under which the status bar warns; empty disables |
+| `batlehub.java.resources.budgetMiB` | `8192` | What the declared caps of managed processes are summed against before a start: the pod's memory request, clamped to the cgroup limit |
+| `batlehub.java.run.stopGraceMs` | `10000` | Grace a managed process gets after `SIGTERM` before `SIGKILL` |
+| `batlehub.java.run.defaultMemoryMiB` | `512` | What a `process` step of an orchestrated run declares when it names no `memoryMiB` |
+| `batlehub.java.run.showTerminals` | `true` | A terminal per `process` and `server` step, kept open after the stop; off: the debug console only |
 | `batlehub.java.inspections.enabled` | `true` | Show the BatleHub inspections (JDT bundle) |
 | `batlehub.java.inspections.severityOverrides` | `{}` | Rule id → `error`, `warning`, `info`, `hint`, `off` |
+| `batlehub.java.inspections.sonar` | `auto` | `auto`: SonarLint's findings in Java files join the Inspections view as `sonar/<ruleKey>` (read, never re-emitted) and its server is counted in the resource sum; without SonarLint, one row says so. `off`: neither |
+| `batlehub.java.inspections.sonar.estimatedCapMiB` | `768` | What SonarLint's language server counts as in the resource sum when `sonarlint.ls.vmargs` names no `-Xmx` (measured: about 600 MiB on a small project) |
 | `batlehub.java.maven.configurations` | detected | Named configurations; absent is one per `~/.m2/settings*.xml` |
 | `batlehub.java.maven.activeConfiguration` | — | The active configuration (workspace) |
 | `batlehub.java.maven.activeProfiles` | — | Profiles for every goal and the language server's import (workspace) |

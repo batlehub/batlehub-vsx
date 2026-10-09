@@ -9,7 +9,7 @@
 | Author      | Max Batleforc <maxleriche.60@gmail.com>                       |
 | Co-author   | —                                                             |
 | Created     | 2026-09-18                                                    |
-| Revised     | 2026-09-29 — revision 3, the recommendation of §11 promoted to decision 12 (Groovy bridged by its language id, which the satellite already registers), and §8's one deferral given the reopen condition `task rfc:deferred` was asking for |
+| Revised     | 2026-10-09 — revision 4, phase 1 built: cspell 4.9.3 in the pack, `src/inspections/spelling.ts` — the rows in the Inspections view, the `not available` and `disabled by you` states, the core's `Add to project dictionary (cspell.json)` fix — `SPELL-OK` and `SPELL-DICT-OK` in the real editor; decisions 13–15 · 2026-09-29 — revision 3, the recommendation of §11 promoted to decision 12 (Groovy bridged by its language id, which the satellite already registers), and §8's one deferral given the reopen condition `task rfc:deferred` was asking for |
 | Supersedes  | —                                                             |
 | Depends on  | RFC 0001 (the inspections bridge and view of §4.2, the coexistence rule, the pack); RFC 0005 (the profile, where `spelling/unknownWord` can be turned `off` with a reason — phase 2 only); needs member `manifest.writeSetting` — [RFC 0001 §5.2 contract changelog](/rfc/0001-java-env#contract-changelog) (phase 2 only). Revision 1 listed RFC 0006 for a project word list under `.batlehub/java/`; nothing is written there (the list is `cspell.json`), so the dependency is gone |
 | Touches     | `extensions/java-core/src/inspections/` (new `spelling.ts`, `view.ts`, `bridge.ts`), `src/coexistence.ts`, `extensions/java-pack/package.json`, `tests/heavy/java.mjs`, `docs/guide/java/` |
@@ -489,6 +489,40 @@ not offered; the row and cspell's own fixes stay.
 | 10 | Default level (was open question 1) | **cspell's own (`info`); the core does not set it** — a consequence of decision 3. A developer who wants `warning` sets `cSpell.diagnosticLevel` themselves, knowing it is global. |
 | 11 | Does RFC 0006 remain a dependency? (revision 2) | **No.** Nothing is written under `.batlehub/java/`; the word list is `cspell.json`. |
 | 12 | Groovy files, before `java-groovy` exposes a language id to the contract? | **Bridged now, by language id `groovy`** — the satellite already registers it through `registerLanguage`, so there is nothing to wait for. |
+| 13 | Which cspell (phase 1, measured) | **4.9.3, the newest stable release** (2026-09-11): Open VSX's newer versions are pre-releases. It checks every file type by default (`cSpell.enabledFileTypes: { "*": true }`) at `Information`, activates on `onStartupFinished`, and declares no extension dependency. |
+| 14 | Whose fix writes `cspell.json`? (decision 4 against §4.2) | **The core's**, `Add "<word>" to project dictionary (cspell.json)`, beside cspell's own fixes. Decision 4 said dictionary additions are cspell's; §4.2 said the fix creates the file with `ignorePaths` through `jsonc-parser` — something only the core does, and cspell's own `Add Word to Workspace Dictionary` is free to pick `.vscode/settings.json` when no configuration file exists. The core's fix edits the first of `cspell.json`, `.cspell.json`, `cSpell.json` at the root, or creates `cspell.json`; it is not offered when that file does not parse. cspell's fixes stay untouched. |
+| 15 | The `not available` row — remembered? (§2.1 case 2) | **Nothing to remember**: the row is shown, never a notification, so there is no prompt to suppress and `coexistence.ts` is untouched (§6.3 is moot). The row's action opens cspell's page in the Extensions view. |
+
+### Measured — phase 1, 2026-10-09
+
+cspell 4.9.3 in the `java` heavy half, `Speller.java` in the `maven-multi`
+fixture (`recieveMesage`, `// retuns the greeting`).
+
+1. **`SPELL-OK`**: the Inspections view reads `spelling/unknownWord 4 · via
+   cspell 4.9.3`, `Speller.java 3` — the fixture's three words, and one
+   more from another open Java file; the channel logs `spelling: cspell
+   4.9.3 detected, bridged`. cspell's messages are `"recieve": Unknown
+   word.` and, for a word it has a correction for, `"retuns": Misspelled
+   word.`
+2. **`SPELL-DICT-OK`**: the lightbulb on `Mesage` lists cspell's fixes and
+   the core's together — `Message (preferred)`, `Add: "Mesage" to
+   workspace settings`, `Add: "Mesage" to user settings`, `Add "Mesage" to
+   project dictionary (cspell.json)` —; the core's creates `cspell.json`
+   with `version`, `language`, the word and `ignorePaths`, writes nothing
+   to `settings.json`, and the row goes. cspell's own "add" fixes go to
+   *settings* files, which is decision 14's reason.
+3. **The rename fix's title pattern is already wrong (phase 3).** cspell
+   4.9.3 titles a correction `Message (preferred)` — and the others by the
+   bare word —, not `Change to "Message"`: §5.2's `TITLE =
+   /^Change to "(.+)"$/` would find nothing. Phase 3 starts by pinning the
+   real titles, which is exactly the drift its `SPELL-TITLES-OK` exists to
+   catch.
+4. **cspell skips git-ignored files** (`cSpell.useGitignore`, on by
+   default). The suite's workspaces live under the repository's ignored
+   `tests/heavy/work/`, so the java half sets it off; a user's project is
+   not git-ignored. A team whose sources are ignored would see no rows,
+   and the `disabled by you` state does not cover that case — noted, not
+   built.
 
 ### Still open
 
@@ -500,7 +534,7 @@ None at this revision.
 
 | Phase | Content |
 | --- | --- |
-| 1 | Pack membership (`extensionPack`, force-installed); detection and the row in the Inspections view with the `not available` state through `coexistence.ts`; the team word list in `cspell.json` (cspell's own fix, `Open cspell.json` on the row, `ignorePaths` when the fix creates the file); `SPELL-OK`, `SPELL-DICT-OK`; the docs page. No foreign setting is written. Useful alone — and what Team A asked for. |
+| 1 | ~~Pack membership (`extensionPack`, force-installed); detection and the row in the Inspections view with the `not available` state through `coexistence.ts`; the team word list in `cspell.json` (cspell's own fix, `Open cspell.json` on the row, `ignorePaths` when the fix creates the file); `SPELL-OK`, `SPELL-DICT-OK`; the docs page. No foreign setting is written. Useful alone — and what Team A asked for.~~ **Done** (revision 4): cspell 4.9.3 pinned; the fix is the core's (decision 14), the `not available` row needs no memory (decision 15). |
 | 2 | With RFC 0005 and contract member `manifest.writeSetting`: the profile's `off` through `cSpell.enabledFileTypes`; layer 2's removal assertion; `SPELL-PROFILE-OK` with the Markdown row. |
-| 3 | The rename fix with `SPELL-TITLES-OK` pinned in the heavy suite and the nightly matrix; `SPELL-RENAME-OK`. |
+| 3 | The rename fix with `SPELL-TITLES-OK` pinned in the heavy suite and the nightly matrix; `SPELL-RENAME-OK`. **Start from phase 1's finding 3**: 4.9.3's correction titles are `<word> (preferred)` / `<word>`, not `Change to "<word>"`. |
 | — | Deferred: severity mapping, until cspell offers a per-language level (decision 3). |

@@ -15,10 +15,67 @@ Without `vscjava.vscode-java-debug` the editor still writes `launch.json`;
 Run/Debug is greyed out and says why. Run and Debug gutter lenses on `main`
 and tests are the debugger's and the test runner's own.
 
+## Orchestrated runs
+
+A `batlehub-run` entry of `launch.json` starts **steps in order**, each
+waited on by a readiness probe, and stops what it started **in reverse**
+when the last step ends, when a step fails, or when you press Stop. It is a
+debug session: the Run view, the Stop button and the debug console are its
+whole UI.
+
+```jsonc
+{
+  "type": "batlehub-run",
+  "request": "launch",
+  "name": "Acceptance",
+  "steps": [
+    { "task": "batlehub-java: maven package" },
+    { "process": ["java", "-Xmx256m", "-jar", "app/target/app.jar"], "memoryMiB": 384,
+      "ready": { "http": "http://localhost:8080/health" } },
+    { "launch": "Run IT" }
+  ]
+}
+```
+
+| Step | Starts | Ready, unless `ready` says otherwise |
+| --- | --- | --- |
+| `task` | a `tasks.json` label or a provided task | it exited 0 |
+| `launch` | another `launch.json` entry, as a child session | it started; the last step: it exited 0 |
+| `process` | an argument array — never a shell string — with the resolved JDK in `JAVA_HOME` and on `PATH`, in a terminal `step N: <command>` | alive after `intervalMs` |
+| `server` | a step kind a satellite registered (none ships in the core) | the kind's own probe |
+| only `ready` | nothing: it waits for something already running (a sidecar) | the probe |
+
+Probes: `{ "port": 8080 }`, `{ "http": "…", "status": 200 }`, `{ "log":
+"Started in" }` (a regex over the step's output), `{ "exit": 0 }`; each
+with `timeoutMs` (60 000) and `intervalMs` (500). A `process` or `server`
+step is a managed process: it declares `memoryMiB`
+(`batlehub.java.run.defaultMemoryMiB`, 512, when it says nothing), which is
+summed against the budget before it starts — see
+[Resources](./resources.md).
+
+`Java: New run configuration…` → *Orchestrated run (steps)* writes one with
+a first `process` step; add the others in `launch.json`, where the schema
+completes them. The debug console reads, for the run above:
+
+```text
+step 1 exited 0
+step 2 ready (http http://localhost:8080/health in 3.1 s)
+step 3 exited 0
+stopping 3 (Run IT) … already done
+stopping 2 (java) … stopped (term) · peak 212 MiB of 384 in 0.3 s
+stopping 1 (batlehub-java: maven package) … already done
+```
+
+Not every debugger reports an exit code: the Java debugger does, js-debug
+(a `node` launch) does not. A last `launch` step whose debugger says nothing
+ends the run with `step 3 ended (its debugger reports no exit code)`; write
+`"ready": { "exit": 0 }` on it to make the missing code a failure instead.
+Nothing runs in an untrusted workspace.
+
 ## Import from IntelliJ
 
 Behind `batlehub.java.experimental.intellijImport` (the Run tab's
-Experimental section): `Java: Import IntelliJ run configurations` reads
+Experimental section): `Java: Import from IntelliJ` reads
 `.idea/runConfigurations/*.xml` and `workspace.xml`'s RunManager and writes
 `launch.json` entries for Application, Remote and class-scoped JUnit
 configurations. The plan is shown before anything is written; skipped

@@ -21,7 +21,16 @@ wire((core: Core) => {
   const explorer = new Explorer(core, project, link);
   blockRemovers[MARKER] = removeMavenBlock;
   // The contract's project and registry services become the real ones.
-  Object.assign(core.api, { project, registry: link });
+  // A facade, not the Link: its `token()` must not be reachable from the
+  // exports (RFC 0001 §5.2, 1.1 — the token is handed to no one).
+  Object.assign(core.api, {
+    project,
+    registry: {
+      enabled: () => link.enabled(),
+      url: () => link.url(),
+      writeCredential: (t: string) => link.writeCredential(t),
+    },
+  });
 
   const firstFolder = () => vscode.workspace.workspaceFolders?.[0];
   const firstModule = async () => {

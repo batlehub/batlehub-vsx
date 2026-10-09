@@ -9,7 +9,7 @@
   <modelVersion>4.0.0</modelVersion>
   <groupId>dev.batlehub</groupId>
   <artifactId>batlehub-jdt-core</artifactId>
-  <version>0.1.0</version>
+  <version>0.2.1</version>
   <packaging>bundle</packaging>
   <name>BatleHub JDT bundle</name>
 
@@ -69,7 +69,11 @@
             <Bundle-Vendor>BatleHub</Bundle-Vendor>
             <Bundle-RequiredExecutionEnvironment>JavaSE-21</Bundle-RequiredExecutionEnvironment>
             <!-- Versioned imports from the jars the server ships (decision 26). -->
-            <Import-Package>*</Import-Package>
+            <Import-Package>!org.eclipse.jdt.internal.ui.text,*</Import-Package>
+            <!-- RFC 0012's ChainFinder lives in an `x-friends` package, which
+                 Equinox does not wire through Import-Package to a stranger; a
+                 Require-Bundle sees it, as it does for JDT.LS itself. -->
+            <Require-Bundle>org.eclipse.jdt.core.manipulation</Require-Bundle>
             <Export-Package>batlehub.jdt.core;version=${project.version}</Export-Package>
             <Include-Resource>{maven-resources}</Include-Resource>
           </instructions>

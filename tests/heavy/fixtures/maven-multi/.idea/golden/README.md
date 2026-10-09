@@ -9,6 +9,12 @@ Document` on `Greeter.java` must produce this file byte for byte. That is the
 only thing that says the mapping table is right — a converter can satisfy
 every unit test and still not agree with the editor it is imitating.
 
-It lives here, and not beside `Greeter.java`, because `javac` refuses a public
+`Greeter.fixed.java` is the same file after `Java: Fix all inspections in
+file` — what the bundle's `Engine.applyFixAll` produces, held by
+`InspectionsTest.fixAllOnTheHeavyFixtureIsItsGolden` and compared to the
+editor's buffer by `INSPECTIONS-OK`. The headless answer was always right; it
+is the LSP edits the editor applies that once dropped every copied receiver.
+
+Both live here, and not beside `Greeter.java`, because `javac` refuses a public
 class whose file is not `<class>.java`: in a source root it would break the
 fixture's own Maven build.

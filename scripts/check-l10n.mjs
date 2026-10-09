@@ -9,7 +9,7 @@ import { join } from "node:path";
 
 const walk = (dir) => readdirSync(dir).flatMap((n) => (statSync(join(dir, n)).isDirectory() ? walk(join(dir, n)) : [join(dir, n)]));
 let failed = false;
-for (const ext of ["java-core", "java-groovy", "batlehub-seasons"]) {
+for (const ext of ["java-core", "java-groovy", "java-quarkus", "java-spring", "batlehub-seasons"]) {
   const root = `extensions/${ext}`;
   let pkg;
   try {

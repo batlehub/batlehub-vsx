@@ -626,11 +626,25 @@ drafts had each defined 1.1 on their own.
 | 1.1 | `registry.writeCredential(target)` | [0008](/rfc/0008-kotlin-satellite), [0009](/rfc/0009-scala-satellite) | the core writes the fenced block — `0600`, under the lock, in the manifest with the file's previous mode — into a target it knows (`maven-settings`, `gradle-init`; `coursier` when BatleHub accepts what Coursier sends). A new target is a reviewed change in the core, not satellite code |
 | 1.1 | `manifest.writeSetting(key, value)` | 0008, [0010](/rfc/0010-spring-boot-satellite), [0011](/rfc/0011-quarkus-satellite), [0013](/rfc/0013-spell-checking) | a satellite's foreign-setting write lands in the core's one manifest, so `Remove BatleHub settings` stays one command; applies the default-on rule of §7.1 |
 | 1.1 | `process.start(spec)` — the managed process | [0003](/rfc/0003-server-run-step-kinds), every satellite that spawns | declared cap, readiness probe, clean stop, peak RSS recorded; the only way anything long-lived starts (§7.1). Its ledger of running declared caps (RFC 0003 decision 16) is a file, not a member: the command line of [0002](/rfc/0002-headless-engine-mcp) appends to it from outside the extension host |
+| 1.1 | `project.runGoal(folder, goal)` | 0011 (asked in its phase 3) | a goal run as a `batlehub-java` task — its terminal, the core's Maven or Gradle, `-s`, `-P`, the JDK — resolved with its exit code; a satellite's add / remove of an extension without a command line of its own |
+| 1.1 | `process.running()`, `process.onDidChange` | 0011 (asked in its phase 2) | what is running now, with the run step kind that started it (`ProcessSpec.kind`): a satellite's "already running (pid, port)" refusal and its tab's state, without holding a handle of its own |
 | 1.1 | `process.declare(estimate)` | 0003 (owns the shape, decision 17), 0008 (fallback bridge), 0009, 0010, 0011, [0016](/rfc/0016-inspections-growth) | a JVM another extension starts (Spring Tools, MicroProfile, Metals, SonarLint): not managed, but counted in the sum as an estimate the satellite names — an id, a `memoryMiB`, a label, nothing started. Never a per-framework read of a foreign `*.ls.vmargs` inside the core |
-| 1.1 | `registerRunStepKind(kind)` | 0003, 0010, 0011 | the built-in kinds go through it too; a kind's start task takes extra arguments, which 0011's `quarkusDev` needs (its decision 12) |
+| 1.1 | `registerRunStepKind(kind)` | 0003, 0010, 0011 | the built-in kinds go through it too; a kind's start task takes extra arguments, which 0011's `quarkusDev` needs (its decision 12). As built (0003 revision 6, 0011 phase 2): a kind starts either a `goal` — run with the core's Maven or Gradle, `-s`, `-P` and JDK, exactly as a `batlehub-java` task — or an `argv`; its graceful stop is a command or a line on stdin (`GracefulStop`); `ServerStep.debugPort` is the attach's JDWP port |
 | 1.1 | `registerRunTemplate(template)` | 0009, 0010, 0011 | with `upsertTask` and a template's `extraArgs`, which 0011 and [0004](/rfc/0004-run-config-sources) both need |
 | 1.1 | `BuildTool` gains `"sbt"` | 0009 | see the union rule below |
 | 1.1 | `projectConfig(id)` | [0006](/rfc/0006-shared-project-config) | a satellite's own section of the committed `.batlehub/java/project.json`, read-only, handed over as a raw object; a typed sub-schema registration is a later minor, when a second satellite needs the editor to validate its section (0006 decision 12) |
+
+**1.1 shipped on 2026-10-09** (RFC 0003 phases 1–2, RFCs 0010/0011 phase 1):
+`registry.writeCredential` (`maven-settings`, `gradle-init`),
+`manifest.writeSetting`, `process.start`, `process.declare`,
+`registerRunStepKind` (kept for the run engine of RFC 0003 phases 3–4, which
+reads it), `registerRunTemplate` with `upsertTask` and `ServerStep.extraArgs`;
+`registry.token()` is gone and `api.registry` is a facade, so the token is not
+reachable from the exports at runtime either. `java-groovy` starts its server
+through `process.start` (`PROC-GROOVY-OK`). **Not in 1.1, still rows above:**
+`BuildTool` gaining `"sbt"` and `projectConfig(id)` — no consumer yet; and the
+open-union rule below is applied to the new `CredentialTarget` only, the 1.0
+unions (`BuildTool`, `JdkSource`, …) are still closed.
 
 **Widening an exported union is a major bump** — a consumer may switch over
 it exhaustively — **unless the type was published as open**. From 1.1 every
@@ -987,7 +1001,7 @@ layer 6 is the same layer 4 against a matrix, nightly.
 | 1b · Unit, Java | JUnit 5 under plain Maven surefire over `ASTParser`-built units (no Tycho, no `AbstractProjectsManagerBasedTest`: §6.2); a rule that needs types is proven by `task jdt:smoke` against the real server instead; golden file per generator × option set; positive / negative / fix triplet per inspection | generator and inspection regressions, JDT API drift | `jdt/batlehub-jdt-core.tests/` | phase 6 |
 | 2 · Extension host | `@vscode/test-cli` + `@vscode/test-electron`: real extension host, no browser | activation, commands, settings and `launch.json` writes, coexistence, removal (a workspace with every write ends identical to its pristine copy), the `.gitignore`-before-overlay rule, panel tab registry, status-bar toggles, degradation with the debugger absent | `extensions/java-*/test-host/` | phase 1 |
 | 3 · Panel | `@vscode/test-cli` (the panel is plain DOM in the webview; no component framework to mount) | tab logic, forms, override/detected origin display, keyboard navigation and ARIA roles | `extensions/java-core/test-host/panel.*.ts` | phase 3 |
-| 4 · Heavy (real editor) | the existing suite (`tests/heavy/view.sh` + `view.mjs`) gains a `java` half, `HEAVY_ONLY=java`: the same VS Code web build in the browser sidecar, **no BatleHub and no Postgres** — the Java extensions need neither before the registry link, whose one scenario joins the marketplace half in phase 5 (decision 39). Adds: golden screenshots of the panel on light / dark / high-contrast (`pixelmatch`), accessibility-tree walk, the performance numbers (printed from phase 2, gated from phase 3), JDT.LS-dependent scenarios (rename across modules, Generate, run, LSP profiles) | what only a real editor shows: rendering, a11y, timing, JDT.LS integration | `tests/heavy/view.mjs`, the `java` scenarios | phase 0 |
+| 4 · Heavy (real editor) | the existing suite (`tests/heavy/view.sh` + `view.mjs`) gains a `java` half, `HEAVY_ONLY=java`: the same VS Code web build in the browser sidecar, **no BatleHub and no Postgres** — the Java extensions need neither before the registry link, whose one scenario joins the marketplace half in phase 5 (decision 39). Adds: screenshots of the panel on light / dark / high-contrast, kept as artifacts — asserted through the DOM and computed styles (`PANEL-OK`, `THEME-PANEL-OK`), not a `pixelmatch` gate (§15.4), accessibility-tree walk, the performance numbers (printed from phase 2, gated from phase 3), JDT.LS-dependent scenarios (rename across modules, Generate, run, LSP profiles) | what only a real editor shows: rendering, a11y, timing, JDT.LS integration | `tests/heavy/view.mjs`, the `java` scenarios | phase 0 |
 | 5 · Contract | the last tagged `java-groovy` VSIX against the PR's core, and the PR's satellite against the last tagged core | breaking the satellite without bumping `contractVersion` | `tests/contract/` | phase 8 |
 | 6 · Compatibility matrix | layer 4 on stock VS Code × the che-code image, with `redhat.java` pinned × previous × pre-release, and JDT.LS nightly | drift of the dependency this RFC chose to depend on | nightly | phase 3 |
 
@@ -1201,8 +1215,10 @@ accepting what Coursier sends, so only its measurement jumps the queue.
    built and measured). What is left is its decision 10 — the upstream issue,
    carrying the measured numbers — and phase 2 only if that issue has no
    owner by the next `redhat.java` pin bump.
-5. [0003](/rfc/0003-server-run-step-kinds) — the orchestrator and the managed
-   process, without the server kinds ([0017](/rfc/0017-server-kinds), parked).
+5. ~~[0003](/rfc/0003-server-run-step-kinds) — the orchestrator and the managed
+   process, without the server kinds ([0017](/rfc/0017-server-kinds), parked).~~
+   — **done** (0003 revision 6: phases 1–4, `RUN-ORDER-OK`, `RUN-ACCEPT-OK`,
+   `RUN-TIMEOUT-OK`). The `server` step waits for its first real kind in 6.
 6. [0010](/rfc/0010-spring-boot-satellite) and
    [0011](/rfc/0011-quarkus-satellite) together.
 7. [0015](/rfc/0015-generate-shortcuts).

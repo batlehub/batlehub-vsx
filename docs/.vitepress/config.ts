@@ -43,7 +43,10 @@ export default withMermaid(
             { text: "Settings and commands", link: "/guide/java/settings" },
             { text: "Clean removal", link: "/guide/java/removal" },
             { text: "Completion, and the chain", link: "/guide/java/editing" },
+            { text: "Spell checking", link: "/guide/java/spelling" },
             { text: "Groovy, Gradle DSL, Jenkinsfile", link: "/guide/java/groovy" },
+            { text: "Quarkus", link: "/guide/java/quarkus" },
+            { text: "Spring Boot", link: "/guide/java/spring" },
           ],
         },
         {
@@ -62,10 +65,6 @@ export default withMermaid(
             {
               text: "0002 — Headless engine",
               link: "/rfc/0002-headless-engine-mcp",
-            },
-            {
-              text: "0003 — Orchestrated runs",
-              link: "/rfc/0003-server-run-step-kinds",
             },
             {
               text: "0004 — Run-config sources",
@@ -90,14 +89,6 @@ export default withMermaid(
             {
               text: "0009 — Scala",
               link: "/rfc/0009-scala-satellite",
-            },
-            {
-              text: "0010 — Spring Boot",
-              link: "/rfc/0010-spring-boot-satellite",
-            },
-            {
-              text: "0011 — Quarkus",
-              link: "/rfc/0011-quarkus-satellite",
             },
             {
               text: "0012 — Chain completion",
@@ -136,6 +127,18 @@ export default withMermaid(
             {
               text: "0001 — Java extensions",
               link: "/rfc/0001-java-env",
+            },
+            {
+              text: "0003 — Orchestrated runs",
+              link: "/rfc/0003-server-run-step-kinds",
+            },
+            {
+              text: "0010 — Spring Boot",
+              link: "/rfc/0010-spring-boot-satellite",
+            },
+            {
+              text: "0011 — Quarkus",
+              link: "/rfc/0011-quarkus-satellite",
             },
             {
               text: "0014 — BatleHub theme",

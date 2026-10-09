@@ -3,8 +3,9 @@
 Installs, together: `batlehub.java-core` (the JDK manager, the Java panel,
 run configurations, Maven, Gradle, the IDEA-style menu),
 `batlehub.java-groovy` (Groovy, Gradle DSL, Jenkinsfile), `redhat.java`
-(the language server), the Microsoft debugger and test runner, and the
-IntelliJ keymap.
+(the language server), the Microsoft debugger and test runner, the IntelliJ
+keymap, and Code Spell Checker (cspell) — its findings in Java and Groovy
+appear in the Java panel's Inspections view (RFC 0013).
 
 Nothing but the pack lives here. The debugger and the test runner are
 `extensionPack` entries rather than hard dependencies of the core: the pack

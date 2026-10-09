@@ -4,7 +4,7 @@
 // workspace; `true` writes the mirror (and the token) where the build tool
 // reads it; `false` removes only the core's own blocks.
 import * as vscode from "vscode";
-import type { RegistryLink } from "../api-types";
+import type { CredentialTarget, RegistryLink } from "../api-types";
 import type { BuildToolProvider } from "../build/types";
 import { readSettings, writeWorkspace } from "../config";
 import type { Core } from "../extension";
@@ -29,7 +29,13 @@ async function vsx(): Promise<VsxExports | undefined> {
   }
 }
 
-export class Link implements RegistryLink {
+/** The targets `writeCredential` knows, and the provider that owns each. */
+const TARGETS: Record<string, BuildToolProvider["id"]> = {
+  "maven-settings": "maven",
+  "gradle-init": "gradle",
+};
+
+export class Link implements Omit<RegistryLink, "writeCredential"> {
   constructor(
     private readonly core: Core,
     private readonly providers: () => BuildToolProvider[],
@@ -87,8 +93,22 @@ export class Link implements RegistryLink {
     }
   }
 
+  /** Contract 1.1: the link's block for one target, written by the core. */
+  async writeCredential(target: CredentialTarget): Promise<boolean> {
+    const id = TARGETS[target];
+    if (!id)
+      throw new Error(
+        `writeCredential: unknown target "${target}" (known: ${Object.keys(TARGETS).join(", ")})`,
+      );
+    if (this.enabled() !== "true" || !this.core.trusted()) return false;
+    await this.apply((p) => p.id === id);
+    return true;
+  }
+
   /** Apply the current state: enabled → blocks written (warning without a signed-in batlehub-vsx); disabled → removed. */
-  async apply(): Promise<void> {
+  async apply(
+    only: (p: BuildToolProvider) => boolean = () => true,
+  ): Promise<void> {
     const enabled = this.enabled() === "true";
     if (!this.core.trusted()) return;
     const url = enabled ? await this.mavenUrl() : null;
@@ -114,7 +134,7 @@ export class Link implements RegistryLink {
         "registry link: no token from batlehub-vsx (absent or signed out); the mirror is written without credentials",
       );
     for (const p of this.providers()) {
-      if (!p.configureRegistry) continue;
+      if (!p.configureRegistry || !only(p)) continue;
       try {
         await p.configureRegistry({ url: url ?? "", token }, enabled && !!url);
       } catch (e) {

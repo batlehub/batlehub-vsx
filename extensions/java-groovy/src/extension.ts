@@ -9,9 +9,10 @@ import {
   type LanguageClientOptions,
   type ServerOptions,
 } from "vscode-languageclient/node";
-import type { JavaCoreApi, Runtime } from "../../java-core/api";
+import type { JavaCoreApi, ManagedProcess, Runtime } from "../../java-core/api";
 import {
   CONTRACT_MAJOR,
+  DECLARED_MIB,
   launch,
   settingsFor,
   type State,
@@ -31,6 +32,7 @@ let warnedOnce = false;
 let restart: (() => Promise<void>) | undefined;
 
 async function startServer(
+  api: JavaCoreApi,
   context: vscode.ExtensionContext,
   ctx: {
     runtime: Runtime | undefined;
@@ -68,11 +70,25 @@ async function startServer(
     "groovy-language-server-all.jar",
   );
   const { command, args } = launch(ctx.runtime.path, jar);
-  const serverOptions: ServerOptions = {
-    command,
-    args,
-    options: { cwd: ctx.folder.uri.fsPath },
-  };
+  // RFC 0003 §6.5: the core starts the JVM (declared cap, peak RSS, swept
+  // if the host dies) and the client speaks LSP over its streams. A 1.0 core
+  // has no `process`: the client spawns it as before.
+  let managed: ManagedProcess | undefined;
+  const serverOptions: ServerOptions = api.process
+    ? async () => {
+        managed = await api.process.start({
+          id: "groovy-ls",
+          argv: [command, ...args],
+          cwd: ctx.folder.uri.fsPath,
+          memoryMiB: DECLARED_MIB,
+          stdio: "streams",
+        });
+        return {
+          reader: managed.streams!.reader,
+          writer: managed.streams!.writer,
+        };
+      }
+    : { command, args, options: { cwd: ctx.folder.uri.fsPath } };
   const clientOptions: LanguageClientOptions = {
     documentSelector: [{ scheme: "file", language: "groovy" }],
     outputChannel: channel,
@@ -110,12 +126,16 @@ async function startServer(
       );
     }
   }
-  restart = async () => {
+  const stop = async () => {
     await c.stop().catch(() => {});
-    await startServer(context, ctx, onState);
+    await managed?.stop().catch(() => {});
+  };
+  restart = async () => {
+    await stop();
+    await startServer(api, context, ctx, onState);
   };
   return new vscode.Disposable(() => {
-    void c.stop().catch(() => {});
+    void stop();
     client = undefined;
     set("stopped");
   });
@@ -160,7 +180,7 @@ export async function activate(
     api.registerLanguage({
       id: "groovy",
       languages: ["groovy"],
-      start: (ctx) => startServer(context, ctx, onState),
+      start: (ctx) => startServer(api, context, ctx, onState),
     }),
     api.registerPanelTab({
       id: "groovy",

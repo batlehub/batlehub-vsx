@@ -76,12 +76,9 @@ export interface BudgetInput {
   jdtVmargs: string;
   /** Present when the workspace has a Gradle build: the daemon's default heap. */
   gradle: boolean;
-  /** Present when java-groovy is installed. */
-  groovy: boolean;
 }
 
 const GRADLE_DAEMON = 512 * 2 ** 20;
-const GROOVY_SERVER = 512 * 2 ** 20;
 /** The editor's own server, the terminal shell, the JVM off-heap: a floor, not a measurement. */
 const BASELINE = 768 * 2 ** 20;
 
@@ -96,11 +93,28 @@ export function budget(input: BudgetInput): ResourceSnapshot {
   ];
   if (input.gradle)
     consumers.push({ name: "Gradle daemon", bytes: GRADLE_DAEMON });
-  if (input.groovy)
-    consumers.push({ name: "Groovy language server", bytes: GROOVY_SERVER });
   return {
     limit,
     limitSource: source,
+    consumers,
+    planned: consumers.reduce((n, c) => n + c.bytes, 0),
+  };
+}
+
+/** The managed processes' declared caps (RFC 0003), appended to a snapshot's consumers. */
+export function withDeclared(
+  snap: ResourceSnapshot,
+  declared: { id: string; mib: number; label?: string; estimate?: boolean }[],
+): ResourceSnapshot {
+  const consumers = [
+    ...snap.consumers,
+    ...declared.map((d) => ({
+      name: `${d.label ?? d.id} (${d.estimate ? "estimated" : "declared"})`,
+      bytes: d.mib * 2 ** 20,
+    })),
+  ];
+  return {
+    ...snap,
     consumers,
     planned: consumers.reduce((n, c) => n + c.bytes, 0),
   };

@@ -69,6 +69,23 @@ path = "extensions/java-groovy"
 public_api = true
 pre_bump_hooks = ["pnpm pkg set version={{version}}"]
 
+# RFC 0011: the first framework satellite, and the opt-in pack that carries it.
+[monorepo.packages.java-quarkus]
+path = "extensions/java-quarkus"
+public_api = true
+pre_bump_hooks = ["pnpm pkg set version={{version}}"]
+
+# RFC 0010: the second framework satellite.
+[monorepo.packages.java-spring]
+path = "extensions/java-spring"
+public_api = true
+pre_bump_hooks = ["pnpm pkg set version={{version}}"]
+
+[monorepo.packages.java-pack-frameworks]
+path = "extensions/java-pack-frameworks"
+public_api = true
+pre_bump_hooks = ["pnpm pkg set version={{version}}"]
+
 
 # RFC 0019: a Product extension of its own, like the theme - its own version,
 # its own tag, so a fix in a pumpkin never republishes the Java family.

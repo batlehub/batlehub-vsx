@@ -2,17 +2,17 @@
 
 | Field       | Value                                                        |
 | ----------- | ------------------------------------------------------------ |
-| Status      | Draft                                                         |
+| Status      | Implemented — revision 7, 2026-10-09; phases 1–5 landed and proven in a real editor (`task heavy:view:spring`, `ALL-OK`: `SPRING-LS-OK`, `-RUN-OK`, `-DASH-OK`, `-DEVTOOLS-OK`, `-ACCEPT-OK`, `-DEGRADED-OK`); in `java-pack-frameworks` beside Quarkus |
 | Short       | Spring Boot                                                   |
 | Settles     | Detection, properties completion, bean navigation, dashboard; relationship with vmware.vscode-spring-boot |
 | Closes      | A.11 — Spring Boot (Team A) |
 | Author      | Max Batleforc <maxleriche.60@gmail.com>                       |
 | Co-author   | —                                                             |
 | Created     | 2026-09-18                                                    |
-| Revised     | 2026-09-29 — revision 3, the recommendations of §11 promoted to decisions 12–15: no explorer decoration, script-only Gradle detection with a later `Detect` button, `Stop` disabled with its reason for an instance the editor did not start, and the Spring language server's heap declared through RFC 0003's generic `estimate` row rather than read from a foreign setting |
+| Revised     | 2026-10-09 — revision 7, phase 5: `batlehub.java-spring` added to `java-pack-frameworks` (0.2.0, installed beside both members with the real editor's CLI), `docs/guide/java/spring.md` · revision 6, phase 4 built: the `spring-boot` run step kind, case 6 in the real editor (`SPRING-ACCEPT-OK`); decision 26 · revision 5, phase 3 built: the instances dashboard over actuator and the `spring.instances` status bar item, cases 3 and 4 in the real editor; decisions 23–25 · revision 4, phase 2 built: `extensions/java-spring` v0.1 — detection through the parent chain, the bridge, the `Spring` tab with its profiles, the `Spring Boot application` template — cases 1, 2 and 5 in the real editor (`task heavy:view:spring`); building it measured VMware's extension against §4.1 and moved the fixture to Boot 4, decisions 16–21 · 2026-09-29 — revision 3, the recommendations of §11 promoted to decisions 12–15: no explorer decoration, script-only Gradle detection with a later `Detect` button, `Stop` disabled with its reason for an instance the editor did not start, and the Spring language server's heap declared through RFC 0003's generic `estimate` row rather than read from a foreign setting |
 | Supersedes  | —                                                             |
 | Depends on  | RFC 0001 (the core, its contract `extensions/java-core/api.d.ts`, the run editor and the `batlehub-java` task provider); RFC 0003 revision 2 (the orchestrator and the managed process only — a running application as a step with a declared cap, a readiness probe and a stop order; the server kinds moved to the parked RFC 0017), which comes before this RFC in RFC 0001 §14's order of work; RFC 0011, built together with this one (sixth in that order); RFC 0004 when it exists (devfile commands as run templates, for the Che case) — nothing here waits for it; needs members `manifest.writeSetting`, `registerRunTemplate`, `registerRunStepKind` — RFC 0001 §5.2 contract changelog |
-| Touches     | `extensions/java-spring/` (new), `extensions/java-pack-frameworks/` (new, shared with RFC 0011), `extensions/java-core/api.d.ts` (the members of §5.2), `tests/heavy/fixtures/spring-boot/`, `tests/heavy/java.mjs`, `docs/guide/java/spring.md` |
+| Touches     | `extensions/java-spring/` (new), `extensions/java-pack-frameworks/` (built with RFC 0011), `extensions/java-core/api.d.ts` (the members of §5.2), `tests/heavy/fixtures/spring-boot/`, `tests/heavy/spring.mjs` and the `spring` half of `view.sh`, `docs/guide/java/spring.md` |
 
 ---
 
@@ -99,16 +99,16 @@ Each case is an acceptance scenario; the observable proof is what a step of
 1. **A newcomer opens a Boot project in Che.** *Who:* a developer with
    `java-pack` and `vmware.vscode-spring-boot` installed, a workspace with
    `mise` and no global `java`. *Start:* `tests/heavy/fixtures/spring-boot`
-   (parent `spring-boot-starter-parent:3.5.4`, one `@SpringBootApplication`,
+   (parent `spring-boot-starter-parent:4.1.1` — decision 19 — one `@SpringBootApplication`,
    one `@RestController`, `application.yml` with a `dev` profile document,
    `spring-boot-starter-actuator`). *Action:* trust the workspace; the
    core resolves JDK 21 and writes `java.jdt.ls.java.home` (RFC 0001
    `NEWCOMER-OK`); the satellite activates on `workspaceContains:**/pom.xml`,
    detects Boot, sees that the Spring language server has no usable JDK
-   ≥ 17 (§4.1) and writes `spring-boot.ls.java.home` (workspace scope,
+   ≥ 21 (§4.1, decision 16) and writes `spring-boot.ls.java.home` (workspace scope,
    through `manifest.writeSetting`, shown once in the `Spring` tab with its
    undo). *Proof:* the channel `BatleHub Java: Spring`
-   carries `detected Spring Boot 3.5.4 (maven, module spring-boot)` and
+   carries `detected Spring Boot 4.1.1 (maven, module spring-boot-fixture)` and
    `wrote spring-boot.ls.java.home`; after the reload, hovering `server.port`
    in `application.yml` shows the VMware extension's property documentation
    (`SPRING-LS-OK`).
@@ -215,7 +215,7 @@ Each case is an acceptance scenario; the observable proof is what a step of
   nothing is set; `0` (random port) is listed as "random — start it from
   the editor to see it".
 - `bridge: auto` writes `spring-boot.ls.java.home` **only when the Spring
-  language server has no usable JDK ≥ 17** — the rule of the core's
+  language server has no usable JDK ≥ 21** (decision 16: 2.4.0 refuses below 21) — the rule of the core's
   `java.jdt.ls.java.home` write as RFC 0001 §4.2 revision 7 states it
   ("only then"), through the same manifest, removed by the same command.
   The condition is not "nothing on `PATH`": a JDK 11 first on `PATH` is a
@@ -225,7 +225,7 @@ Each case is an acceptance scenario; the observable proof is what a step of
   (its activation failed, or it is active with no language client up). *Off
   the machine*: none of the places that extension looks — the key itself,
   `JAVA_HOME`, the first `java` on `PATH` — names a JDK whose `release` file
-  says ≥ 17 (a file read; nothing is executed, and a `mise` shim with no
+  says ≥ 21 (a file read; nothing is executed, and a `mise` shim with no
   version set counts as none). A server that is running is never reloaded
   and the key is never written under it: the tab then shows which JDK it
   runs on, and a `Use the core's JDK` button if the two differ. A value the
@@ -562,7 +562,7 @@ test/*.test.ts          vitest over the pure modules with fixtures of real POMs,
   server never starts and nothing says why (§2 point 1) — under the
   default-on rule: workspace scope, manifest, shown once in the tab with its
   undo, never over a user value, and only when that server has no usable
-  JDK ≥ 17. Bridge rather than rebuild is decision 1; nothing is downloaded
+  JDK ≥ 21 (decision 16). Bridge rather than rebuild is decision 1; nothing is downloaded
   at runtime; actuator responses stay on loopback and no source or comment
   text goes to a third party.
 
@@ -646,7 +646,7 @@ test/*.test.ts          vitest over the pure modules with fixtures of real POMs,
 | 5 | Contract change | **None defined here.** Needs `registerRunTemplate`, `manifest.writeSetting` and `registerRunStepKind` — [RFC 0001 §5.2 contract changelog](/rfc/0001-java-env#contract-changelog), the one place the next version is written. |
 | 6 | How is the main class found? | **A file scan of the module's source roots.** The workspace-symbol lookup of revision 1 needs a core capability that is not on the contract; a member for one lookup, that would also not work in LightWeight, loses to forty lines that work everywhere. Reopened by a diary entry where the scan picked wrong. |
 | 7 | The Boot version without running Maven? | **The parent chain from POM files on disk and `~/.m2` only**; when a parent is not resolvable offline the tab says `version unknown`, names the parent and what to do (§4.2). |
-| 8 | When is the bridge key written? | **Only when the Spring language server has no usable JDK ≥ 17**, read off VMware's extension and the places it looks — not "nothing on `PATH`", which kept the failure when a wrong JDK was there. A running server is never reloaded (RFC 0001 §4.2 revision 7). |
+| 8 | When is the bridge key written? | **Only when the Spring language server has no usable JDK ≥ 21** (≥ 17 until decision 16 measured it), read off VMware's extension and the places it looks — not "nothing on `PATH`", which kept the failure when a wrong JDK was there. A running server is never reloaded (RFC 0001 §4.2 revision 7). |
 | 9 | The core absent? | **`extensionDependencies: ["batlehub.java-core"]`**, consistent with RFC 0008: the editor guarantees the core, `assertContract` checks the version only. |
 | 10 | In the pack? | **No — `java-pack-frameworks`**, shared with RFC 0011 (its decision 8); the Spring Tools server is the workspace's one framework server. |
 | 11 | Where in the order of work | **Sixth, together with RFC 0011, after RFC 0003** (RFC 0001 §14): Team A's most used stacks. |
@@ -655,10 +655,79 @@ test/*.test.ts          vitest over the pure modules with fixtures of real POMs,
 | 14 | `Stop` for an instance started outside the editor? | **Disabled, with the reason shown.** `POST /actuator/shutdown` is rarely exposed, and no process is hunted by port. |
 | 15 | How an estimate reaches the resource diagnostic? | **`process.declare(estimate)`** (RFC 0001 §5.2, 1.1; its shape is RFC 0003 decision 17) — an id, a `memoryMiB`, a label, nothing started — not a Spring-specific read of `spring-boot.ls.vmargs` inside the core. The same row serves Quarkus (RFC 0011) and Metals (RFC 0009). |
 
+| 16 | The bridge, against VMware's real lookup (phase 2, measured on 2.4.0) | **The key is right — `spring-boot.ls.java.home` — the version is not: a JDK ≥ 21**, the server refusing anything older ("Spring Tools Language Server requires Java 21 or higher"). Its lookup is the key, then **redhat.java's embedded JRE** (`<redhat.java>/jre/*`), then `java.home`, `JAVA_HOME`, `PATH`; so the rule also skips when redhat.java carries a JRE (a platform build from the VS Code Marketplace does; the universal Open VSX build a Che workspace gets does not). The value is the newest JDK ≥ 21 the core found, not the project's. |
+| 17 | Which VMware release, and what it brings | **The newest stable release, 2.4.0** (2026-09-07): Open VSX's newer versions are daily pre-releases (`2.5.<date>`). It declares `redhat.java` *and* `vscjava.vscode-maven` as extension dependencies, so a workspace that recommends it gets the Maven extension too. |
+| 18 | The estimate's figure (decision 15's row) | **1 536 MiB**: VMware's default heap (`jvmHeap: "1024m"`), or `spring-boot.ls.java.heap` / an `-Xmx` in `spring-boot.ls.java.vmargs`, times RFC 0003 §4.2's 1.5 heap-to-resident margin, declared as `spring-ls` while the extension is installed. |
+| 19 | The fixture's Boot | **4.1.1** (2026-08-20), generated by `start.spring.io`, not the 3.5.4 written here before: Boot 4's web starter is `spring-boot-starter-webmvc`, and its parent carries an empty `<relativePath/>`, which the walk must read as "the repository only". Detection does both. |
+| 20 | The satellite's own profiles key | **Through `manifest.writeSetting`**, so the removal command restores it; when the user set it by hand the manifest refuses (never over a user value), and the click — the user changing their own key — writes it directly. |
+| 21 | Rewriting existing entries on a profile switch (§4.2) | **Not in phase 2.** The satellite writes `launch.json` only through the template the core writes; editing every `spring-boot` entry's `vmArgs` from the satellite needs a contract member the core does not have. The template carries the profiles at the time it runs. Built when a diary entry asks for it. |
+| 22 | The template's console (phase 2, measured) | **`"console": "internalConsole"`.** In `vscode-java-debug`'s default, the integrated terminal, Stop ended the debug session and left the JVM running in its terminal, still answering on 8081 — the orphan on a port that RFC 0003 §2 point 3 exists to prevent. In the debug console the debugger owns the process, and Stop ends it (`SPRING-RUN-OK` asserts the port is free). The cost is colour in the log. |
+| 23 | The row's uptime (phase 3, measured on Boot 4.1.1) | **The application context's, not the JVM's.** A devtools restart keeps the JVM, so `process.uptime` keeps counting through it (3.4 s → 14.4 s across a restart); `application.ready.time` is re-registered with each context (2.262 s, then 0.426 s). The row shows the JVM's uptime at first sight and resets it, `restarted N×`, when the ready time changes between polls. It needs `metrics` exposed; without it the row has no uptime. |
+| 24 | `Restart` on Boot 4 (phase 3, measured) | **No endpoint**: `POST /actuator/restart` answers 404 — it is Spring Cloud's. The button touches devtools' `spring.devtools.restart.trigger-file` in the output directory when the config names one, POSTs only when `restart` is exposed, and is otherwise disabled with the reason: saving a class restarts a devtools app by itself (case 4). Boot 4 also no longer logs `Restarting due to …`; a restart is seen as a second `Started …` and a new ready time. |
+| 25 | When the dashboard polls | **Every `dashboard.pollMs` in a trusted workspace**, not "while the tab is visible": the contract tells a satellite nothing about the panel's visibility, and two to four loopback GETs per declared port every five seconds is not worth a member. Revisit with a measurement that says otherwise. |
+| 26 | The `spring-boot` kind's start (phase 4, measured) | **A goal, not the template's launch**: a run step is a managed process, and a debug launch is not one (RFC 0003 §6.6). The kind returns `spring-boot:run` (Gradle `bootRun`) with `-Dspring-boot.run.profiles=` the active profiles, run by the core in its task environment as RFC 0011's dev mode is. Ready on `/actuator/health` 2xx — 503 while DOWN at startup — within 120 s; stopped by the core's SIGTERM to the group, which Boot 4.1.1 answers with `Commencing graceful shutdown` / `Graceful shutdown complete`, the group gone in 2 s (measured by hand; the suite asserts the stop and the free port, and records the log line without asserting it, the step's terminal not being the one it can read). Declares 768 MiB (`batlehub.java.spring.runMemoryMiB`): the measured peak was 454. |
+
+### Measured — phase 2, 2026-10-09
+
+`extensions/java-spring` v0.1 (12 unit tests over the pure half, on the
+fixture's own files), `task heavy:view:spring`: Spring Boot Tools 2.4.0 with
+its dependencies pinned from Open VSX, the newcomer's environment, `~/.m2`
+warmed once per Boot version.
+
+1. **Spring Tools documents `server.port` after the reload** —
+   `server.port java.lang.Integer Default: 8080 Server HTTP port.` — on
+   the bridged JDK. As with RFC 0011's MicroProfile server, the server
+   started before the bridge wrote its JDK does not retry; the reload of
+   case 1 is required.
+2. **The `dev` profile reaches Boot**: the template's entry, started with
+   F5, answers `/actuator/health` on 8081 in 9–16 s and `/actuator/env`
+   reports `activeProfiles: ["dev"]`. The driver reads that rather than
+   the log line, which scrolls out of the visible console.
+3. **Stop leaves the JVM running in the integrated terminal** — decision 22.
+4. **Without Spring Boot Tools**: one warning naming it, nothing bridged,
+   the tab's profiles and the template unchanged (`SPRING-DEGRADED-OK`).
+5. Decisions 16–22 record what the measurement changed in §4.1, §4.2 and
+   §6.4; §2.1's case 1 now reads Boot 4.1.1 and a JDK ≥ 21.
+
+### Measured — phase 3, 2026-10-09
+
+`extensions/java-spring` v0.2 (18 unit tests), `task heavy:view:spring`
+with `SPRING-DASH-OK` and `SPRING-DEVTOOLS-OK` beside phase 2's three.
+
+1. **Case 3, an instance the editor did not start** — `spring-boot:run` as a
+   `batlehub-java` task: the row is there from the first answer, `DOWN`
+   while health answers 503 during startup, `UP` on the next poll; the
+   driver saw `UP` 8.3 s after the app first answered (a 17 s run is also
+   on record: up to one poll late plus the driver's own reading — the
+   suite allows 15 s, §2.1's "within 10 s" is a target, not a guarantee
+   at `pollMs` 5 000). `Stop` is disabled, "started outside the editor";
+   `Open` shows `localhost:8080` in the simple browser; `Ctrl+C` in the
+   task's terminal, and the row is gone 3.6 s later.
+2. **Case 4, devtools**: the template's instance on 8081 (Stop enabled, the
+   editor started it), a saved `HelloController`, `/hello` answers the new
+   string — JDT.LS's build wrote the class, devtools restarted the
+   context — and the row reads `0 s (restarted 1×)`: decision 23's
+   context uptime, where `process.uptime` would have kept counting.
+   `Restart` is disabled with decision 24's reason; the tab's `Stop` ends
+   the instance through its debug session.
+3. **Exposure**: the fixture exposes `health,info,env,metrics` — `env` for
+   the row's profiles, `metrics` for its uptime.
+
+### Measured — phase 4, 2026-10-09
+
+`SPRING-ACCEPT-OK`: a `batlehub-run` of `{ "server": "spring-boot" }` then a
+`node` client that GETs `/hello` and exits 0 only on the fixture's answer.
+The debug console reads `step 1 ready (http http://localhost:8081/actuator/health in 8.5 s)`,
+`step 2 exited 0`, `stopping 2 (node) … already done`,
+`stopping 1 (spring-boot) … stopped (term) · peak 454 MiB of 768`, and the
+port is free after. The dev profile reached the app through the kind, not a
+launch: 8081 is only the `dev` document's port. Gradle's `bootRun` path is
+unit-tested and has met no real Gradle project yet; its debug flag (`--debug-jvm`
+suspends on a fixed port) is left out until one does.
+
 ### Still open
 
-None at this revision. Decision 15 lands with RFC 0003's contract row,
-before phase 2.
+None at this revision.
 
 ---
 
@@ -666,8 +735,8 @@ before phase 2.
 
 | Phase | Content |
 | --- | --- |
-| 1 | The members of §5.2 in the core, as the contract changelog schedules them — one change shared with RFC 0011's phase 1 and RFC 0003's phase 4, not three; `java-groovy` contract test green against it. Starts after RFC 0003's orchestrator |
-| 2 | `java-spring` v0.1: detection, the bridge, the `Spring` tab with profiles, the template; fixture; cases 1, 2, 5 in the heavy suite |
-| 3 | v0.2: the actuator dashboard and the status bar item; cases 3, 4 |
-| 4 | v0.3: the RFC 0003 process kind and case 6 (the engine is there: RFC 0003 precedes this RFC) |
-| 5 | `java-pack-frameworks` with RFC 0011; `docs/guide/java/spring.md` |
+| 1 | ~~The members of §5.2 in the core, as the contract changelog schedules them — one change shared with RFC 0011's phase 1 and RFC 0003's phase 4, not three; `java-groovy` contract test green against it. Starts after RFC 0003's orchestrator~~ **Done** (2026-10-09, contract 1.1) ahead of the orchestrator, by choice: the members are on the contract and `registerRunStepKind` keeps the kind for RFC 0003 phases 3–4, which read it. `java-groovy` contract test green (`TYPES-OK`, 1.1). |
+| 2 | ~~`java-spring` v0.1: detection, the bridge, the `Spring` tab with profiles, the template; fixture; cases 1, 2, 5 in the heavy suite~~ **Done** (revision 4): `SPRING-LS-OK`, `SPRING-RUN-OK`, `SPRING-DEGRADED-OK` (`task heavy:view:spring`); decisions 16–22. |
+| 3 | ~~v0.2: the actuator dashboard and the status bar item; cases 3, 4~~ **Done** (revision 5): `SPRING-DASH-OK`, `SPRING-DEVTOOLS-OK`; decisions 23–25. |
+| 4 | ~~v0.3: the RFC 0003 process kind and case 6 (the engine is there: RFC 0003 precedes this RFC)~~ **Done** (revision 6): `SPRING-ACCEPT-OK`; decision 26. |
+| 5 | ~~`java-pack-frameworks` — already built with RFC 0011 (its revision 6): add `batlehub.java-spring` to its `extensionPack`; `docs/guide/java/spring.md`~~ **Done** (revision 7): the pack 0.2.0 lists both satellites; the guide page documents what was measured, not revision 3's draft. |

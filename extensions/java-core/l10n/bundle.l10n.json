@@ -120,5 +120,22 @@
   "registry link on, but batlehub-vsx is absent or signed out — no token written": "registry link on, but batlehub-vsx is absent or signed out — no token written",
   "through mise or sdkman": "through mise or sdkman",
   "untrusted workspace: nothing this project controls runs until you trust it": "untrusted workspace: nothing this project controls runs until you trust it",
-  "{0}: raw ↔ effective POM": "{0}: raw ↔ effective POM"
+  "{0}: raw ↔ effective POM": "{0}: raw ↔ effective POM",
+  "Start anyway": "Start anyway",
+  "Skip": "Skip",
+  "Java: \"{0}\" written from the {1} template.": "Java: \"{0}\" written from the {1} template.",
+  "Orchestrated run (steps)": "Orchestrated run (steps)",
+  "Orchestrated run": "Orchestrated run",
+  "Name": "Name",
+  "Step 1: the command, its arguments separated by spaces (no shell: it is stored as an array)": "Step 1: the command, its arguments separated by spaces (no shell: it is stored as an array)",
+  "Step 1: the declared memory, in MiB": "Step 1: the declared memory, in MiB",
+  "A positive integer": "A positive integer",
+  "Step 1 is ready when: a port, an http:// URL, or a log line (regex); empty: alive": "Step 1 is ready when: a port, an http:// URL, or a log line (regex); empty: alive",
+  "Java: run \"{0}\": {1}": "Java: run \"{0}\": {1}",
+  "Java: no cspell.json yet — the quick fix \"Add to project dictionary\" creates it.": "Java: no cspell.json yet — the quick fix \"Add to project dictionary\" creates it.",
+  "Add \"{0}\" to project dictionary ({1})": "Add \"{0}\" to project dictionary ({1})",
+  "not available (install Code Spell Checker)": "not available (install Code Spell Checker)",
+  "disabled by you": "disabled by you",
+  "Install": "Install",
+  "SonarLint is not installed — breadth comes from it": "SonarLint is not installed — breadth comes from it"
 }

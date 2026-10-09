@@ -308,7 +308,10 @@ export const VOICES = [
   {
     voice: "copper",
     name: "Literals and annotations",
-    semantic: ["string", "annotation", "annotationMember"],
+    // JDT.LS types an annotation's name as the standard `decorator`
+    // (TokenType.ANNOTATION → SemanticTokenTypes.Decorator), not
+    // `annotation`: without it `@Test` wore the type colour.
+    semantic: ["string", "decorator", "annotation", "annotationMember"],
     scopes: ["string", "storage.type.annotation"],
   },
   {

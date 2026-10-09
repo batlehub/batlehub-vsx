@@ -5,7 +5,7 @@
 import * as vscode from "vscode";
 import { JavaTaskProvider, runGoal } from "./build/tasks";
 import { proposeCoexistence } from "./coexistence";
-import { applyChainDefault } from "./completion/chain";
+import { applyChainDefault, registerChainProvider } from "./completion/chain";
 import { readSettings } from "./config";
 import type { Core } from "./extension";
 import { wire } from "./wire";
@@ -16,12 +16,19 @@ import { registerRefactor } from "./refactor/menu";
 import { reportProblem } from "./report/report";
 import { editConfigs, newConfig, startConfig } from "./run/editor";
 import "./inspections/bridge";
+import "./run/session";
 
 wire((core: Core) => {
   core.context.subscriptions.push(
     ...registerPanel(core),
     ...registerGenerate(core),
     ...registerRefactor(core),
+    // RFC 0012 phase 2: the delegate's provider, and the flip between sources.
+    registerChainProvider(core),
+    vscode.workspace.onDidChangeConfiguration((e) => {
+      if (e.affectsConfiguration("batlehub.java.completion.chain"))
+        void applyChainDefault(core.context, core.trusted());
+    }),
     vscode.tasks.registerTaskProvider(
       JavaTaskProvider.type,
       new JavaTaskProvider(core),
@@ -70,7 +77,8 @@ wire((core: Core) => {
     if (snap.folders.some((f) => f.tool)) {
       once.dispose();
       void proposeCoexistence();
-      // RFC 0012 phase 1: the default-on write of java.completion.chain.enabled.
+      // RFC 0012: the default-on write of java.completion.chain.enabled
+      // ("shortcut"), or taking it back ("auto", "off").
       // After the detection, because it needs the trust the detection reports.
       void applyChainDefault(core.context, snap.trusted);
     }

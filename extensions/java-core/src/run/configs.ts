@@ -62,7 +62,7 @@ export function upsertConfig(
   let t = text?.trim() ? text : SKELETON;
   const file = readLaunch(t);
   const i = file.configurations.findIndex(
-    (c) => c.name === config.name && c.type === "java",
+    (c) => c.name === config.name && c.type === config.type,
   );
   if (i < 0)
     return applyEdits(
@@ -75,6 +75,46 @@ export function upsertConfig(
   // Key by key, so the entry's other keys and the comments between them survive.
   for (const [k, v] of Object.entries(config))
     t = applyEdits(t, modify(t, ["configurations", i, k], v, FORMAT));
+  return t;
+}
+
+/** Like `upsertConfig` for any entry type (a satellite's template), replaced by name and type. */
+export function upsertLaunch(
+  text: string | undefined,
+  entry: { type: string; name: string },
+): string {
+  return upsertConfig(text, entry as JavaLaunch);
+}
+
+const TASKS_SKELETON = `{
+  "version": "2.0.0",
+  "tasks": []
+}
+`;
+
+/** `tasks.json`: add or replace one task by label, comments and unknown keys kept (RFC 0011 §6.2, RFC 0004). */
+export function upsertTask(
+  text: string | undefined,
+  task: { label: string; [k: string]: unknown },
+): string {
+  let t = text?.trim() ? text : TASKS_SKELETON;
+  const errors: ParseError[] = [];
+  const doc = parse(t, errors, { allowTrailingComma: true }) as
+    { tasks?: unknown } | undefined;
+  const tasks = Array.isArray(doc?.tasks)
+    ? (doc!.tasks as { label?: unknown }[])
+    : [];
+  const i = tasks.findIndex((x) => x.label === task.label);
+  if (i < 0)
+    return applyEdits(
+      t,
+      modify(t, ["tasks", tasks.length], task, {
+        ...FORMAT,
+        isArrayInsertion: true,
+      }),
+    );
+  for (const [k, v] of Object.entries(task))
+    t = applyEdits(t, modify(t, ["tasks", i, k], v, FORMAT));
   return t;
 }
 

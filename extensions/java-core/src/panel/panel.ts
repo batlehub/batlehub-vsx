@@ -143,7 +143,8 @@ export class JavaPanel
     const snap = this.core.snapshot();
     const s = readSettings();
     const first = snap?.folders[0];
-    const rw = snap ? resourceWarning(snap.resources, s.warnBelow) : undefined;
+    const res = this.core.resources();
+    const rw = res ? resourceWarning(res, s.warnBelow) : undefined;
     const originOf = (key: string, detected: string) =>
       isOverridden(key) ? "set by you" : `detected: ${detected}`;
     const folder = vscode.workspace.workspaceFolders?.[0];
@@ -199,11 +200,11 @@ export class JavaPanel
         },
         matchProject: s.matchProject,
         resources: {
-          limit: snap?.resources.limit
-            ? `${formatSize(snap.resources.limit)} (${snap.resources.limitSource})`
+          limit: res?.limit
+            ? `${formatSize(res.limit)} (${res.limitSource})`
             : undefined,
-          planned: snap ? formatSize(snap.resources.planned) : "?",
-          consumers: (snap?.resources.consumers ?? []).map((c) => ({
+          planned: res ? formatSize(res.planned) : "?",
+          consumers: (res?.consumers ?? []).map((c) => ({
             name: c.name,
             bytes: formatSize(c.bytes),
           })),
@@ -377,6 +378,7 @@ export function registerPanel(core: Core): vscode.Disposable[] {
       webviewOptions: { retainContextWhenHidden: true },
     }),
     core.onDidDetect(() => void panel.push()),
+    core.onDidChangeProcesses(() => void panel.push()),
     core.server.onDidChange(() => void panel.push()),
     core.registries.onDidChange.event(() => void panel.push()),
     vscode.workspace.onDidChangeConfiguration((e) => {

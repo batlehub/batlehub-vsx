@@ -98,16 +98,23 @@ async function runCommand(page, title, enter = true) {
   await input.focus();
   await chord(page, "Control", "a");
   await page.keyboard.type(`>${title}`);
-  await sleep(1500);
-  const rows = await page.$$eval(".quick-input-widget .monaco-list-row", (els) =>
-    els.map((e) => (e.querySelector(".label-name") ?? e).textContent.replace(/\s+/g, " ").trim()),
-  );
+  // Poll for the row rather than trust one fixed sleep, and throw when none
+  // matches: pressing Enter anyway ran whatever the palette ranked first, and
+  // a wrong title (`View: Revert File`) then failed silently for months.
+  const match = (r) => r === title || r === `${title}…` || r.startsWith(`${title} `) || r.startsWith(`${title}…`);
+  let rows = [];
+  for (let t0 = Date.now(); Date.now() - t0 < 5000; await sleep(300)) {
+    rows = await page.$$eval(".quick-input-widget .monaco-list-row", (els) => els.map((e) => (e.querySelector(".label-name") ?? e).textContent.replace(/\s+/g, " ").trim())).catch(() => []);
+    if (rows.some(match)) break;
+  }
   if (enter) {
-    const i = rows.findIndex((r) => r === title || r.startsWith(`${title} `));
-    if (i > 0) {
-      const handles = await page.$$(".quick-input-widget .monaco-list-row");
-      await handles[i]?.click();
-    } else await page.keyboard.press("Enter");
+    const i = rows.findIndex(match);
+    if (i < 0) {
+      await page.keyboard.press("Escape");
+      throw new Error(`runCommand: no palette row is "${title}" — rows: ${JSON.stringify(rows.slice(0, 5))}`);
+    }
+    if (i > 0) (await page.$$(".quick-input-widget .monaco-list-row"))[i]?.click();
+    else await page.keyboard.press("Enter");
     await sleep(1500);
   }
   return rows;
