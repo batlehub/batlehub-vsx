@@ -64,7 +64,8 @@
 # when one exists) or BATLEHUB_BIN + BATLEHUB_CLI (release binaries,
 # `task hub:install`); HEAVY_PORT, HEAVY_EDITOR_PORT, VSCODE_VERSION
 # (1.136.1), WEEBO_VERSION (0.5.0), CDP_URL (http://127.0.0.1:9222),
-# HEAVY_ONLY=marketplace|broker|java|registry, REDHAT_JAVA_VERSION (1.56.0, decision 8).
+# HEAVY_ONLY=marketplace|broker|java|registry|seasons, REDHAT_JAVA_VERSION (1.56.0,
+# decision 8).
 set -euo pipefail
 
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -120,7 +121,7 @@ cleanup() {
 trap cleanup EXIT
 
 REDHAT_JAVA_VERSION="${REDHAT_JAVA_VERSION:-1.56.0}"
-NEED_HUB=1; [[ "$ONLY" == "java" ]] && NEED_HUB=0
+NEED_HUB=1; [[ "$ONLY" == "java" || "$ONLY" == "seasons" ]] && NEED_HUB=0
 [[ "$NEED_HUB" == 0 || -n "${DATABASE_URL:-}" ]] || fail "DATABASE_URL is required (the Postgres sidecar: postgresql://batlehub:changeme@127.0.0.1:5432/batlehub)"
 command -v node >/dev/null || fail "node is required"
 command -v python3 >/dev/null || fail "python3 is required"
@@ -691,6 +692,99 @@ print(paths[-1] if paths else "")' 2>/dev/null || true)"
     log "DESKTOP-SKIP (no JDK to hand redhat.java directly: set JAVA_HOME, or install one with mise)"
   fi
   log "JAVA-OK"
+fi
+
+# ---- 7. The seasons half (RFC 0019 section 10) --------------------------
+if [[ "$ONLY" == "all" || "$ONLY" == "seasons" ]]; then
+  log "Seasons half: batlehub-seasons in the real editor - a one-day window covering today, then the undo from the palette"
+  (cd "$REPO/extensions/batlehub-seasons" && pnpm run package >>"$HEAVY_WORK/package.log" 2>&1) \
+    || { tail -20 "$HEAVY_WORK/package.log" >&2; fail "packaging batlehub-seasons failed"; }
+  SEASONS_VSIX="$REPO/extensions/batlehub-seasons/batlehub-seasons.vsix"
+  [[ -s "$SEASONS_VSIX" ]] || fail "no $SEASONS_VSIX"
+  log "PACKAGE-OK (batlehub-seasons $(stat -c %s "$SEASONS_VSIX") bytes)"
+
+  S="$HEAVY_WORK/editor-seasons"
+  # The window the suite runs in is a one-day user entry covering today: the
+  # config surface is its own test seam, which is why the extension has no
+  # date-forcing setting (RFC 0019 section 10).
+  S_TODAY="$(date +%m-%d)"
+  # Overridable, so the half doubles as the way to actually look at a shipped
+  # palette in a real editor (RFC 0019 open question 1):
+  #   SEASONS_BG=#a8470a SEASONS_FG=#fff6ec SEASONS_GLYPH=🎃 \
+  #     SEASONS_NAME=Halloween task heavy:view:seasons
+  S_BG="${SEASONS_BG:-#7a1f6b}"
+  S_FG="${SEASONS_FG:-#fdf2fb}"
+  S_GLYPH="${SEASONS_GLYPH:-🧪}"
+  S_NAME="${SEASONS_NAME:-Heavy day}"
+  # A literal with no ${...} variable in it, so document.title is exactly this
+  # and the glyph assertion is unambiguous with no folder open.
+  S_TITLE="heavy-title-marker"
+  # Every setting of this extension is application-scoped (section 7), and in
+  # the web build user settings live in the browser rather than in the
+  # server's data dir, so they cannot be seeded from a file - the driver types
+  # them through `Preferences: Open User Settings (JSON)`. One line, so
+  # auto-indent cannot touch it.
+  S_SEED="$(python3 - "$S_TODAY" "$S_BG" "$S_FG" "$S_GLYPH" "$S_NAME" "$S_TITLE" <<'SEEDPY'
+import json, sys
+today, bg, fg, glyph, name, title = sys.argv[1:7]
+print(json.dumps({
+    "window.title": title,
+    "batlehub.seasons.events": [
+        {"name": name, "from": today, "to": today, "glyph": glyph, "background": bg, "foreground": fg}
+    ],
+}, ensure_ascii=False))
+SEEDPY
+)"
+  INSTALL_VSIX=("$SEASONS_VSIX")
+  # A folder, even an empty one: with no folder open the editor paints the
+  # status bar from `statusBar.noFolderBackground`, which is not a key the
+  # overlay owns, and every real window has one anyway.
+  SWS="$HEAVY_WORK/seasons-ws"
+  mkdir -p "$SWS"
+  printf '# seasons\n' >"$SWS/README.md"
+  EDITOR_FOLDER="$SWS"
+  # Monaco's auto-closing off, so the JSON the driver types arrives literally.
+  start_editor "$S" '{ "workbench.startupEditor": "none", "workbench.colorTheme": "Dark Modern", "security.workspace.trust.enabled": false, "extensions.ignoreRecommendations": true, "terminal.integrated.gpuAcceleration": "off", "editor.autoClosingBrackets": "never", "editor.autoClosingQuotes": "never", "editor.autoSurround": "never", "editor.autoIndent": "none", "editor.formatOnType": false, "editor.formatOnSave": false, "files.autoSave": "off" }'
+  log "Editor (VS Code $VSCODE_VERSION, web) at http://127.0.0.1:$EDITOR_PORT, folder $SWS"
+  DUMP_ON_FAIL="$S"; DUMP_JSONL="$HEAVY_WORK/seasons.jsonl"
+  node tests/heavy/seasons.mjs --url "http://127.0.0.1:$EDITOR_PORT/?folder=$SWS" --shots "$HEAVY_WORK/shots" --cdp "$CDP_URL" \
+    --seed "$S_SEED" --background "$S_BG" --glyph "$S_GLYPH" --name "$S_NAME" --title "$S_TITLE" \
+    >"$HEAVY_WORK/seasons.jsonl" 2>"$HEAVY_WORK/seasons.jsonl.err" \
+    || { cat "$HEAVY_WORK/seasons.jsonl.err" >&2; cat "$HEAVY_WORK/seasons.jsonl" >&2; fail "the seasons driver failed"; }
+  stop_editor
+  cat "$HEAVY_WORK/seasons.jsonl" >>"$LOG"
+  S_="$HEAVY_WORK/seasons.jsonl"
+
+  assert_json "$S_" applied "d['items'] and d['glyph'] in d['items'][0]['text'] and d['name'] in d['items'][0]['text']" \
+    "the seasons status bar item never showed the glyph and the window's name"
+  assert_json "$S_" applied "not d['timedOut'] and d['hex']['titleBar'] == d['expected']" \
+    "the title bar was never painted the window's colour (the overlay did not reach the workbench)"
+  assert_json "$S_" applied "d['hex']['activityBar'] == d['expected'] and d['hex']['statusBar'] == d['expected']" \
+    "the activity bar or the status bar kept the theme's colour"
+  # The invariant of section 5.3, asserted against the editor rather than the code.
+  assert_json "$S_" applied "d['hex']['ground'] and d['hex']['ground'] != d['expected'] and d['hex']['ground'] == d['theme']['ground']" \
+    "the workbench ground took the season's colour - the overlay must never touch the surface code is read on"
+  assert_json "$S_" applied "d['chrome']['documentTitle'] == d['glyph'] + ' ' + d['title']" \
+    "the browser tab's title is not the glyph in front of the user's own window.title"
+  log "SEASONS-OK (the window's colour on the title bar, activity bar and status bar but not the ground; the glyph in front of the user's title in the browser tab)"
+
+  assert_json "$S_" removed "not d['timedOut'] and d['hex']['titleBar'] == d['theme']['titleBar'] and d['hex']['titleBar'] != d['expected']" \
+    "the title bar kept the season's colour after the undo"
+  assert_json "$S_" removed "d['hex']['activityBar'] == d['theme']['activityBar'] and d['hex']['statusBar'] == d['theme']['statusBar']" \
+    "the activity bar or the status bar kept the season's colour after the undo"
+  assert_json "$S_" removed "d['chrome']['documentTitle'] == d['title']" \
+    "window.title was not put back to the value the user had set (the glyph is still there, or the title was deleted)"
+  assert_json "$S_" removed "not d['items']" "the status bar item is still showing after the undo"
+  log "UNDO-OK (the palette command put every colour back and restored the user's own window.title)"
+
+  # The assertion the whole _saved design exists for: nothing left behind can
+  # paint the chrome again.
+  assert_json "$S_" persisted "d['hex']['titleBar'] == d['theme']['titleBar'] and d['hex']['activityBar'] == d['theme']['activityBar'] and d['hex']['statusBar'] == d['theme']['statusBar']" \
+    "after a reload the chrome went back to the season's colour - something was left behind in the settings"
+  assert_json "$S_" persisted "d['chrome']['documentTitle'] == d['title'] and not d['items']" \
+    "after a reload the glyph or the status bar item came back"
+  log "PERSIST-OK (a window reload finds nothing of ours left to reapply)"
+  log "SEASONS-HALF-OK"
 fi
 
 log "ALL-OK — screenshots in $HEAVY_WORK/shots, logs in $HEAVY_WORK"

@@ -1,0 +1,8 @@
+{
+  "config.enabled": "Let the editor take the season's colours. `false` removes everything this extension wrote at the next window start.",
+  "config.title": "Also prefix `window.title` with the season's glyph, so it shows in the title bar and in the browser tab. The previous title is saved and restored.",
+  "config.events": "Your own windows, checked **before** the six shipped ones, so an entry here shadows a default it overlaps. `from`/`to` are `MM-DD` and inclusive; `to` earlier than `from` crosses the year.",
+  "config.saved": "Written by the extension, read by the extension: the values that were there before the current season, so they can be put back. Not for hand-editing — delete it only if you want the current colours to stay.",
+  "command.remove": "Remove BatleHub seasons settings",
+  "command.disable": "Disable until next year"
+}

@@ -30,6 +30,11 @@ tasks:
     cmds:
       - HEAVY_ONLY=registry bash tests/heavy/view.sh
 
+  view:seasons:
+    desc: "Only the seasons half (RFC 0019): batlehub-seasons paints the chrome for a one-day window covering today, then the palette command puts everything back (no BatleHub, no Postgres)"
+    cmds:
+      - HEAVY_ONLY=seasons bash tests/heavy/view.sh
+
   shots:
     desc: "List the screenshots of the last heavy run"
     cmds:

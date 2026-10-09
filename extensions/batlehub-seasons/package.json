@@ -1,0 +1,144 @@
+{
+  "name": "batlehub-seasons",
+  "displayName": "BatleHub Seasons",
+  "description": "The editor notices what day it is: on Halloween, Christmas, New Year and three more, the title bar, activity bar and status bar take the season's colours and the window title gains a glyph. Every write is saved first and replayed back at the next start.",
+  "version": "0.1.0",
+  "publisher": "batlehub",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/batleforc/batlehub-vsx"
+  },
+  "homepage": "https://github.com/batleforc/batlehub-vsx",
+  "engines": {
+    "vscode": "^1.96.0"
+  },
+  "categories": [
+    "Themes",
+    "Other"
+  ],
+  "keywords": [
+    "seasons",
+    "halloween",
+    "christmas",
+    "colors",
+    "theme"
+  ],
+  "main": "./dist/extension.js",
+  "l10n": "./l10n",
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": true
+    },
+    "virtualWorkspaces": true
+  },
+  "contributes": {
+    "configuration": {
+      "title": "BatleHub Seasons",
+      "properties": {
+        "batlehub.seasons.enabled": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "%config.enabled%",
+          "scope": "application"
+        },
+        "batlehub.seasons.title": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "%config.title%",
+          "scope": "application"
+        },
+        "batlehub.seasons.events": {
+          "type": "array",
+          "default": [],
+          "markdownDescription": "%config.events%",
+          "scope": "application",
+          "items": {
+            "type": "object",
+            "required": [
+              "name",
+              "from",
+              "to"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "name": {
+                "type": "string",
+                "description": "Shown in the status bar. Not translated: it is your string."
+              },
+              "from": {
+                "type": "string",
+                "pattern": "^(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$",
+                "description": "MM-DD, inclusive."
+              },
+              "to": {
+                "type": "string",
+                "pattern": "^(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$",
+                "description": "MM-DD, inclusive. Earlier than `from` means the window crosses the year."
+              },
+              "glyph": {
+                "type": "string",
+                "default": "🎉",
+                "description": "One or two grapheme clusters, prefixed to the window title."
+              },
+              "background": {
+                "type": "string",
+                "pattern": "^#(?:[0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                "description": "Chrome background while the window is active."
+              },
+              "foreground": {
+                "type": "string",
+                "pattern": "^#(?:[0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                "description": "Chrome foreground while the window is active."
+              }
+            }
+          }
+        },
+        "batlehub.seasons._saved": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "default": null,
+          "markdownDescription": "%config.saved%",
+          "scope": "application"
+        }
+      }
+    },
+    "commands": [
+      {
+        "command": "batlehub.seasons.remove",
+        "title": "%command.remove%",
+        "category": "Seasons"
+      },
+      {
+        "command": "batlehub.seasons.disable",
+        "title": "%command.disable%",
+        "category": "Seasons"
+      }
+    ]
+  },
+  "scripts": {
+    "build": "node esbuild.mjs",
+    "watch": "node esbuild.mjs --watch",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "lint": "oxlint src test && prettier --check \"src/**/*.ts\" \"test/**/*.ts\" esbuild.mjs",
+    "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\" esbuild.mjs",
+    "test": "vitest run",
+    "package": "node esbuild.mjs && vsce package --no-dependencies --skip-license -o batlehub-seasons.vsix"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "@types/vscode": "^1.96.0",
+    "@vscode/vsce": "^3.6.0",
+    "esbuild": "^0.25.0",
+    "ovsx": "^1.1.1",
+    "oxlint": "^1.0.0",
+    "prettier": "^3.6.0",
+    "typescript": "^5.9.0",
+    "vitest": "^3.2.0"
+  }
+}

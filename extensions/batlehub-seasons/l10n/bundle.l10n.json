@@ -1,0 +1,14 @@
+{
+  "Halloween": "Halloween",
+  "Christmas": "Christmas",
+  "New Year": "New Year",
+  "April Fools": "April Fools",
+  "Fête de la Musique": "Fête de la Musique",
+  "Fête Nationale": "Fête Nationale",
+  "BatleHub Seasons did nothing: the batlehub.seasons._saved setting is unusable, so what to put back is unknown. Fix or delete that setting.": "BatleHub Seasons did nothing: the batlehub.seasons._saved setting is unusable, so what to put back is unknown. Fix or delete that setting.",
+  "BatleHub Seasons skipped {0} entry/entries of batlehub.seasons.events. See the BatleHub Seasons output for why.": "BatleHub Seasons skipped {0} entry/entries of batlehub.seasons.events. See the BatleHub Seasons output for why.",
+  "{0}, until {1}. Click to turn seasons off.": "{0}, until {1}. Click to turn seasons off.",
+  "BatleHub Seasons has nothing written to remove.": "BatleHub Seasons has nothing written to remove.",
+  "Remove": "Remove",
+  "Put back what BatleHub Seasons replaced?": "Put back what BatleHub Seasons replaced?"
+}

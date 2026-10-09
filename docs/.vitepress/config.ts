@@ -29,6 +29,7 @@ export default withMermaid(
             { text: "Marketplace mode", link: "/guide/marketplace" },
             { text: "Settings and commands", link: "/guide/settings" },
             { text: "The BatleHub theme", link: "/guide/theme" },
+            { text: "BatleHub Seasons", link: "/guide/seasons" },
           ],
         },
         {
@@ -139,6 +140,10 @@ export default withMermaid(
             {
               text: "0014 — BatleHub theme",
               link: "/rfc/0014-batlehub-theme",
+            },
+            {
+              text: "0019 — Seasons",
+              link: "/rfc/0019-batlehub-seasons",
             },
           ],
         },

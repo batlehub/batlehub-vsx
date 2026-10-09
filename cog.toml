@@ -70,6 +70,13 @@ public_api = true
 pre_bump_hooks = ["pnpm pkg set version={{version}}"]
 
 
+# RFC 0019: a Product extension of its own, like the theme - its own version,
+# its own tag, so a fix in a pumpkin never republishes the Java family.
+[monorepo.packages.batlehub-seasons]
+path = "extensions/batlehub-seasons"
+public_api = true
+pre_bump_hooks = ["pnpm pkg set version={{version}}"]
+
 [git_hooks]
 
 [git_hooks.commit-msg]
