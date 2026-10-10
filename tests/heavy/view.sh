@@ -93,7 +93,7 @@ MATCH="Weebo"
 
 # Each run keeps its editors' data (~100 MB, 8.8 GB after 80 runs): only the
 # newest few are worth reading back. Names start with the epoch, so they sort.
-ls -1d "$REPO"/tests/heavy/work/[0-9]*/ 2>/dev/null | sort | head -n -"${HEAVY_KEEP:-3}" | xargs -r rm -rf
+{ ls -1d "$REPO"/tests/heavy/work/[0-9]*/ 2>/dev/null || true; } | sort | head -n -"${HEAVY_KEEP:-3}" | xargs -r rm -rf
 mkdir -p "$HEAVY_WORK/shots" "$HEAVY_CACHE"
 ln -sfn "$HEAVY_WORK" "$REPO/tests/heavy/work/last"
 LOG="$HEAVY_WORK/suite.log"

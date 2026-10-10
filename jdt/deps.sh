@@ -16,7 +16,7 @@ mkdir -p "$CACHE"
 PLUGINS="$DIR/extension/server/plugins"
 echo "$PLUGINS"
 # artifactId = bundle symbolic name; version = what the file name carries.
-for name in org.eclipse.jdt.ls.core org.eclipse.jdt.core org.eclipse.jdt.core.compiler.batch org.eclipse.jdt.core.manipulation org.eclipse.core.runtime org.eclipse.core.resources org.eclipse.core.jobs org.eclipse.core.contenttype org.eclipse.equinox.common org.eclipse.equinox.registry org.eclipse.equinox.preferences org.eclipse.text org.eclipse.lsp4j org.eclipse.lsp4j.jsonrpc com.google.gson org.eclipse.osgi; do
+for name in org.eclipse.jdt.ls.core org.eclipse.jdt.core org.eclipse.jdt.core.compiler.batch org.eclipse.jdt.core.manipulation org.eclipse.core.runtime org.eclipse.core.resources org.eclipse.core.jobs org.eclipse.core.contenttype org.eclipse.equinox.common org.eclipse.equinox.registry org.eclipse.equinox.preferences org.eclipse.text org.eclipse.lsp4j org.eclipse.lsp4j.jsonrpc com.google.gson org.eclipse.osgi org.osgi.service.prefs; do
   jar="$(/bin/ls "$PLUGINS/${name}_"*.jar | head -1)"
   ver="$(basename "$jar" .jar)"; ver="${ver#${name}_}"
   if [[ -f "$HOME/.m2/repository/batlehub/jdtls/$name/$ver/$name-$ver.jar" ]]; then continue; fi
@@ -25,7 +25,7 @@ for name in org.eclipse.jdt.ls.core org.eclipse.jdt.core org.eclipse.jdt.core.co
 done
 # The pom pins the versions: rewrite its <jdtls.*> properties from what was found.
 POM="$(dirname "$0")/batlehub-jdt-core/pom.xml"
-for name in org.eclipse.jdt.ls.core org.eclipse.jdt.core org.eclipse.jdt.core.compiler.batch org.eclipse.jdt.core.manipulation org.eclipse.core.runtime org.eclipse.core.resources org.eclipse.core.jobs org.eclipse.core.contenttype org.eclipse.equinox.common org.eclipse.equinox.registry org.eclipse.equinox.preferences org.eclipse.text org.eclipse.lsp4j org.eclipse.lsp4j.jsonrpc com.google.gson org.eclipse.osgi; do
+for name in org.eclipse.jdt.ls.core org.eclipse.jdt.core org.eclipse.jdt.core.compiler.batch org.eclipse.jdt.core.manipulation org.eclipse.core.runtime org.eclipse.core.resources org.eclipse.core.jobs org.eclipse.core.contenttype org.eclipse.equinox.common org.eclipse.equinox.registry org.eclipse.equinox.preferences org.eclipse.text org.eclipse.lsp4j org.eclipse.lsp4j.jsonrpc com.google.gson org.eclipse.osgi org.osgi.service.prefs; do
   jar="$(/bin/ls "$PLUGINS/${name}_"*.jar | head -1)"; ver="$(basename "$jar" .jar)"; ver="${ver#${name}_}"
   sed -i "s|<v\.$name>[^<]*</v\.$name>|<v.$name>$ver</v.$name>|" "$POM"
 done

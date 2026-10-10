@@ -33,6 +33,7 @@
     <v.org.eclipse.lsp4j.jsonrpc>1.0.0.v20260209-1721</v.org.eclipse.lsp4j.jsonrpc>
     <v.com.google.gson>2.14.0</v.com.google.gson>
     <v.org.eclipse.osgi>3.24.300.v20260721-1251</v.org.eclipse.osgi>
+    <v.org.osgi.service.prefs>1.1.2.202109301733</v.org.osgi.service.prefs>
   </properties>
 
   <dependencies>
@@ -52,6 +53,7 @@
     <dependency><groupId>batlehub.jdtls</groupId><artifactId>org.eclipse.lsp4j.jsonrpc</artifactId><version>${v.org.eclipse.lsp4j.jsonrpc}</version><scope>provided</scope></dependency>
     <dependency><groupId>batlehub.jdtls</groupId><artifactId>com.google.gson</artifactId><version>${v.com.google.gson}</version><scope>provided</scope></dependency>
     <dependency><groupId>batlehub.jdtls</groupId><artifactId>org.eclipse.osgi</artifactId><version>${v.org.eclipse.osgi}</version><scope>provided</scope></dependency>
+    <dependency><groupId>batlehub.jdtls</groupId><artifactId>org.osgi.service.prefs</artifactId><version>${v.org.osgi.service.prefs}</version><scope>provided</scope></dependency>
     <dependency><groupId>org.junit.jupiter</groupId><artifactId>junit-jupiter</artifactId><version>5.11.4</version><scope>test</scope></dependency>
   </dependencies>
 
