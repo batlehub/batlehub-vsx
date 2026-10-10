@@ -3,10 +3,14 @@ import {
   addGitignoreLine,
   describe as describeManifest,
   GITIGNORE_LINE,
+  narrowGitignore,
   parseManifest,
   record,
+  relocate,
   removeGitignoreLine,
   replay,
+  V1_GITIGNORE_LINE,
+  wouldExpose,
 } from "../src/written";
 
 describe("the manifest of §4.2 (decision 24)", () => {
@@ -69,6 +73,7 @@ describe("the manifest of §4.2 (decision 24)", () => {
       },
       gitignore: async (p) => void calls.push(`gitignore ${p}`),
       profile: async () => {},
+      moved: async () => {},
     });
     expect(calls).toEqual([
       "block /home/u/.m2/settings.xml 644",
@@ -135,6 +140,68 @@ describe("the profile entry (RFC 0005 §6.6)", () => {
     });
     expect(describeManifest(m)).toEqual([
       "take back 2 rules written into /w/.batlehub/java/inspections.json (a/x, a/y), keeping any edited since, and delete it if none is left",
+    ]);
+  });
+});
+
+describe("the local/ layout (RFC 0006 §5.2, §5.3)", () => {
+  it("ignores local/ only, so the team's files under .batlehub/java/ can be committed", () => {
+    expect(GITIGNORE_LINE.startsWith("/.batlehub/java/local/ ")).toBe(true);
+    const v1 = `node_modules/\n${V1_GITIGNORE_LINE}\n`;
+    expect(narrowGitignore(v1)).toBe(`node_modules/\n${GITIGNORE_LINE}\n`);
+    expect(narrowGitignore(narrowGitignore(v1))).toBe(narrowGitignore(v1));
+  });
+
+  it("names what narrowing the line would expose — not the team's files, the core's own, or local/ (use case 7)", () => {
+    expect(
+      wouldExpose([
+        "written.json",
+        "settings-overlay.xml",
+        "project.json",
+        "inspections.json",
+        "local",
+        "local/written.json",
+        "settings-corp.xml",
+        "notes/todo.txt",
+      ]),
+    ).toEqual(["notes/todo.txt", "settings-corp.xml"]);
+    expect(wouldExpose(["written.json", "project.json"])).toEqual([]);
+  });
+
+  it("moves the overlay's entries with it, and a moved file goes back on removal", async () => {
+    let m = parseManifest(undefined);
+    m = record(m, {
+      kind: "file",
+      path: "/w/.batlehub/java/settings-overlay.xml",
+      before: null,
+      mode: null,
+    });
+    m = relocate(
+      m,
+      "/w/.batlehub/java/settings-overlay.xml",
+      "/w/.batlehub/java/local/settings-overlay.xml",
+    );
+    m = record(m, {
+      kind: "moved",
+      from: "/w/.batlehub/java/notes.txt",
+      to: "/w/.batlehub/java/local/notes.txt",
+    });
+    expect(m.entries[0]).toMatchObject({
+      path: "/w/.batlehub/java/local/settings-overlay.xml",
+    });
+    const calls: string[] = [];
+    await replay(m, {
+      setting: async () => {},
+      extSetting: async () => {},
+      file: async (p) => void calls.push(`file ${p}`),
+      block: async () => {},
+      gitignore: async () => {},
+      profile: async () => {},
+      moved: async (from, to) => void calls.push(`moved ${to} -> ${from}`),
+    });
+    expect(calls).toEqual([
+      "moved /w/.batlehub/java/local/notes.txt -> /w/.batlehub/java/notes.txt",
+      "file /w/.batlehub/java/local/settings-overlay.xml",
     ]);
   });
 });

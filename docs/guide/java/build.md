@@ -51,7 +51,7 @@ where m2e reads them: `activeProfiles=` in each module's
 honours that file is RFC 0001's spike (a), measured by the heavy suite;
 the fallback (`Java: Maven: apply the profiles through a settings overlay`)
 copies the active settings file with `<activeProfiles>` added under
-`.batlehub/java/`, 0600, after adding the `.gitignore` line — and refuses
+`.batlehub/java/local/`, 0600, after adding the `.gitignore` line — and refuses
 without it, because a settings file may carry credentials.
 
 `Java: Maven: effective POM` runs `help:effective-pom` and opens it as a

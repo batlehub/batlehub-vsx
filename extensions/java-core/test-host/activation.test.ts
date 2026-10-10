@@ -27,7 +27,7 @@ suite("java-core in the extension host", () => {
     this.timeout(60000);
     await vscode.commands.executeCommand("batlehub.java.detect");
     const runtimes = vscode.workspace.getConfiguration("java").inspect("configuration.runtimes")?.workspaceValue as unknown[] | undefined;
-    const manifest = path.join(folder(), ".batlehub", "java", "written.json");
+    const manifest = path.join(folder(), ".batlehub", "java", "local", "written.json");
     if (runtimes?.length) {
       assert.ok(fs.existsSync(manifest), "manifest written beside the write");
       const m = JSON.parse(fs.readFileSync(manifest, "utf8"));

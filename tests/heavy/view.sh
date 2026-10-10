@@ -477,6 +477,11 @@ if [[ "$ONLY" == "all" || "$ONLY" == "java" ]]; then
   # The Groovy files of the groovy fixture, beside the Maven build: the
   # server compiles by folder, Maven is irrelevant to it.
   mkdir -p "$JWS/src/main/groovy/com/acme" && cp "$REPO/tests/heavy/fixtures/groovy-project/src/main/groovy/com/acme/Hello.groovy" "$JWS/src/main/groovy/com/acme/" && cp "$REPO/tests/heavy/fixtures/groovy-project/Jenkinsfile" "$JWS/"
+  # RFC 0006 use case 5: the workspace starts on the v1 layout — the manifest
+  # beside the team's files, the .gitignore line that hid the whole directory.
+  mkdir -p "$JWS/.batlehub/java"
+  printf '{\n  "version": 1,\n  "entries": []\n}\n' >"$JWS/.batlehub/java/written.json"
+  printf 'target/\n/.batlehub/java/  # batlehub-java: the Maven overlay carries credentials\n' >"$JWS/.gitignore"
   # The newcomer's environment (§2 point 1): no JAVA_HOME, no JDK on PATH —
   # only a manager. `mise` stays reachable; its `java` shim answers nothing
   # without a global version, which is what a fresh Che workspace has.
@@ -707,6 +712,11 @@ print("".join(list(difflib.unified_diff((d.get("golden") or "").splitlines(True)
   assert_json "$J_" remove "any(c.startswith('Restore') for c in d['clicked']) and (d['settings'] is None or 'java.configuration.runtimes' not in d['settings'])" \
     "Remove BatleHub settings did not restore java.configuration.runtimes"
   log "REMOVE-OK (the manifest replayed: java.configuration.runtimes and java.jdt.ls.java.home restored, the dialog listed what it would do)"
+  MIGRATED="$(grep -rh "migrated .batlehub/java to the local/ layout" "$J/server/data/logs" 2>/dev/null | head -1)"
+  [[ -n "$MIGRATED" ]] || fail "RFC 0006 use case 5: the v1 layout was not migrated at activation (no 'migrated' line in the BatleHub Java channel)"
+  ! grep -q "batlehub-java" "$JWS/.gitignore" || fail "RFC 0006 use case 5: after migration and removal, .gitignore still carries a batlehub-java line: $(cat "$JWS/.gitignore")"
+  [[ ! -e "$JWS/.batlehub/java/written.json" && ! -e "$JWS/.batlehub/java/local/written.json" ]] || fail "RFC 0006 use case 5: a manifest survived Remove BatleHub settings"
+  log "MIGRATE-V1-OK (a workspace on the v1 layout — written.json beside the team's files, '/.batlehub/java/' in .gitignore — migrated at activation: the manifest into local/, the line narrowed to local/ and recorded; every later write landed in local/written.json, and Remove BatleHub settings left no manifest and no batlehub-java line — RFC 0006 phase 2)"
   PERF="$(field "$J_" perf)"
   log "PERF $PERF"
   # The gate of §4.2 "Performance is measured before it is gated": thresholds

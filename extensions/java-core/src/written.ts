@@ -41,7 +41,10 @@ export type Entry =
       created: boolean;
       entries: Record<string, ProfileWrite>;
       at: string;
-    };
+    }
+  // RFC 0006 §5.3: a file the v1 layout hid, moved under `local/` on the
+  // developer's answer so narrowing the .gitignore line exposes nothing.
+  | { kind: "moved"; from: string; to: string; at: string };
 
 export interface ProfileWrite {
   written: ProfileRule;
@@ -153,6 +156,8 @@ export function targetOf(e: Entry): string {
       return `gitignore:${e.path}:${e.line}`;
     case "profile":
       return `profile:${e.path}`;
+    case "moved":
+      return `moved:${e.from}`;
   }
 }
 
@@ -181,6 +186,8 @@ export function describe(m: Manifest): string[] {
         const n = Object.keys(e.entries).length;
         return `take back ${n} rule${n > 1 ? "s" : ""} written into ${e.path} (${Object.keys(e.entries).join(", ")}), keeping any edited since${e.created ? ", and delete it if none is left" : ""}`;
       }
+      case "moved":
+        return `move ${e.to} back to ${e.from}`;
     }
   });
 }
@@ -200,6 +207,7 @@ export interface Replayer {
     created: boolean,
     entries: Record<string, ProfileWrite>,
   ): Promise<void>;
+  moved(from: string, to: string): Promise<void>;
 }
 
 /** Newest first, every entry, errors collected rather than stopping the replay. */
@@ -212,6 +220,7 @@ export async function replay(m: Manifest, r: Replayer): Promise<string[]> {
       else if (e.kind === "file") await r.file(e.path, e.before, e.mode);
       else if (e.kind === "block") await r.block(e.path, e.marker, e.mode);
       else if (e.kind === "gitignore") await r.gitignore(e.path, e.line);
+      else if (e.kind === "moved") await r.moved(e.from, e.to);
       else await r.profile(e.path, e.created, e.entries);
     } catch (err) {
       errors.push(`${targetOf(e)}: ${(err as Error).message}`);
@@ -220,9 +229,59 @@ export async function replay(m: Manifest, r: Replayer): Promise<string[]> {
   return errors;
 }
 
-/** The `.gitignore` line the family owns, fenced so it can be found and removed. */
+/**
+ * The `.gitignore` line the family owns, fenced so it can be found and
+ * removed: `local/` only (RFC 0006 §4.2), since `.batlehub/java/` also holds
+ * the team's committed files. The v1 line hid the whole directory; it is
+ * kept for the migration and for removal on old workspaces.
+ */
 export const GITIGNORE_LINE =
+  "/.batlehub/java/local/  # batlehub-java: the Maven overlay carries credentials";
+export const V1_GITIGNORE_LINE =
   "/.batlehub/java/  # batlehub-java: the Maven overlay carries credentials";
+
+/** RFC 0006 §4.1: what `.batlehub/java/` holds by right — the team's files, and the core's own. */
+export const COMMITTED_FILES = [
+  "project.json",
+  "inspections.json",
+  "words.txt",
+];
+export const LOCAL_FILES = ["written.json", "settings-overlay.xml"];
+
+/**
+ * `wouldExpose` (§6.3): of the paths under `.batlehub/java/` (relative, `/`
+ * separated), those narrowing the v1 line to `local/` would make visible to
+ * git — anything that is neither a known committed file, nor the core's own,
+ * nor already under `local/`.
+ */
+export function wouldExpose(paths: string[]): string[] {
+  return paths
+    .filter(
+      (p) =>
+        !COMMITTED_FILES.includes(p) &&
+        !LOCAL_FILES.includes(p) &&
+        p !== "local" &&
+        !p.startsWith("local/"),
+    )
+    .sort();
+}
+
+/** The v1 line replaced by the `local/` line, every other line kept. */
+export function narrowGitignore(text: string): string {
+  return addGitignoreLine(removeGitignoreLine(text, V1_GITIGNORE_LINE));
+}
+
+/** Entries that named a file at `from` now name it at `to`: the overlay, moved by the migration. */
+export function relocate(m: Manifest, from: string, to: string): Manifest {
+  return {
+    version: 1,
+    entries: m.entries.map((e) =>
+      (e.kind === "file" || e.kind === "block") && e.path === from
+        ? { ...e, path: to }
+        : e,
+    ),
+  };
+}
 
 export function addGitignoreLine(
   text: string | undefined,

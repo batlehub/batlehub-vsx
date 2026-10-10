@@ -64,7 +64,7 @@ It is a *default-on* write, and it obeys every clause of that rule:
 | Clause | What it means here |
 | --- | --- |
 | Workspace scope | `.vscode/settings.json` of the first folder, never your user settings |
-| Through the manifest | `.batlehub/java/written.json` records that the key was **absent** before |
+| Through the manifest | `.batlehub/java/local/written.json` records that the key was **absent** before |
 | Announced once, with its undo | the panel line above, until you press `Undo` or `Keep it` |
 | Never over a value you set | if `java.completion.chain.enabled` is already set anywhere — to `true` as much as to `false` — nothing is written, nothing is recorded and no line appears |
 

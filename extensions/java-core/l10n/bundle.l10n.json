@@ -139,5 +139,9 @@
   "Install": "Install",
   "SonarLint is not installed — breadth comes from it": "SonarLint is not installed — breadth comes from it",
   "Java: the MCP configuration is on the clipboard — paste it into your agent's .mcp.json.": "Java: the MCP configuration is on the clipboard — paste it into your agent's .mcp.json.",
-  "Java: no inspection override to save — set batlehub.java.inspections.severityOverrides first.": "Java: no inspection override to save — set batlehub.java.inspections.severityOverrides first."
+  "Java: no inspection override to save — set batlehub.java.inspections.severityOverrides first.": "Java: no inspection override to save — set batlehub.java.inspections.severityOverrides first.",
+  "Move to local/ and continue": "Move to local/ and continue",
+  "Leave them and continue": "Leave them and continue",
+  "Not now": "Not now",
+  "BatleHub Java now ignores only .batlehub/java/local/, so the team's files there can be committed. These would become visible to git: {0}": "BatleHub Java now ignores only .batlehub/java/local/, so the team's files there can be committed. These would become visible to git: {0}"
 }

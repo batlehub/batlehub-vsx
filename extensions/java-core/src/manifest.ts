@@ -1,7 +1,10 @@
 // The editor side of `written.ts`: every write the family makes outside its
 // own settings goes through here, so `Java: Remove BatleHub settings` can
 // replay it (RFC 0001 §4.2 "Clean removal"). The manifest lives at
-// `<first workspace folder>/.batlehub/java/written.json`.
+// `<first workspace folder>/.batlehub/java/local/written.json` — `local/` is
+// the machine's half of the directory, the rest is the team's (RFC 0006
+// §5.2); a workspace still on the v1 layout keeps `.batlehub/java/written.json`
+// until `migrateV1Layout()` moves it.
 import * as fs from "node:fs";
 import * as path from "node:path";
 import * as vscode from "vscode";
@@ -17,9 +20,13 @@ import {
   describe,
   GITIGNORE_LINE,
   type Manifest,
+  narrowGitignore,
   parseManifest,
   record,
+  relocate,
   removeGitignoreLine,
+  V1_GITIGNORE_LINE,
+  wouldExpose,
   replay,
   takeEntry,
   targetOf,
@@ -39,11 +46,131 @@ export const resumeForeignWrites = (): void => {
 };
 export const foreignWritesSuspended = (): boolean => writesSuspended;
 
-export function manifestPath(): string | undefined {
+/** `.batlehub/java/local/` of the first folder: the core's own files, never committed. */
+export function localDir(): string | undefined {
   const root = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
-  return root
-    ? path.join(root, ".batlehub", "java", "written.json")
-    : undefined;
+  return root ? path.join(root, ".batlehub", "java", "local") : undefined;
+}
+
+export function manifestPath(): string | undefined {
+  const local = localDir();
+  if (!local) return undefined;
+  const p = path.join(local, "written.json");
+  const v1 = path.join(path.dirname(local), "written.json");
+  return !fs.existsSync(p) && fs.existsSync(v1) ? v1 : p;
+}
+
+/** Every path under `dir`, relative and `/`-separated, directories included. */
+function listUnder(dir: string, rel = ""): string[] {
+  let out: string[] = [];
+  for (const e of fs.readdirSync(path.join(dir, rel), {
+    withFileTypes: true,
+  })) {
+    const r = rel ? `${rel}/${e.name}` : e.name;
+    out.push(r);
+    if (e.isDirectory() && r !== "local") out = out.concat(listUnder(dir, r));
+  }
+  return out;
+}
+
+/**
+ * RFC 0006 §5.3, once at activation: a workspace on the v1 layout (the
+ * manifest beside the team's files, or the .gitignore line that hid the
+ * whole directory) moves the core's files under `local/` and narrows the
+ * line. When narrowing would expose a file nobody declared, nothing moves
+ * until the developer answers; untrusted, the v1 layout stays.
+ */
+export async function migrateV1Layout(trusted: boolean): Promise<void> {
+  const local = localDir();
+  const root = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+  if (!local || !root) return;
+  const dir = path.dirname(local);
+  const gi = path.join(root, ".gitignore");
+  let giText: string | undefined;
+  try {
+    giText = fs.readFileSync(gi, "utf8");
+  } catch {
+    giText = undefined;
+  }
+  const v1Line = !!giText?.split(/\r?\n/).includes(V1_GITIGNORE_LINE);
+  const v1Manifest = path.join(dir, "written.json");
+  if (!fs.existsSync(v1Manifest) && !v1Line) return;
+  if (v1Line) {
+    try {
+      fs.accessSync(gi, fs.constants.W_OK);
+    } catch {
+      log.warn(
+        "migration skipped: .gitignore is not writable, so its v1 line cannot be narrowed to .batlehub/java/local/ — the v1 layout keeps working",
+      );
+      return;
+    }
+  }
+  // Only the v1 line hid anything: without it, nothing becomes visible.
+  const exposed =
+    v1Line && fs.existsSync(dir) ? wouldExpose(listUnder(dir)) : [];
+  let move: string[] = [];
+  if (exposed.length) {
+    if (!trusted) return;
+    const moveIt = vscode.l10n.t("Move to local/ and continue");
+    const leave = vscode.l10n.t("Leave them and continue");
+    const later = vscode.l10n.t("Not now");
+    const a = await vscode.window.showWarningMessage(
+      vscode.l10n.t(
+        "BatleHub Java now ignores only .batlehub/java/local/, so the team's files there can be committed. These would become visible to git: {0}",
+        exposed.join(", "),
+      ),
+      moveIt,
+      leave,
+      later,
+    );
+    if (a === moveIt)
+      move = exposed.filter(
+        (p) => !exposed.some((q) => q !== p && p.startsWith(`${q}/`)),
+      );
+    else if (a !== leave) return;
+  }
+  fs.mkdirSync(local, { recursive: true, mode: 0o700 });
+  let m = readManifest();
+  const overlay = path.join(dir, "settings-overlay.xml");
+  const overlayTo = path.join(local, "settings-overlay.xml");
+  const overlayMoved = fs.existsSync(overlay);
+  if (overlayMoved) {
+    fs.renameSync(overlay, overlayTo);
+    m = relocate(m, overlay, overlayTo);
+  }
+  for (const p of move) {
+    const from = path.join(dir, p);
+    const to = path.join(local, p);
+    fs.mkdirSync(path.dirname(to), { recursive: true, mode: 0o700 });
+    fs.renameSync(from, to);
+    m = record(m, { kind: "moved", from, to });
+  }
+  if (v1Line) {
+    fs.writeFileSync(gi, narrowGitignore(giText!));
+    m = record(m, { kind: "gitignore", path: gi, line: GITIGNORE_LINE });
+  }
+  // The new manifest first, then the old one goes: a crash between leaves a
+  // manifest, never none.
+  fs.writeFileSync(
+    path.join(local, "written.json"),
+    JSON.stringify(m, null, 2) + "\n",
+    { mode: 0o600 },
+  );
+  fs.rmSync(v1Manifest, { force: true });
+  if (
+    overlayMoved &&
+    vscode.workspace
+      .getConfiguration("java")
+      .inspect("configuration.maven.userSettings")?.workspaceValue === overlay
+  )
+    await writeForeignSetting(
+      "java",
+      "configuration.maven.userSettings",
+      overlayTo,
+    );
+  log.info(
+    `migrated .batlehub/java to the local/ layout${move.length ? ` (moved: ${move.join(", ")})` : ""}`,
+  );
 }
 
 export function readManifest(): Manifest {
@@ -365,6 +492,11 @@ export async function removeBatleHubSettings(
         /* already gone */
       }
     },
+    moved: async (from, to) => {
+      if (!fs.existsSync(to) || fs.existsSync(from)) return;
+      fs.mkdirSync(path.dirname(from), { recursive: true });
+      fs.renameSync(to, from);
+    },
     profile: async (p, created, entries) => {
       let text: string;
       try {
@@ -382,18 +514,20 @@ export async function removeBatleHubSettings(
     },
   });
   suspendForeignWrites();
-  // The manifest, then its directories only when nothing else is in them:
-  // `.batlehub/java/` holds the team's committed files too (RFC 0005, RFC
-  // 0006), which are not the family's to delete.
+  // The manifest, then its directories up to `.batlehub/` only when nothing
+  // else is in them: `.batlehub/java/` holds the team's committed files too
+  // (RFC 0005, RFC 0006), which are not the family's to delete.
   const mp = manifestPath();
   if (mp) {
     fs.rmSync(mp, { force: true });
-    for (const d of [path.dirname(mp), path.dirname(path.dirname(mp))])
+    for (let d = path.dirname(mp); ; d = path.dirname(d)) {
       try {
         fs.rmdirSync(d);
       } catch {
         break; /* not empty, or gone */
       }
+      if (path.basename(d) === ".batlehub") break;
+    }
   }
   for (const p of ownStorage()) fs.rmSync(p, { recursive: true, force: true });
   for (const e of errors) log.error(`remove: ${e}`);

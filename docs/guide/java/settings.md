@@ -46,7 +46,7 @@ defaults. This table is checked against `package.json` by `task lint`
 ## Keys of other extensions the core keeps in sync
 
 Written at **workspace** scope only, each write recorded in
-`.batlehub/java/written.json` so [`Java: Remove BatleHub settings`](./removal)
+`.batlehub/java/local/written.json` so [`Java: Remove BatleHub settings`](./removal)
 restores it:
 
 | Key | When |

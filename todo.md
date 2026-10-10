@@ -367,8 +367,13 @@ written here is the first step and what blocks it.
       what the team turned off (bundle 0.6.0); `docs/guide/java/inspections.md`;
       `PROFILE-OK`, `PROFILE-FIXALL-OK`, `PROFILE-OVERRIDE-OK`,
       `PROFILE-SAVE-OK`. Owed: the Java panel's differing count (no
-      inspections line in the panel yet). **Next**: 0006 phase 2 (the
-      `local/` split and its migration), then 0006 phase 3. 0005 phase 4 and
+      inspections line in the panel yet). **0006 phase 2 built**, 2026-10-10
+      (revision 5): `.batlehub/java/local/` for the manifest and the overlay,
+      the `.gitignore` line narrowed to it, the v1 layout migrated at
+      activation (asking when something would become visible to git);
+      `MIGRATE-V1-OK`. **Next**: 0006 phase 3 (readers on the effective value
+      after trust, origins and `Save to project` in the panel, the
+      `settingsFile` warning, `Java: Show effective configuration`). 0005 phase 4 and
       0006 phase 4 (the engine's `--profile`, `config --print`) wait with
       RFC 0002 phase 6.
 - [ ] **12 · RFC 0008's remaining phases, then [RFC 0009](docs/rfc/0009-scala-satellite.md).**
@@ -414,6 +419,11 @@ three diary entries),
       lands, re-read decision 31 rather than assuming the split follows.
 
 ## Recurring
+
+- [ ] **Drop the `braces` audit exception** (`pnpm-workspace.yaml`,
+      `auditConfig.ignoreGhsas`, GHSA-vfj7-8cjw-p6xm, decided 2026-10-10)
+      as soon as braces publishes a fix — `pnpm audit` then needs no
+      exception at all.
 
 - [ ] **Bump `TESTED_REDHAT_JAVA`** (`extensions/java-core/src/server/mode.ts`)
       each time the nightly passes a newer `redhat.java`. It is *not*

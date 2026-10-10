@@ -18,3 +18,18 @@ overrides:
   vite: ">=6.4.3"
   esbuild: ">=0.25.0"
   serialize-javascript: ">=7.0.5"
+  # Two brace-expansion advisories of 2026-10 (fixed in 5.0.10 and 5.0.11): minimatch 10 resolved 5.0.9;
+  # the fix is inside its ^5 range. minimatch 3/5/9 keep brace-expansion 1.x/2.x, not affected.
+  "brace-expansion@5": "^5.0.12"
+  # vite's postcss and vue's compiler resolve source-map-js 1.2.1; 1.2.2 fixes it.
+  source-map-js: ">=1.2.2"
+
+# Audit exceptions, each with its reason and the condition that removes it.
+auditConfig:
+  ignoreGhsas:
+    # braces <= 3.0.3: stack exhaustion on deeply nested patterns, no fixed
+    # version published (2026-10). Reached only through packaging tooling
+    # (@vscode/vsce > secretlint > globby > fast-glob > micromatch), on
+    # patterns this repository writes; nothing of it ships in a VSIX.
+    # Remove when braces publishes a fix.
+    - GHSA-vfj7-8cjw-p6xm

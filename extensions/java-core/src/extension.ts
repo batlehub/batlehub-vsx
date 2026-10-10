@@ -23,6 +23,7 @@ import {
 import { Jdk } from "./jdk/service";
 import { channelOf, disposeLog, log, setLogLevel } from "./log";
 import {
+  migrateV1Layout,
   removeBatleHubSettings,
   resumeForeignWrites,
   writeSatelliteSetting,
@@ -68,6 +69,12 @@ export async function activate(
   let snapshot: Snapshot | undefined;
   let warnedResources = false;
   const trusted = () => vscode.workspace.isTrusted;
+  // RFC 0006 §5.3: a v1 workspace moves the core's files under local/.
+  const migrate = () =>
+    migrateV1Layout(trusted()).catch((e: Error) =>
+      log.warn(`migration to the local/ layout failed: ${e.message}`),
+    );
+  void migrate();
 
   // RFC 0003 §4.2: orphans of a host that died are swept before any start.
   const storage = (context.storageUri ?? context.globalStorageUri).fsPath;
@@ -379,6 +386,7 @@ export async function activate(
     vscode.workspace.onDidChangeWorkspaceFolders(() => void redetect()),
     vscode.workspace.onDidGrantWorkspaceTrust(() => {
       log.info("workspace trusted: commands enabled, detection runs again");
+      void migrate();
       void redetect();
     }),
     server.onDidChange(() => snapshot && paint(snapshot)),

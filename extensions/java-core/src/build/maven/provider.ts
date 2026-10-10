@@ -320,6 +320,7 @@ export class MavenProvider implements BuildToolProvider {
           folder.uri.fsPath,
           ".batlehub",
           "java",
+          "local",
           "settings-overlay.xml",
         );
         writeOwnedFile(

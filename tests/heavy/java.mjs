@@ -688,7 +688,7 @@ try {
   const wrote = {
     settings: readIfPresent(path.join(WS, ".vscode", "settings.json")),
     profile: readIfPresent(path.join(WS, ".vscode", "batlehub-java", "formatter.xml")),
-    manifest: readIfPresent(path.join(WS, ".batlehub", "java", "written.json")),
+    manifest: readIfPresent(path.join(WS, ".batlehub", "java", "local", "written.json")),
     idea: readIfPresent(path.join(WS, ".idea", "codeStyles", "Project.xml")),
     // Use cases 2 and 3: the live templates of the suite's IDEA configuration
     // directory and the project's file templates, both in one snippets file.
@@ -1081,7 +1081,7 @@ try {
       phase: "profileSave",
       file: savedJson,
       problems: (savedRows.value ?? []).filter((r) => /inspections\.json|why/.test(r)),
-      manifest: /"kind": ?"profile"/.test(readIfPresent(path.join(WS, ".batlehub", "java", "written.json")) ?? ""),
+      manifest: /"kind": ?"profile"/.test(readIfPresent(path.join(WS, ".batlehub", "java", "local", "written.json")) ?? ""),
     });
     await runCommand(page, "View: Close All Editors");
     if (settingsBefore === null) rmSync(SETTINGS, { force: true });
@@ -1286,7 +1286,7 @@ try {
   };
   const MAIN = path.join(WS, "app", "src", "main", "java", "com", "acme", "app", "Main.java");
   const chainSettings = () => readJson(path.join(WS, ".vscode", "settings.json"));
-  const chainManifest = () => readJson(path.join(WS, ".batlehub", "java", "written.json"));
+  const chainManifest = () => readJson(path.join(WS, ".batlehub", "java", "local", "written.json"));
   const chain = {
     settingWritten: chainSettings()?.["java.completion.chain.enabled"],
     manifestHas: (chainManifest()?.entries ?? []).some(

@@ -1,7 +1,7 @@
 // The overlay, if spike (a) leaves it in (RFC 0001 §4.2, §7): a *copy* of
 // the active settings file with `<activeProfiles>` added, holding only what
 // the import needs — `<profiles>`, `<activeProfiles>`, `<mirrors>`,
-// `<servers>` — written 0600 under `.batlehub/java/` after the `.gitignore`
+// `<servers>` — written 0600 under `.batlehub/java/local/` after the `.gitignore`
 // line, never logged. Pure: the content; the glue does the rest.
 
 const section = (xml: string, name: string): string | undefined =>
