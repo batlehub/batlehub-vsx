@@ -3,6 +3,7 @@ package batlehub.jdt.core;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import org.eclipse.core.resources.IResource;
 import org.eclipse.core.runtime.IProgressMonitor;
 import org.eclipse.jdt.core.ICompilationUnit;
 import org.eclipse.jdt.core.dom.CompilationUnit;
@@ -13,11 +14,11 @@ import org.eclipse.jdt.ls.core.internal.JDTUtils;
 /**
  * The one delegate (RFC 0001 §6.2): `batlehub.ping`, `batlehub.generate.accessors`,
  * `batlehub.inspections.list`, `batlehub.inspections.fixAll`, `batlehub.completion.chain`
- * (RFC 0012 phase 2), `batlehub.rename` (RFC 0002 §5.3). Arguments arrive
+ * (RFC 0012 phase 2), `batlehub.rename` (RFC 0002 §5.3), `batlehub.refresh`. Arguments arrive
  * Gson-deserialised (Map/List/String); answers are plain maps and lists.
  */
 public class Handler implements IDelegateCommandHandler {
-  public static final String VERSION = "0.5.0";
+  public static final String VERSION = "0.6.0";
 
   @Override
   public Object executeCommand(String commandId, List<Object> arguments, IProgressMonitor monitor) throws Exception {
@@ -31,7 +32,7 @@ public class Handler implements IDelegateCommandHandler {
         for (Inspection i : Engine.inspections()) defaults.put(i.area() + "/" + i.id(), i.severity());
         out.put("defaults", defaults);
         // The core decides its fallbacks from this list, not from a failed call (RFC 0012 §4.3).
-        out.put("commands", List.of("batlehub.generate.accessors", "batlehub.inspections.list", "batlehub.inspections.fixAll", "batlehub.completion.chain", "batlehub.rename"));
+        out.put("commands", List.of("batlehub.generate.accessors", "batlehub.inspections.list", "batlehub.inspections.fixAll", "batlehub.completion.chain", "batlehub.rename", "batlehub.refresh"));
         return out;
       }
       case "batlehub.completion.chain": {
@@ -54,6 +55,20 @@ public class Handler implements IDelegateCommandHandler {
             String.valueOf(arguments.get(3)),
             monitor);
       }
+      case "batlehub.refresh": {
+        // (uris) The engine's own writes, seen by its next call: didChangeWatchedFiles
+        // is queued to a thread of JDT.LS's, so a call right after it reads the old file.
+        int n = 0;
+        for (Object u : (List<?>) arguments.get(0)) {
+          ICompilationUnit cu = JDTUtils.resolveCompilationUnit(String.valueOf(u));
+          if (cu == null) continue;
+          IResource r = cu.getResource();
+          if (r != null) r.refreshLocal(IResource.DEPTH_ZERO, monitor);
+          if (!cu.isWorkingCopy()) cu.close(); // the cached buffer and members go; the next read is the file's
+          n++;
+        }
+        return Map.of("refreshed", n);
+      }
       case "batlehub.inspections.list": {
         String uri = String.valueOf(arguments.get(0));
         return Engine.list(source(uri));
@@ -61,7 +76,10 @@ public class Handler implements IDelegateCommandHandler {
       case "batlehub.inspections.fixAll": {
         String uri = String.valueOf(arguments.get(0));
         String rule = arguments.size() > 1 && arguments.get(1) != null ? String.valueOf(arguments.get(1)) : null;
-        return workspaceEdit(uri, Engine.fixAll(source(uri), rule));
+        // (uri, ruleId | null, skip?) skip: the ruleIds a bulk fix leaves alone.
+        java.util.Set<String> skip = new java.util.HashSet<>();
+        if (arguments.size() > 2 && arguments.get(2) instanceof List<?> l) for (Object o : l) skip.add(String.valueOf(o));
+        return workspaceEdit(uri, Engine.fixAll(source(uri), rule, skip));
       }
       case "batlehub.generate.accessors": {
         @SuppressWarnings("unchecked")

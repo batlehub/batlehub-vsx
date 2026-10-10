@@ -1,9 +1,13 @@
 // The Inspections view (RFC 0001 §6.1): rule → file → occurrence over the
-// bridge's rows, with "Fix all" on a rule node and on a file node.
+// bridge's rows, with "Fix all" on a rule node and on a file node. Each rule
+// says its level, its origin and the team's reason (RFC 0005 §6.2); the
+// banner says what is wrong with the profile and what the developer differs on.
 import * as path from "node:path";
 import * as vscode from "vscode";
 import type { Bridge } from "./bridge";
 import { group, type Row } from "@batlehub/java-rules/rules";
+import { profileBanner, ruleLabel } from "@batlehub/java-rules/profile";
+import { readSettings } from "../config";
 import { sonarOf } from "./sonar";
 import { CODE as SPELLING, spellingOf } from "./spelling";
 
@@ -20,9 +24,10 @@ export class InspectionsView
   private readonly changed = new vscode.EventEmitter<Node | undefined>();
   readonly onDidChangeTreeData = this.changed.event;
   private readonly sub: vscode.Disposable;
+  private tree: vscode.TreeView<Node> | undefined;
 
   constructor(private readonly bridge: Bridge) {
-    const refresh = () => this.changed.fire(undefined);
+    const refresh = () => this.refresh();
     // The bundle's rows, and the two bridged sources beside them.
     this.sub = vscode.Disposable.from(
       bridge.onDidChange(refresh),
@@ -30,6 +35,24 @@ export class InspectionsView
         src ? [src.onDidChange(refresh)] : [],
       ),
     );
+  }
+
+  attach(tree: vscode.TreeView<Node>): void {
+    this.tree = tree;
+    this.refresh();
+  }
+
+  refresh(): void {
+    if (this.tree) {
+      const p = this.bridge.profile;
+      this.tree.message = profileBanner({
+        present: !!p,
+        checked: this.bridge.checked(),
+        problems: p?.problems ?? [],
+        differs: this.bridge.differs().length,
+      });
+    }
+    this.changed.fire(undefined);
   }
 
   /** The bundle's rows and, beside them, cspell's (RFC 0013 §6.2) and SonarLint's (RFC 0016 §6.2), by document. */
@@ -49,6 +72,18 @@ export class InspectionsView
         code: g.code,
         count: g.count,
       }));
+      // A rule the profile or the developer set has a row even with no
+      // finding: `off` is what hides them all (use case 1).
+      const shown = new Set(grouped.map((g) => g.code));
+      const overrides = readSettings().inspections.severityOverrides;
+      for (const code of [
+        ...Object.keys(this.bridge.profile?.project?.merged ?? {}),
+        ...Object.keys(overrides).filter((k) => k.includes("/")),
+      ].sort())
+        if (!shown.has(code)) {
+          shown.add(code);
+          rules.push({ kind: "rule", code, count: 0 });
+        }
       const extra: Node[] = [];
       // RFC 0013 §4.3: without cspell, or with it off for Java, one row that says so.
       const state = spellingOf()?.state();
@@ -110,11 +145,25 @@ export class InspectionsView
       );
       const spelling = n.code === SPELLING;
       const sonar = n.code.startsWith("sonar/");
-      item.description = spelling
-        ? `${n.count} · via cspell ${spellingOf()?.version() ?? ""}`
-        : sonar
-          ? `${n.count} · via SonarLint ${sonarOf()?.version() ?? ""}`
-          : `${n.count}`;
+      const label = ruleLabel(
+        n.code,
+        this.bridge.profile?.project,
+        readSettings().inspections.severityOverrides,
+      );
+      item.description = [
+        `${n.count}`,
+        spelling
+          ? `via cspell ${spellingOf()?.version() ?? ""}`
+          : sonar
+            ? `via SonarLint ${sonarOf()?.version() ?? ""}`
+            : undefined,
+        label,
+      ]
+        .filter(Boolean)
+        .join(" · ");
+      if (label) item.tooltip = `${n.code}: ${label}`;
+      if (!n.count)
+        item.collapsibleState = vscode.TreeItemCollapsibleState.None;
       // No Fix all on a bridged rule — spelling's (RFC 0013 §4.2), Sonar's
       // (RFC 0016 §4.2): the core owns no fix for either.
       item.contextValue = spelling

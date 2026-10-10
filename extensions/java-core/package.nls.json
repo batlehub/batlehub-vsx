@@ -86,6 +86,7 @@
   "cmd.inspections.fixAll": "Fix all inspections in file",
   "cmd.mcp.copyConfig": "Copy the MCP configuration for agents",
   "cmd.inspections.refresh": "Refresh inspections",
+  "cmd.inspections.saveProfile": "Save as project profile",
   "cmd.restartServer": "Restart the Java language server",
   "cmd.showJdtLog": "Show the JDT log",
   "config.completion.chain": "Chained-call completion (`config.getServer().getPort()` as one item). `auto`: BatleHub's chains on every completion, ranked, including `int` and `String` results; `shortcut`: the Java server's own chains, on Ctrl+Space only; `off`: none.",

@@ -1,9 +1,14 @@
 import { describe, expect, it } from "vitest";
 import {
+  bulkFixSkip,
   closest,
   differing,
   mergeSeverities,
   parseProfile,
+  profileBanner,
+  profileFromOverrides,
+  profileSummary,
+  ruleLabel,
   unwriteRules,
   validate,
   writeRules,
@@ -335,5 +340,137 @@ describe("a program's writes and their undo (RFC 0005 §6.6)", () => {
     expect(parseProfile(back.text!).profile!.rules).toEqual({
       "a/x": { severity: "warning" },
     });
+  });
+});
+
+describe("what the view and the channel say (RFC 0005 §4.2)", () => {
+  const p = check(
+    file({
+      "style/redundantThis": { severity: "off", why: "house style" },
+      "collections/sizeIsZero": {
+        severity: "off",
+        why: "imported from IntelliJ",
+        imported: "intellij",
+      },
+      "performance/stringConcatInLoop": { severity: "error" },
+      "style/ifReturnBool": { severity: "off", why: "typo" },
+    }),
+  );
+  const v = {
+    merged: p.merged!,
+    reasons: p.reasons!,
+    imported: p.imported!,
+    problems: p.problems,
+  };
+
+  it("labels each rule with its level, its origin and its reason (use cases 1, 3, 7)", () => {
+    expect(ruleLabel("style/redundantThis", v, {})).toBe(
+      "off — profile: house style",
+    );
+    expect(ruleLabel("collections/sizeIsZero", v, {})).toBe(
+      "off — imported, nobody argued this: imported from IntelliJ",
+    );
+    expect(ruleLabel("performance/stringConcatInLoop", v, {})).toBe(
+      "error — profile",
+    );
+    expect(
+      ruleLabel("style/redundantThis", v, { redundantThis: "warning" }),
+    ).toBe("warning (you) — differs from project: off");
+    expect(ruleLabel("unused/privateField", v, { privateField: "off" })).toBe(
+      "off (you)",
+    );
+    expect(ruleLabel("unused/privateField", v, {})).toBeUndefined();
+    expect(ruleLabel("unused/privateField", undefined, {})).toBeUndefined();
+  });
+
+  it("logs rules known, off and unknown (use cases 1 and 4)", () => {
+    expect(
+      profileSummary(
+        parseProfile(
+          file({
+            "style/ifReturnBool": { severity: "off", why: "x" },
+            "sonar/java:S1135": { severity: "off", why: "y" },
+          }),
+        ).profile!,
+        v,
+        KNOWN,
+      ),
+    ).toBe("profile: 11 rules known, 2 off, 1 unknown");
+  });
+
+  it("says not yet checked, the file's errors and the differing count — nothing without a file", () => {
+    expect(
+      profileBanner({
+        present: false,
+        checked: false,
+        problems: [],
+        differs: 3,
+      }),
+    ).toBeUndefined();
+    expect(
+      profileBanner({ present: true, checked: true, problems: [], differs: 0 }),
+    ).toBeUndefined();
+    expect(
+      profileBanner({
+        present: true,
+        checked: false,
+        problems: [],
+        differs: 0,
+      }),
+    ).toBe("inspections.json: not yet checked against the bundle");
+    expect(
+      profileBanner({
+        present: true,
+        checked: true,
+        problems: [
+          { line: 3, severity: "warning", message: "a" },
+          { line: 4, severity: "info", message: "b" },
+        ],
+        differs: 1,
+      }),
+    ).toBe("inspections.json has 1 error · 1 rule differs from project");
+  });
+});
+
+describe("Save as project profile (RFC 0005 use case 6)", () => {
+  it("writes the overrides keyed area/ruleId, an empty why on each downgrade, and the file starts invalid", () => {
+    const rules = profileFromOverrides(
+      {
+        redundantThis: "off",
+        "performance/stringConcatInLoop": "error",
+        nope: "off",
+        "unused/privateField": "loud",
+      },
+      KNOWN,
+      DEFAULTS,
+    );
+    expect(rules).toEqual({
+      "style/redundantThis": { severity: "off", why: "" },
+      "performance/stringConcatInLoop": { severity: "error" },
+    });
+    const { text } = writeRules(undefined, rules);
+    const p = check(text);
+    expect(p.problems.map((x) => x.message)).toEqual([
+      'style/redundantThis: "off" needs a "why"',
+    ]);
+    expect(p.merged).toEqual({ "performance/stringConcatInLoop": "error" });
+  });
+});
+
+describe("Fix all in file and the profile (RFC 0005 decision 11)", () => {
+  it("skips the rules the profile turned off, unless the developer brought one back", () => {
+    const project = {
+      "style/redundantThis": "off",
+      "collections/sizeIsZero": "off",
+      "performance/stringConcatInLoop": "error",
+    } as const;
+    expect(bulkFixSkip(project, {})).toEqual(["redundantThis", "sizeIsZero"]);
+    expect(bulkFixSkip(project, { redundantThis: "warning" })).toEqual([
+      "sizeIsZero",
+    ]);
+    expect(bulkFixSkip(project, { "collections/sizeIsZero": "info" })).toEqual([
+      "redundantThis",
+    ]);
+    expect(bulkFixSkip({}, { redundantThis: "off" })).toEqual([]);
   });
 });

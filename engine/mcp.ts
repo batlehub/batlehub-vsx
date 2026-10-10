@@ -69,6 +69,11 @@ export function tools(
       s.server.notify("workspace/didChangeWatchedFiles", {
         changes: planned.map((p) => ({ uri: fileUri(p.file), type: 2 })),
       });
+      // The notification is queued; the bundle's refresh is done when it answers.
+      await s.server.exec(
+        "batlehub.refresh",
+        planned.map((p) => fileUri(p.file)),
+      );
     }
     return {
       files: planned.length,

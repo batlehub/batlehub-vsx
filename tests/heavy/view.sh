@@ -434,11 +434,19 @@ if [[ "$ONLY" == "all" || "$ONLY" == "registry" ]]; then
   log "REGISTRY-LINK-OK"
 fi
 
+# The JDT bundle java-core carries (`javaExtensions`): a half whose proof
+# reads the bundle's rows builds it first — a CI job runs one half alone.
+jdt_bundle() {
+  [[ -s "$REPO/extensions/java-core/jdt/batlehub-jdt-core.jar" ]] && return
+  log "Building the JDT bundle (task jdt:deps, jdt:build)"
+  (cd "$REPO" && task jdt:deps >>"$HEAVY_WORK/package.log" 2>&1 && task jdt:build >>"$HEAVY_WORK/package.log" 2>&1) \
+    || { tail -20 "$HEAVY_WORK/package.log" >&2; fail "the JDT bundle build failed"; }
+}
+
 # ── 6. Java: the Java extensions alone (RFC 0001, decision 39) ───────────
 if [[ "$ONLY" == "all" || "$ONLY" == "java" ]]; then
   log "Java half: redhat.java $REDHAT_JAVA_VERSION + java-core (+ its JDT bundle) + java-groovy, the maven-multi fixture, no BatleHub"
-  JDT_JAR="$REPO/extensions/java-core/jdt/batlehub-jdt-core.jar"
-  [[ -s "$JDT_JAR" ]] || { log "Building the JDT bundle (task jdt:deps, jdt:build)"; (cd "$REPO" && task jdt:deps >>"$HEAVY_WORK/package.log" 2>&1 && task jdt:build >>"$HEAVY_WORK/package.log" 2>&1) || { tail -20 "$HEAVY_WORK/package.log" >&2; fail "the JDT bundle build failed"; }; }
+  jdt_bundle
   (cd "$REPO/extensions/java-core" && pnpm run package >>"$HEAVY_WORK/package.log" 2>&1) \
     || { tail -20 "$HEAVY_WORK/package.log" >&2; fail "packaging java-core failed"; }
   JAVA_CORE_VSIX="$REPO/extensions/java-core/java-core.vsix"
@@ -597,9 +605,21 @@ print("".join(list(difflib.unified_diff((d.get("golden") or "").splitlines(True)
   assert_json "$J_" mcp "d['dry']['applied'] is False and not d['rename']['isError'] and d['rename']['applied'] and set(d['rename']['files'])>={'core/src/main/java/com/acme/core/Greeter.java','app/src/main/java/com/acme/app/Main.java','app/src/test/java/com/acme/app/MainTest.java'} and d['mainBuffer'] and d['greeterBuffer']==2 and d['disk']['greeter'] and d['disk']['main'] and d['mainAfterUndo'] and not d['greeterAfterUndo']['everyone'] and d['greeterAfterUndo']['unsavedCallerKept'] and d['jdtls']['after']==d['jdtls']['before'] and d['typeRename']['isError'] and 'is a type' in d['typeRename']['text']" \
     "case 7: java_rename through the live editor did not rename the unsaved caller across modules, reached disk, needed more than one undo, or started a server: $(field "$J_" mcp | cut -c1-1200)"
   log "MCP-LIVE-OK (node mcp-relay.js <socket> as the agent: java_rename com.acme.core.Greeter#all → everyone renamed the declaration, the unsaved caller typed above isEmpty()'s return, Main.java and MainTest.java across modules in $(field "$J_" mcp | python3 -c 'import json,sys;print(json.load(sys.stdin)["renameMs"])') ms; buffers dirty, disk unchanged, one undo took it all back, a type rename refused (it would move a file), JDT.LS processes $(field "$J_" mcp | python3 -c 'import json,sys;j=json.load(sys.stdin)["jdtls"];print(j["before"],"→",j["after"])') — RFC 0002 case 7)"
-  assert_json "$J_" profileSchema "any(r.startswith('inspections.json') and r.endswith(' 2') for r in d['problems']) and any('Missing property \"why\"' in r for r in d['problems']) and any('ifReturnBool is not allowed' in r for r in d['problems'])" \
+  assert_json "$J_" profileSchema "any(r.startswith('inspections.json') and r.endswith(' 4') for r in d['problems']) and any('Missing property \"why\"' in r for r in d['problems']) and any('ifReturnBool is not allowed' in r for r in d['problems']) and any('needs a \"why\"' in r and 'batlehub' in r for r in d['problems']) and any('unknown rule style/ifReturnBool' in r for r in d['problems'])" \
     "the profile schema did not flag an off without a why and an unknown rule in .batlehub/java/inspections.json, or flagged the valid entry: $(field "$J_" profileSchema | cut -c1-900)"
   log "PROFILE-SCHEMA-OK (.batlehub/java/inspections.json under java-core's schema, generated from the bundle: '$(field "$J_" profileSchema | python3 -c 'import json,sys;print(next((r for r in json.load(sys.stdin)["problems"] if "why" in r), "")[:90])')' and the misspelt style/ifReturnBool flagged, exactly those two on the file — the argued redundantThis off accepted — RFC 0005 phase 1)"
+  assert_json "$J_" profile "not any('batlehub style/redundantThis' in r for r in d['problems']) and any(r.startswith('E ') and 'stringConcatInLoop' in r for r in d['problems']) and 'off — profile: house style' in d['pane'] and 'inspections.json has 2 errors' in d['pane'] and any('profile: 11 rules known, 1 off, 1 unknown' in l for l in d['channel'])" \
+    "the profile was not applied to Greeter.java (redundantThis off, stringConcatInLoop an error), or the view and the channel did not say so: $(field "$J_" profile | cut -c1-1200)"
+  log "PROFILE-OK (.batlehub/java/inspections.json applied: redundantThis gone from Problems, stringConcatInLoop an error, the view's row 'off — profile: house style', its banner 'inspections.json has 2 errors' — the why-less off and the unknown rule, each a row on the file — and the channel's '$(field "$J_" profile | python3 -c 'import json,sys;print(json.load(sys.stdin)["channel"][-1].split("] ")[-1])')' — RFC 0005 phase 2, use cases 1, 2, 4 and 5)"
+  assert_json "$J_" profileFixAll "d['thisKept'] and d['sizeFixed']" \
+    "Fix all in file applied the fix of a rule the profile turned off, or no fix at all: $(field "$J_" profileFixAll)"
+  log "PROFILE-FIXALL-OK (Fix all in file under the profile: size() == 0 became isEmpty(), this.people kept — redundantThis is off for the team — RFC 0005 decision 11)"
+  assert_json "$J_" profileOverride "any(r.startswith('W ') and 'batlehub style/redundantThis' in r for r in d['problems']) and 'warning (you) — differs from project: off' in d['pane'] and '1 rule differs from project' in d['pane'] and d['profileUnchanged']" \
+    "the developer's override did not win over the profile in the editor, or the view did not mark it: $(field "$J_" profileOverride | cut -c1-1200)"
+  log "PROFILE-OVERRIDE-OK (severityOverrides redundantThis: warning over the profile's off — the row back as a warning, the view 'warning (you) — differs from project: off' and '1 rule differs from project', the profile untouched — RFC 0005 use case 3)"
+  assert_json "$J_" profileSave "d['file'] and d['file'].get('\$schema','').endswith('java-inspections.schema.json') and d['file']['version']==1 and d['file']['rules']=={'style/redundantThis':{'severity':'off','why':''},'performance/stringConcatInLoop':{'severity':'error'}} and any('needs a \"why\"' in r for r in d['problems']) and d['manifest']" \
+    "Save as project profile did not write the two overrides as the team's file, an empty why on the off, recorded in the manifest: $(field "$J_" profileSave | cut -c1-900)"
+  log "PROFILE-SAVE-OK (Java: Save as project profile with two overrides and no file: inspections.json created with \$schema, version 1, style/redundantThis off with an empty why and stringConcatInLoop error, a profile entry in written.json, and the file's row '\"off\" needs a \"why\"' until someone argues it — RFC 0005 use case 6)"
   assert_json "$J_" projectSchema "any(r.startswith('project.json') and r.endswith(' 2') for r in d['problems'])" \
     "the project.json schema did not flag exactly the string activeProfiles and the boolean registry.enabled: $(field "$J_" projectSchema | cut -c1-900)"
   log "PROJECT-SCHEMA-OK (.batlehub/java/project.json under java-core's schema: activeProfiles as a string and registry.enabled as a boolean flagged, maven.configuration accepted — $(field "$J_" projectSchema | python3 -c 'import json,sys;print("; ".join(r[:60] for r in json.load(sys.stdin)["problems"][1:3]))') — RFC 0006 phase 1)"
@@ -1025,8 +1045,10 @@ fi
 if [[ "$ONLY" == "all" || "$ONLY" == "sonar" ]]; then
   log "Sonar half: SonarLint bridged into the Inspections view, then absent - the maven-multi fixture plus a TODO"
   SONARLINT_VERSION="${SONARLINT_VERSION:-5.9.0}"
+  jdt_bundle # the bundle's rows sit beside SonarLint's in the view
   (cd "$REPO/extensions/java-core" && pnpm run package >>"$HEAVY_WORK/package.log" 2>&1) || { tail -20 "$HEAVY_WORK/package.log" >&2; fail "packaging java-core failed"; }
   JAVA_CORE_VSIX="$REPO/extensions/java-core/java-core.vsix"
+  [[ "$(unzip -l "$JAVA_CORE_VSIX" | grep -c "jdt/batlehub-jdt-core.jar")" -gt 0 ]] || fail "java-core.vsix does not carry the JDT bundle"
   REDHAT_VSIX="$HEAVY_CACHE/redhat.java-$REDHAT_JAVA_VERSION.vsix"
   [[ -s "$REDHAT_VSIX" ]] || fetch -o "$REDHAT_VSIX" "https://open-vsx.org/api/redhat/java/$REDHAT_JAVA_VERSION/file/redhat.java-$REDHAT_JAVA_VERSION.vsix"
   # The linux-x64 build, as Open VSX serves a Che pod: it carries its own JRE (RFC 0016 decision 13).

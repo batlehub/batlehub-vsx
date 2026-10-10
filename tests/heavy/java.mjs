@@ -1015,13 +1015,79 @@ try {
     mkdirSync(path.dirname(PROFILE), { recursive: true });
     writeFileSync(
       PROFILE,
-      JSON.stringify({ version: 1, rules: { "correctness/emptyCatch": { severity: "off" }, "style/ifReturnBool": { severity: "error" }, "style/redundantThis": { severity: "off", why: "house style" } } }, null, 2),
+      JSON.stringify({ version: 1, rules: { "correctness/emptyCatch": { severity: "off" }, "style/ifReturnBool": { severity: "error" }, "style/redundantThis": { severity: "off", why: "house style" }, "performance/stringConcatInLoop": { severity: "error" } } }, null, 2),
     );
     await openFile(page, "inspections.json");
-    const rows = await settle(() => problems(page), (r) => r.some((x) => /why/.test(x)) && r.some((x) => /ifReturnBool/.test(x)), 30000, 2000);
+    // The schema's two rows, then (RFC 0005 phase 2) the bridge's two once the bundle has answered.
+    const rows = await settle(() => problems(page), (r) => r.some((x) => /why/.test(x)) && r.some((x) => /ifReturnBool/.test(x)) && r.some((x) => /unknown rule style\/ifReturnBool/.test(x)), 30000, 2000);
     await snap(page, "profile-schema");
     emit({ phase: "profileSchema", problems: (rows.value ?? []).filter((r) => /inspections\.json|why|ifReturnBool|redundantThis/.test(r)) });
+
+    // RFC 0005 phase 2, use cases 1, 2, 4 and 5: the same profile applied to
+    // Greeter.java — redundantThis gone, stringConcatInLoop an error, the
+    // refused and unknown entries named on the file and in the view's banner.
+    const severityRows = () =>
+      page.$$eval(".markers-panel .monaco-list-row", (els) =>
+        els.map((e) => `${e.querySelector(".codicon-error") ? "E" : e.querySelector(".codicon-warning") ? "W" : "I"} ${e.innerText.replace(/\s+/g, " ").trim()}`).filter((t) => t.length > 2),
+      ).catch(() => []);
+    const inspectionsPane = async () => {
+      await runCommand(page, "Java: Focus on Inspections View");
+      await sleep(1200);
+      return page.$eval('.pane:has(.pane-header[aria-label*="Inspections"]) .pane-body', (e) => e.innerText.replace(/\s+/g, " ").trim()).catch(() => "");
+    };
+    await openFile(page, "Greeter.java");
+    const applied = await settle(async () => (await problems(page), await severityRows()), (r) => r.some((x) => /batlehub/.test(x)) && !r.some((x) => /batlehub style\/redundantThis/.test(x)), 60000, 2000);
+    const pane = await settle(inspectionsPane, (t) => /off — profile: house style/.test(t), 30000, 2000);
+    await snap(page, "profile");
+    emit({
+      phase: "profile",
+      problems: (applied.value ?? []).filter((r) => /batlehub/.test(r)),
+      pane: pane.value ?? "",
+      channel: channelLog("BatleHub Java JDT").filter((l) => /profile: /.test(l)).slice(-2),
+    });
+    // Decision 11: Fix all in file leaves out the rule the profile turned off.
+    await openFile(page, "Greeter.java");
+    await runCommand(page, "Java: Fix all inspections in file");
+    const bulk = await settle(() => editorText(page), (t) => /isEmpty\(\)/.test(t), 20000, 1000);
+    emit({ phase: "profileFixAll", thisKept: /this\.people/.test(bulk.value ?? ""), sizeFixed: /isEmpty\(\)/.test(bulk.value ?? "") });
+    await runCommand(page, "File: Revert File");
+    await sleep(800);
+
+    // Use case 3: the developer's override wins in the editor, and says it differs.
+    const SETTINGS = path.join(WS, ".vscode", "settings.json");
+    const settingsBefore = readIfPresent(SETTINGS);
+    const s0 = settingsBefore ? JSON.parse(settingsBefore) : {};
+    writeFileSync(SETTINGS, JSON.stringify({ ...s0, "batlehub.java.inspections.severityOverrides": { "style/redundantThis": "warning" } }, null, 2));
+    await openFile(page, "Greeter.java");
+    const overridden = await settle(async () => (await problems(page), await severityRows()), (r) => r.some((x) => /batlehub style\/redundantThis/.test(x)), 30000, 2000);
+    const pane2 = await settle(inspectionsPane, (t) => /differs from project/.test(t), 30000, 2000);
+    await snap(page, "profile-override");
+    emit({ phase: "profileOverride", problems: (overridden.value ?? []).filter((r) => /batlehub/.test(r)), pane: pane2.value ?? "", profileUnchanged: !readIfPresent(PROFILE)?.includes("warning") });
+
+    // Use case 6: no profile, two overrides, `Save as project profile` — the
+    // file the team reviews, invalid until someone writes the why.
     rmSync(PROFILE, { force: true });
+    writeFileSync(SETTINGS, JSON.stringify({ ...s0, "batlehub.java.inspections.severityOverrides": { redundantThis: "off", "performance/stringConcatInLoop": "error" } }, null, 2));
+    await sleep(2000);
+    await runCommand(page, "Java: Save as project profile");
+    const saved = await settle(async () => readIfPresent(PROFILE), (t) => t !== null, 20000, 1000);
+    const savedRows = await settle(() => problems(page), (r) => r.some((x) => /needs a "why"/.test(x)), 30000, 2000);
+    await snap(page, "profile-save");
+    let savedJson = null;
+    try {
+      savedJson = JSON.parse(saved.value ?? "");
+    } catch {}
+    emit({
+      phase: "profileSave",
+      file: savedJson,
+      problems: (savedRows.value ?? []).filter((r) => /inspections\.json|why/.test(r)),
+      manifest: /"kind": ?"profile"/.test(readIfPresent(path.join(WS, ".batlehub", "java", "written.json")) ?? ""),
+    });
+    await runCommand(page, "View: Close All Editors");
+    if (settingsBefore === null) rmSync(SETTINGS, { force: true });
+    else writeFileSync(SETTINGS, settingsBefore);
+    rmSync(PROFILE, { force: true });
+    await sleep(1500);
     // RFC 0006 phase 1: project.json's schema, the same way.
     const PROJECT = path.join(WS, ".batlehub", "java", "project.json");
     writeFileSync(PROJECT, JSON.stringify({ version: 1, maven: { activeProfiles: "dev", configuration: "corp" }, registry: { enabled: true } }, null, 2));

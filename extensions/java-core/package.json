@@ -609,6 +609,12 @@
         "icon": "$(refresh)"
       },
       {
+        "command": "batlehub.java.inspections.saveProfile",
+        "title": "%cmd.inspections.saveProfile%",
+        "category": "Java",
+        "icon": "$(save)"
+      },
+      {
         "command": "batlehub.java.restartServer",
         "title": "%cmd.restartServer%",
         "category": "Java"
@@ -921,6 +927,11 @@
           "command": "batlehub.java.inspections.refresh",
           "when": "view == batlehub.java.inspections",
           "group": "navigation@2"
+        },
+        {
+          "command": "batlehub.java.inspections.saveProfile",
+          "when": "view == batlehub.java.inspections",
+          "group": "profile@1"
         }
       ],
       "view/item/context": [

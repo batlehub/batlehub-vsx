@@ -90,11 +90,16 @@ public final class Engine {
 
   /** Every fix of every finding (of one rule when given), as one edit list. */
   public static List<Map<String, Object>> fixAll(String source, String ruleId) {
+    return fixAll(source, ruleId, java.util.Set.of());
+  }
+
+  /** Every fix, or one rule's, leaving out the rules in `skip` — those the team's profile turned off (RFC 0005 decision 11). */
+  public static List<Map<String, Object>> fixAll(String source, String ruleId, java.util.Set<String> skip) {
     CompilationUnit cu = parse(source);
     ASTRewrite rewrite = ASTRewrite.create(cu.getAST());
     boolean any = false;
     for (Finding f : findings(cu, ruleId)) {
-      if (f.fix() == null) continue;
+      if (f.fix() == null || skip.contains(f.rule().id())) continue;
       f.fix().accept(rewrite);
       any = true;
     }

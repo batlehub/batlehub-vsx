@@ -360,10 +360,17 @@ written here is the first step and what blocks it.
       `PROFILE-SCHEMA-OK`, `PROJECT-SCHEMA-OK` in the real editor. Found:
       `Remove BatleHub settings` deleted `.batlehub/java/` wholesale, which
       would have taken a committed profile with it — now only the manifest
-      and empty directories. **Next**: 0005 phase 2 (the bridge and the view
-      apply the profile, its rows on the file, the watcher) and 0006 phase
-      2 (the `local/` split and its migration); then 0005 phase 4 and 0006
-      phase 4 give the engine `--profile` and `config --print`.
+      and empty directories. **0005 phases 2 and 3 built**, 2026-10-10
+      (revision 5): the bridge applies the profile under the developer's
+      overrides, its rows on the file, the watcher; the view's level, origin,
+      reason and banner; `Save as project profile`; `Fix all in file` skips
+      what the team turned off (bundle 0.6.0); `docs/guide/java/inspections.md`;
+      `PROFILE-OK`, `PROFILE-FIXALL-OK`, `PROFILE-OVERRIDE-OK`,
+      `PROFILE-SAVE-OK`. Owed: the Java panel's differing count (no
+      inspections line in the panel yet). **Next**: 0006 phase 2 (the
+      `local/` split and its migration), then 0006 phase 3. 0005 phase 4 and
+      0006 phase 4 (the engine's `--profile`, `config --print`) wait with
+      RFC 0002 phase 6.
 - [ ] **12 · RFC 0008's remaining phases, then [RFC 0009](docs/rfc/0009-scala-satellite.md).**
       0009 phase 0 (Metals in the heavy editor, `metals.javaHome` by hand) can
       only start after 0003. Its Coursier half is gone until BatleHub accepts

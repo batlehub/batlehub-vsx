@@ -322,3 +322,111 @@ export function unwriteRules(
   const empty = !rules?.children?.length;
   return { text: created && empty ? null : out, kept };
 }
+
+/**
+ * The Inspections view's words for one rule (§4.2): its level, where it comes
+ * from and why — `warning (you) — differs from project: off`, `off —
+ * profile: <why>`, `off — imported, nobody argued this: <why>`. Undefined
+ * for a rule at the bundle's default.
+ */
+export function ruleLabel(
+  code: string,
+  project: Validated | undefined,
+  overrides: Record<string, string>,
+): string | undefined {
+  const own = overrides[code] ?? overrides[code.split("/").pop()!];
+  const team = project?.merged[code];
+  if (own !== undefined)
+    return team !== undefined && team !== own
+      ? `${own} (you) — differs from project: ${team}`
+      : `${own} (you)`;
+  if (team === undefined) return undefined;
+  const why = project!.reasons[code];
+  if (!why) return `${team} — profile`;
+  return project!.imported.includes(code)
+    ? `${team} — imported, nobody argued this: ${why}`
+    : `${team} — profile: ${why}`;
+}
+
+/** The channel line of use cases 1 and 4: `profile: 11 rules known, 1 off, 0 unknown`. */
+export function profileSummary(
+  profile: Profile,
+  project: Validated,
+  known: string[],
+): string {
+  const off = Object.values(project.merged).filter((l) => l === "off").length;
+  const unknown = Object.keys(profile.rules).filter(
+    (k) =>
+      k.includes("/") &&
+      !(BRIDGES as readonly string[]).includes(k.split("/")[0]!) &&
+      !known.includes(k),
+  ).length;
+  return `profile: ${known.length} rules known, ${off} off, ${unknown} unknown`;
+}
+
+/**
+ * The Inspections view's banner (§4.2, use cases 2–4): the file's problems,
+ * `not yet checked` until the bundle answers, and how many rules the
+ * developer's overrides take away from the project. Undefined when there is
+ * nothing to say.
+ */
+export function profileBanner(s: {
+  present: boolean;
+  checked: boolean;
+  problems: ProfileProblem[];
+  differs: number;
+}): string | undefined {
+  if (!s.present) return undefined;
+  const parts: string[] = [];
+  const errors = s.problems.filter((p) => p.severity !== "info").length;
+  if (errors)
+    parts.push(
+      `inspections.json has ${errors} error${errors === 1 ? "" : "s"}`,
+    );
+  if (!s.checked)
+    parts.push("inspections.json: not yet checked against the bundle");
+  if (s.differs)
+    parts.push(
+      `${s.differs} rule${s.differs === 1 ? "" : "s"} differ${s.differs === 1 ? "s" : ""} from project`,
+    );
+  return parts.length ? parts.join(" · ") : undefined;
+}
+
+/**
+ * `Save as project profile` (§4.2, use case 6): the developer's overrides as
+ * profile entries, keyed `area/ruleId`, with an empty `why` on each one that
+ * needs a reason — the file starts invalid on purpose until someone argues
+ * it. A bare ruleId no loaded rule ends with is left out.
+ */
+export function profileFromOverrides(
+  overrides: Record<string, string>,
+  known: string[],
+  defaults: Record<string, Severity>,
+): Record<string, ProfileRule> {
+  const out: Record<string, ProfileRule> = {};
+  for (const [k, v] of Object.entries(overrides)) {
+    const code = k.includes("/") ? k : known.find((c) => c.endsWith(`/${k}`));
+    if (!code || !LEVELS.includes(v as Level)) continue;
+    const level = v as Level;
+    out[code] =
+      RANK[level] < RANK[defaults[code] ?? "error"]
+        ? { severity: level, why: "" }
+        : { severity: level };
+  }
+  return out;
+}
+
+/**
+ * The ruleIds `Fix all in file` leaves alone (decision 11): those the profile
+ * turned `off` and the developer has not brought back. A one-rule fix-all
+ * passes no such list.
+ */
+export function bulkFixSkip(
+  project: Record<string, Level>,
+  overrides: Record<string, string>,
+): string[] {
+  const effective = mergeSeverities(project, overrides);
+  return Object.entries(project)
+    .filter(([code, level]) => level === "off" && effective[code] === "off")
+    .map(([code]) => code.split("/").pop()!);
+}

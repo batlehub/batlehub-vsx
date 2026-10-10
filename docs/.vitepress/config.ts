@@ -43,6 +43,7 @@ export default withMermaid(
             { text: "Settings and commands", link: "/guide/java/settings" },
             { text: "Clean removal", link: "/guide/java/removal" },
             { text: "Completion, and the chain", link: "/guide/java/editing" },
+            { text: "The team's inspection profile", link: "/guide/java/inspections" },
             { text: "Spell checking", link: "/guide/java/spelling" },
             { text: "Agents (MCP)", link: "/guide/java/agents" },
             { text: "Groovy, Gradle DSL, Jenkinsfile", link: "/guide/java/groovy" },

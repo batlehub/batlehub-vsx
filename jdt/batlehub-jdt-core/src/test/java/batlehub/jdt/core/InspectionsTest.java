@@ -141,6 +141,15 @@ class InspectionsTest {
   }
 
   @Test
+  void fixAllLeavesOutTheRulesTheProfileTurnedOff() {
+    // RFC 0005 decision 11: a bulk fix skips them; the rule's own fix-all still applies it.
+    String src = "import java.util.*;\nclass A {\n  List<String> people;\n  void add(String p) { this.people.add(p); }\n  boolean e() { return people.size() == 0; }\n}\n";
+    String want = "import java.util.*;\nclass A {\n  List<String> people;\n  void add(String p) { this.people.add(p); }\n  boolean e() { return people.isEmpty(); }\n}\n";
+    assertEquals(want, applyLsp(src, Engine.fixAll(src, null, java.util.Set.of("redundantThis"))));
+    assertEquals(applyLsp(src, Engine.fixAll(src, "redundantThis")), applyLsp(src, Engine.fixAll(src, "redundantThis", java.util.Set.of())));
+  }
+
+  @Test
   void fixAllOnTheHeavyFixtureIsItsGolden() throws Exception {
     // The golden INSPECTIONS-OK compares the editor's buffer to; this keeps it the bundle's own answer.
     Path mm = Path.of("../../tests/heavy/fixtures/maven-multi");
