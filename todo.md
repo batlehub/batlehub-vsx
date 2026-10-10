@@ -342,7 +342,9 @@ written here is the first step and what blocks it.
       built too** (revision 9): `node engine/cli.ts mcp`, the same tools
       over stdio for agents with no editor, one server per session, told of
       its own writes; `ENGINE-MCP-OK`; the `.mcp.json` in
-      `docs/guide/java/agents.md`. **Next in this RFC is phase 6**:
+      `docs/guide/java/agents.md`. **Phase 6 is parked** (decided 2026-10-10):
+      the extensions are finished and proven working first, then integrated
+      into BatleHub. Phase 6, when it resumes:
       `batlehub java` in `batlehub-cli` (the BatleHub repository, decision
       2: a `java` group that execs this engine — work in that repository),
       `docs/guide/java/engine.md`, use case 6 with the cap accounting
