@@ -1,15 +1,16 @@
 # todo — the Java series
 
-> **Progress, 2026-10-09: about 73 % by count, about 65 % by effort.**
+> **Progress, 2026-10-09: about 80 % by count, about 72 % by effort.**
 >
 > | | Done | Left |
 > | --- | --- | --- |
-> | The order of work (15 steps: 1–12 with 4b, 6b and 6c) | 11 — 1, 2, 3, 4, 4b, 5, 6, 6b, 6c, 8, 9 | 4 — 7, 10, 11, 12 |
+> | The order of work (15 steps: 1–12 with 4b, 6b and 6c) | 12 — 1, 2, 3, 4, 4b, 5, 6, 6b, 6c, 8, 9, 10 (RFC 0002 phase 0) | 3 — 7, 11, 12 |
 > | Owed, outside the order ("Found while building", "Ongoing") | — | ~8, all small |
 >
-> *Effort* weighs what is left: 10 (the live editor as an MCP server) and
-> 12 (Kotlin's remaining phases, then Scala) are each as large as anything
-> done so far; 7 waits on Team A's list, not on code. Done counts only what a real client has been through
+> *Effort* weighs what is left: 12 (Kotlin's remaining phases, then Scala)
+> is as large as anything done so far; 10 has RFC 0002's phases 0–5 built
+> and only phase 6 ahead (the BatleHub repository's side, and RFC 0003's
+> ledger); 7 waits on Team A's list, not on code. Done counts only what a real client has been through
 > (`ALL-OK` in the heavy suite). Update this box when an item closes.
 
 **State on 2026-10-09** (items 4b, 5, 6, 6b and 6c below are new since). **On 2026-09-18:** [RFC 0001](docs/rfc/0001-java-env.md) is
@@ -30,7 +31,33 @@ written here is the first step and what blocks it.
 
 ## Now
 
-- [ ] **Commit and push the work of 2026-10-09** (RFC 0012 phases 2–3
+- [ ] **Commit RFC 0002 phases 0–5 and RFCs 0005/0006 phase 1** — the live
+      editor as an MCP server, the shared package, the engine's verbs and
+      `mcp`, the profile and project.json modules and schemas (`SMOKE-OK`,
+      `ENGINE-OK`, `task jdt:test` and `task check` green). Unsigned: `git
+      add -A && git commit -S -s -F .git/COMMIT_MSG_ITEM10_11` (passes `cog
+      verify`).
+- [ ] **Two things seen in the heavy suite on 2026-10-09, neither a code
+      change.** `THEME-TOKENS` failed once while typechecks and tests ran
+      beside the suite: `public` kept its TextMate colour past the probe's
+      20 s. It passed on the rerun alone. Then every `node_modules` in the
+      workspace vanished between 22:12 and 22:24 while the suite ran (the
+      desktop session lost `puppeteer-core`). Nothing in `view.sh` deletes
+      them; `pnpm install --frozen-lockfile` restored them. If either comes
+      back: the first wants a longer settle under load, and the second
+      wants whoever cleans `node_modules` to spare a running suite. Two
+      more on the runs of 2026-10-09 evening, each passing on the next run:
+      `RUN-ACCEPT` read only the launch line from the Debug Console while
+      the run itself got its `200`; `CHAIN-DELEGATE` had one round in ten
+      hit the 150 ms budget (bundle 220 ms, a JVM pause) and come back
+      truncated. The suite is long and browser-read; a rerun is the
+      current answer, a retry per step would be the next.
+- [ ] **Watch the first CI run of the engine step** in the `check` job: a
+      runner with setup-java's JDK 21 (found through `JAVA_HOME`), the
+      VSIX downloaded on a cold cache, then cached under the new key
+      `redhat-java-1.56.0-engine`.
+- [x] **Commit and push the work of 2026-10-09** — done: `4174e28`, signed, on
+      `origin/main`. (RFC 0012 phases 2–3
       verified, RFC 0003 phases 1–2, contract 1.1, the `Fix all` fix —
       `Engine.edits()` applies the rewrite and returns one edit over the
       changed span; `INSPECTIONS-OK` now compares the saved file to
@@ -285,15 +312,56 @@ written here is the first step and what blocks it.
       `heavy-sonar` CI job. **Owed to phase 2** (the `javaHome` write only for
       the universal build, `sonarlint.rules` from RFC 0005's profile): che-code
       and a Team A project's peak — the cap decision waits on that number.
-- [ ] **10 · [RFC 0002](docs/rfc/0002-headless-engine-mcp.md) phase 0 — the live editor as an MCP server.**
-      The five tool schemas in `packages/java-rules/verbs.ts` and
-      `src/mcp/` over the running JDT.LS; edits applied unsaved as one undo
-      step. The command-line twin is second, not first. This is the goal's
-      "drivable by the developer *and* their agents" half.
+10. ~~[RFC 0002](docs/rfc/0002-headless-engine-mcp.md) phase 0 — the live editor as an MCP server~~ —
+      **built**, revision 4, 2026-10-09. `src/mcp/` in `java-core`: the five
+      tools over the running JDT.LS, behind a `0600` unix socket and a stdio
+      relay (`dist/mcp-relay.js`), with `Java: Copy the MCP configuration for
+      agents` for the `.mcp.json` entry. Edits are applied unsaved as one undo
+      step, type renames are refused (they move a file), and findings are
+      reported at the project's values with `differsFromEditor`.
+      `MCP-LIVE-OK` and `MCP-PROJECT-VALUES-OK` in the real editor;
+      `docs/guide/java/agents.md`. Found: the web build auto-saves by default,
+      so an agent's edit reaches disk through the editor unless
+      `files.autoSave` is off. **Phase 1 built too** (revision 5):
+      `packages/java-rules` (the vscode-free modules and the JDK types the
+      contract re-exports), `engine/launch.ts` with `jdt/smoke.mjs` its first
+      caller, and the spike answered — `batlehub.rename` over JDT.LS's
+      `RenameHandler` (bundle 0.3.0, `SMOKE-OK`, `ALL-OK` 20:56). **Phase 2
+      built too** (revision 6): `node engine/cli.ts status|inspect` — text,
+      JSON, SARIF, `--fail-on` — over the pinned VSIX (sha256, unpacked by
+      the JDK's `jar`), the cap against the cgroup limit; `ENGINE-OK` in CI's
+      `check` job (`task heavy:engine`). `--profile`, `--print-profile` and
+      `config --print` wait for item 11 (RFCs 0005/0006). **Phase 3 built
+      too** (revision 7): `fix` and `generate accessors`, dry run by default
+      (a unified diff), `--write` refused on a changed file or a symlink out
+      of the workspace (exit 3); use cases 2 and 4 in `ENGINE-OK`. **Phase 4
+      built too** (revision 8): `batlehub.rename Type#member` (bundle 0.4.0,
+      a file's primary type refused) and the `rename` verb, use case 3
+      through the command line; the engine's `-data` is now fresh per run
+      (a kept one went out of sync with files changed between runs). **Phase 5
+      built too** (revision 9): `node engine/cli.ts mcp`, the same tools
+      over stdio for agents with no editor, one server per session, told of
+      its own writes; `ENGINE-MCP-OK`; the `.mcp.json` in
+      `docs/guide/java/agents.md`. **Next in this RFC is phase 6**:
+      `batlehub java` in `batlehub-cli` (the BatleHub repository, decision
+      2: a `java` group that execs this engine — work in that repository),
+      `docs/guide/java/engine.md`, use case 6 with the cap accounting
+      (needs RFC 0003's ledger, decision 15).
 - [ ] **11 · [RFC 0005](docs/rfc/0005-shared-inspection-profiles.md) and [RFC 0006](docs/rfc/0006-shared-project-config.md).**
-      Both start with a pure module and a JSON schema that give completion
-      before anything reads the file. 0005 phase 1 is what RFC 0007 phase 4
-      waits on.
+      **Phase 1 of both built**, 2026-10-09 (0005 revision 4, 0006
+      revision 4): `profile.ts` and `project-config.ts` in
+      `packages/java-rules`; both schemas in the VSIX through
+      `jsonValidation` (the profile's generated from the bundle, project.json's
+      key table generated from its schema, both checked in `lint` and CI);
+      `batlehub.ping`'s `defaults` (bundle 0.5.0); the `profile` manifest
+      kind and `writeProfileEntries()` — what RFC 0007 phase 4 waited on.
+      `PROFILE-SCHEMA-OK`, `PROJECT-SCHEMA-OK` in the real editor. Found:
+      `Remove BatleHub settings` deleted `.batlehub/java/` wholesale, which
+      would have taken a committed profile with it — now only the manifest
+      and empty directories. **Next**: 0005 phase 2 (the bridge and the view
+      apply the profile, its rows on the file, the watcher) and 0006 phase
+      2 (the `local/` split and its migration); then 0005 phase 4 and 0006
+      phase 4 give the engine `--profile` and `config --print`.
 - [ ] **12 · RFC 0008's remaining phases, then [RFC 0009](docs/rfc/0009-scala-satellite.md).**
       0009 phase 0 (Metals in the heavy editor, `metals.javaHome` by hand) can
       only start after 0003. Its Coursier half is gone until BatleHub accepts

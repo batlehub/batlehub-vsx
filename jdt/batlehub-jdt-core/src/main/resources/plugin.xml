@@ -9,6 +9,7 @@
       <command id="batlehub.inspections.list"/>
       <command id="batlehub.inspections.fixAll"/>
       <command id="batlehub.completion.chain"/>
+      <command id="batlehub.rename"/>
     </delegateCommandHandler>
   </extension>
 </plugin>

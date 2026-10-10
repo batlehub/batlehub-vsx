@@ -30,7 +30,7 @@
 //   console    the browser console's error count
 import { createRequire } from "node:module";
 import { execSync } from "node:child_process";
-import { readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import * as net from "node:net";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -204,6 +204,31 @@ async function outputLines(page, command = "Java: Show log") {
     await sleep(250);
   }
   return seen;
+}
+
+/**
+ * An output channel's lines as the editor writes them to disk
+ * (`<server data>/logs/<session>/exthost<n>/output_logging_<time>/<n>-<name>.log`),
+ * newest extension host last. The panel wraps long entries and its scroll
+ * stops early on repeated fragments; the file does neither. The editor of
+ * `java-ws` is `editor-java`, of `java-ws-desktop` `editor-java-desktop`.
+ */
+function channelLog(name) {
+  const logs = path.join(path.dirname(WS), `editor-java${path.basename(WS).replace("java-ws", "")}`, "server", "data", "logs");
+  const files = [];
+  const walk = (d) => {
+    for (const e of readdirSync(d, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name))) {
+      const p = path.join(d, e.name);
+      if (e.isDirectory()) walk(p);
+      else if (e.name.endsWith(`-${name}.log`)) files.push(p);
+    }
+  };
+  try {
+    walk(logs);
+  } catch {
+    return [];
+  }
+  return files.flatMap((f) => readFileSync(f, "utf8").split("\n"));
 }
 
 /** The current editor's text, as the DOM renders it (long files: the visible part plus what Ctrl+End reveals). */
@@ -845,6 +870,170 @@ try {
   await runCommand(page, "File: Revert File");
   await sleep(500);
 
+  // 10b. RFC 0002 phase 0: the live editor as an MCP server, driven the way
+  // an agent outside the editor drives it — `node mcp-relay.js <socket>`
+  // over stdio, the paths read off the core's log. Use case 7: an unsaved
+  // caller is renamed too, nothing reaches disk, one undo; use case 8: the
+  // workspace's overrides change the Problems panel, not what the agent is told.
+  {
+    const MAIN = path.join(WS, "app", "src", "main", "java", "com", "acme", "app", "Main.java");
+    const SETTINGS = path.join(WS, ".vscode", "settings.json");
+    const listening = channelLog("BatleHub Java")
+      .map((l) => /mcp: listening on (\S+) \(relay (\S+)\)/.exec(l))
+      .findLast(Boolean);
+    const jdtls = () => Number(execSync("pgrep -fc '[o]rg.eclipse.jdt.ls.core.id1' || true").toString().trim() || 0);
+    const jdtlsBefore = jdtls();
+    const mcp = { listening: !!listening };
+    if (listening) {
+      const { spawn } = await import("node:child_process");
+      const relay = spawn("node", [listening[2], listening[1]], { stdio: ["pipe", "pipe", "inherit"] });
+      const waiting = new Map();
+      let buf = "";
+      relay.stdout.setEncoding("utf8").on("data", (d) => {
+        buf += d;
+        let nl;
+        while ((nl = buf.indexOf("\n")) >= 0) {
+          const m = JSON.parse(buf.slice(0, nl));
+          buf = buf.slice(nl + 1);
+          waiting.get(m.id)?.(m);
+        }
+      });
+      let id = 0;
+      const rpc = (method, params) =>
+        new Promise((resolve, reject) => {
+          const n = ++id;
+          const t = setTimeout(() => reject(new Error(`${method}: no answer in 120 s`)), 120000);
+          waiting.set(n, (m) => (clearTimeout(t), resolve(m)));
+          relay.stdin.write(`${JSON.stringify({ jsonrpc: "2.0", id: n, method, params })}\n`);
+        });
+      const tool = async (name, args) => (await rpc("tools/call", { name, arguments: args })).result;
+      const settingsBefore = readIfPresent(SETTINGS);
+      try {
+        mcp.init = (await rpc("initialize", { protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: "heavy", version: "0" } })).result?.serverInfo;
+        relay.stdin.write(`${JSON.stringify({ jsonrpc: "2.0", method: "notifications/initialized" })}\n`);
+        mcp.tools = (await rpc("tools/list", {})).result?.tools?.map((t) => t.name);
+        mcp.status = (await tool("java_status", {}))?.structuredContent;
+
+        // The web build saves after a delay by default: off for this step, or
+        // the editor itself would save what the tool left unsaved.
+        const s = { ...JSON.parse(settingsBefore ?? "{}"), "files.autoSave": "off" };
+        // From a known Greeter.java: the inspections step saved its Fix all and
+        // wrote the fixture back behind the editor, and the server can keep
+        // the fixed copy (RFC 0002 §11, phase 0). Auto save off, every editor
+        // closed, the fixture's own file on disk, then the cases.
+        writeFileSync(SETTINGS, JSON.stringify(s, null, 2));
+        await sleep(1000);
+        await runCommand(page, "View: Close All Editors");
+        await dismissDialogs(page, /^(Don't Save|Do not save)/);
+        writeFileSync(GREETER, readFileSync(path.join(here, "fixtures", "maven-multi", "core", "src", "main", "java", "com", "acme", "core", "Greeter.java"), "utf8"));
+        await sleep(3000);
+        // Use case 8: a committed workspace settings.json turns one rule off and another down.
+        writeFileSync(SETTINGS, JSON.stringify({ ...s, "batlehub.java.inspections.severityOverrides": { "performance/stringConcatInLoop": "off", "style/redundantThis": "hint" } }, null, 2));
+        await openFile(page, "Greeter.java");
+        const panel = await settle(() => problems(page), (rows) => rows.some((r) => /redundantThis/.test(r)) && !rows.some((r) => /stringConcatInLoop/.test(r)), 30000, 2000);
+        const inspected = await tool("java_inspect", { paths: ["core/src/main/java/com/acme/core/Greeter.java"] });
+        mcp.inspect = inspected?.structuredContent?.findings?.map((f) => ({ code: f.code, severity: f.severity, line: f.range.start.line + 1, differs: !!f.differsFromEditor }));
+        mcp.panel = (panel.value ?? []).filter((r) => /batlehub/.test(r));
+        writeFileSync(SETTINGS, JSON.stringify(s, null, 2));
+        await sleep(1500);
+
+        // Use case 7: an unsaved second caller of all(), then the rename.
+        // The inspections step rewrote Greeter.java behind the editor: close
+        // everything so the server's copy is the disk's again before typing.
+        await runCommand(page, "View: Close All Editors");
+        await sleep(2000);
+        const greeterDisk = readIfPresent(GREETER);
+        const mainDisk = readIfPresent(MAIN);
+        const callerLine = greeterDisk.split("\n").findIndex((l) => /people\.size\(\) == 0/.test(l)) + 1;
+        mcp.callerLine = callerLine;
+        await openFile(page, "Greeter.java");
+        await sleep(3000);
+        await chord(page, "Control", "g");
+        await sleep(300);
+        await page.keyboard.type(`${callerLine}:9`);
+        await page.keyboard.press("Enter");
+        await sleep(300);
+        await page.keyboard.type("all();");
+        await page.keyboard.press("Enter");
+        await sleep(1500);
+        const typeRename = await tool("java_rename", { symbol: "com.acme.core.Greeter", newName: "Hello", dryRun: true });
+        mcp.typeRename = { isError: !!typeRename?.isError, text: typeRename?.content?.[0]?.text };
+        const dry = await tool("java_rename", { symbol: "com.acme.core.Greeter#all", newName: "everyone", dryRun: true });
+        mcp.dry = { applied: dry?.structuredContent?.applied, files: Object.keys(dry?.structuredContent?.edit?.changes ?? {}) };
+        const onDisk = () => readIfPresent(GREETER) === greeterDisk && readIfPresent(MAIN) === mainDisk;
+        mcp.diskAfterDry = onDisk();
+        const t0 = Date.now();
+        const renamed = await tool("java_rename", { symbol: "com.acme.core.Greeter#all", newName: "everyone" });
+        mcp.renameMs = Date.now() - t0;
+        mcp.diskAfterApply = onDisk();
+        await sleep(3000);
+        mcp.diskAfter3s = onDisk();
+        const r = renamed?.structuredContent;
+        mcp.rename = { isError: !!renamed?.isError, text: renamed?.isError ? renamed.content?.[0]?.text : undefined, applied: r?.applied, files: Object.keys(r?.edit?.changes ?? {}), greeterLines: (r?.edit?.changes?.["core/src/main/java/com/acme/core/Greeter.java"] ?? []).map((e) => e.range.start.line + 1) };
+        await sleep(1000);
+        await openFile(page, "Main.java");
+        mcp.mainBuffer = /g\.everyone\(\)/.test(await editorText(page));
+        await openFile(page, "Greeter.java");
+        const greeterBuffer = await editorText(page);
+        mcp.greeterBuffer = (greeterBuffer.match(/everyone\(\)/g) ?? []).length;
+        mcp.disk = { greeter: readIfPresent(GREETER) === greeterDisk, main: readIfPresent(MAIN) === mainDisk, greeterNow: readIfPresent(GREETER) === greeterDisk ? undefined : readIfPresent(GREETER) };
+        await snap(page, "mcp-rename");
+        // One undo takes the whole call back, in every file.
+        await chord(page, "Control", "z");
+        await sleep(1500);
+        await dismissDialogs(page, /^(Undo|Yes|OK)/);
+        await sleep(1000);
+        await openFile(page, "Main.java");
+        mcp.mainAfterUndo = /g\.all\(\)/.test(await editorText(page));
+        await openFile(page, "Greeter.java");
+        const afterUndo = await editorText(page);
+        mcp.greeterAfterUndo = { everyone: /everyone/.test(afterUndo), unsavedCallerKept: /all\(\);/.test(afterUndo) };
+        mcp.jdtls = { before: jdtlsBefore, after: jdtls() };
+      } catch (e) {
+        mcp.error = e.message;
+      }
+      relay.stdin.end();
+      relay.kill();
+      // Back to the fixture: every buffer the rename or the typing touched.
+      for (const f of ["Greeter.java", "Main.java", "MainTest.java"]) {
+        await openFile(page, f);
+        await runCommand(page, "File: Revert File");
+        await sleep(400);
+      }
+      if (settingsBefore === null) rmSync(SETTINGS, { force: true });
+      else writeFileSync(SETTINGS, settingsBefore);
+    }
+    emit({ phase: "mcp", ...mcp });
+  }
+
+  // 10c. RFC 0005 phase 1: the profile's schema, contributed by java-core and
+  // generated from the bundle, read by the editor's own JSON service — an
+  // `off` with no `why` and a misspelt rule are flagged before anything of
+  // ours reads the file.
+  {
+    const PROFILE = path.join(WS, ".batlehub", "java", "inspections.json");
+    mkdirSync(path.dirname(PROFILE), { recursive: true });
+    writeFileSync(
+      PROFILE,
+      JSON.stringify({ version: 1, rules: { "correctness/emptyCatch": { severity: "off" }, "style/ifReturnBool": { severity: "error" }, "style/redundantThis": { severity: "off", why: "house style" } } }, null, 2),
+    );
+    await openFile(page, "inspections.json");
+    const rows = await settle(() => problems(page), (r) => r.some((x) => /why/.test(x)) && r.some((x) => /ifReturnBool/.test(x)), 30000, 2000);
+    await snap(page, "profile-schema");
+    emit({ phase: "profileSchema", problems: (rows.value ?? []).filter((r) => /inspections\.json|why|ifReturnBool|redundantThis/.test(r)) });
+    rmSync(PROFILE, { force: true });
+    // RFC 0006 phase 1: project.json's schema, the same way.
+    const PROJECT = path.join(WS, ".batlehub", "java", "project.json");
+    writeFileSync(PROJECT, JSON.stringify({ version: 1, maven: { activeProfiles: "dev", configuration: "corp" }, registry: { enabled: true } }, null, 2));
+    await openFile(page, "project.json");
+    const prow = await settle(() => problems(page), (r) => r.some((x) => /^project\.json/.test(x)), 30000, 2000);
+    await snap(page, "project-schema");
+    emit({ phase: "projectSchema", problems: (prow.value ?? []).filter((r) => /project\.json|Incorrect type|Value is not accepted|not allowed/.test(r)) });
+    rmSync(PROJECT, { force: true });
+    await runCommand(page, "View: Close All Editors");
+    await sleep(500);
+  }
+
   // 11. The Groovy satellite on Hello.groovy.
   await openFile(page, "Hello.groovy");
   await sleep(4000);
@@ -1265,7 +1454,7 @@ PY`,
   // The provider's own round trip, from the core's JDT channel: the bundle's
   // walk plus the command's trip through redhat.java, without the editor's
   // rendering — what the 150 ms budget is about.
-  const jdtLines = await outputLines(page, "Java: Show the JDT log");
+  const jdtLines = channelLog("BatleHub Java JDT");
   const trips = jdtLines
     .map((l) => /chain delegate (\d+) ms \(bundle [^)]*\): ([1-9]\d*) chain/.exec(l))
     .filter((m) => m && !/cached/.test(m.input))

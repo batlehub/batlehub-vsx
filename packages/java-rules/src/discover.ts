@@ -2,7 +2,7 @@
 // environment, the well-known directories — merged with what
 // `java.configuration.runtimes` already lists. Pure: the filesystem and the
 // child process are injected (`Io`), so every source is a unit test.
-import type { JdkSource, Runtime } from "../api-types";
+import type { JdkSource, Runtime } from "./types.ts";
 
 export interface Io {
   /** `undefined` when the file cannot be read. */

@@ -9,7 +9,7 @@
 | Author      | Max Batleforc <maxleriche.60@gmail.com>                       |
 | Co-author   | —                                                             |
 | Created     | 2026-09-18                                                    |
-| Revised     | 2026-09-29 — revision 3, the recommendations of §11 promoted to decisions 11–13: `Fix all in file` skips the rules the profile turned off, a downgrade's rationale rides on the diagnostic as related information as well as in the view, and the `sonar/` prefix is kept through RFC 0016's bridge |
+| Revised     | 2026-10-09 — revision 4, phase 1 built: `profile.ts` in `packages/java-rules` (parse, validate, merge, `differing`, and the text edits a program makes), the schema generated from the bundle and contributed through `jsonValidation`, `batlehub.ping`'s `defaults` (bundle 0.5.0), the `profile` manifest entry kind with `writeProfileEntries()`; `Remove BatleHub settings` no longer deletes `.batlehub/java/` wholesale; decisions 14–17 · 2026-09-29 — revision 3, the recommendations of §11 promoted to decisions 11–13: `Fix all in file` skips the rules the profile turned off, a downgrade's rationale rides on the diagnostic as related information as well as in the view, and the `sonar/` prefix is kept through RFC 0016's bridge |
 | Supersedes  | —                                                             |
 | Depends on  | RFC 0001 (the JDT bundle of §6.2 and the inspections bridge of §4.2, phase 6 landed; the red lines of §7.1); RFC 0006 (the committed half of `.batlehub/java/`, where the profile lives); RFC 0002 runs the profile for CI and for agents; RFC 0007 writes imported entries; RFC 0016 brings the bridged rules |
 | Touches     | `extensions/java-core/src/inspections/` (`rules.ts`, `bridge.ts`, `view.ts`, new `profile.ts` — shared through `packages/java-rules`), `src/manifest.ts` (one new entry kind, `profile`), `jdt/batlehub-jdt-core` (`Handler`, `Engine`), `schema/`, `tests/heavy/java.mjs`, `docs/guide/java/` |
@@ -551,6 +551,11 @@ sequenceDiagram
 | 12 | Where does a downgrade's `why` surface? | **Both** — as related information on the diagnostic, and in the view. The related-information entry is one line, and it is what a developer hovering the squiggle actually reads. |
 | 13 | Does the `sonar/<key>` form survive RFC 0016's bridge? | **The prefix stays**, whatever SonarLint calls the rule itself. A key with no `/` is already a warning here, and the prefix names the analyser in a review diff. |
 
+| 14 | Where does `profile.ts` live? (revision 4) | **`packages/java-rules/src/profile.ts`**, which RFC 0002 phase 1 created, so the engine imports it unchanged in phase 4. Its tests stay in `java-core/test/profile.test.ts`, beside the other shared modules' tests (RFC 0002 decision 25). |
+| 15 | How is the schema "generated from the bundle"? (revision 4) | **`scripts/inspections-schema.mjs` reads `META-INF/services` and each rule's `super("area", "id", "severity")`**: the ids are in the constructors, not in the services list. Each rule's entry carries an `if`/`then` that requires `why` for every level below that rule's default, so the editor's own JSON service flags a downgrade with no reason before any code of ours reads the file. `sonar/*` is a `patternProperties` entry (default taken as `error`); any other key is not allowed. The schema is committed; `task lint` and CI's `check` job fail when it differs from what the bundle gives. |
+| 16 | `Remove BatleHub settings` and the committed files (revision 4) | **It deletes the manifest, then `.batlehub/java/` and `.batlehub/` only if they are empty.** It used to delete `.batlehub/java/` wholesale, which held only the family's files until now; with a committed `inspections.json` it would delete the team's profile. RFC 0006 phase 2 moves the manifest into `local/`; this fix holds until then and after. |
+| 17 | A second write of the same profile key (revision 4) | **It keeps what the first write replaced.** `previous: null` ("no entry before the family") is a value: presence, not `??`, decides whether a key is already recorded, or removal would restore the family's own first write. A unit test holds it. |
+
 ### Still open
 
 None at this revision.
@@ -561,7 +566,7 @@ None at this revision.
 
 | Phase | Content |
 | --- | --- |
-| 1 | `profile.ts` pure with its tests; the schema and its `jsonValidation` contribution; `ping` returns `defaults`; the `imported` field and the `profile` manifest entry kind with `writeProfileEntries()` — RFC 0007 phase 4 waits on this phase for both. Useful alone: completion and validation of a file nothing reads yet. |
+| 1 | **Built** (revision 4, 2026-10-09). `profile.ts` pure with its tests; the schema and its `jsonValidation` contribution; `ping` returns `defaults`; the `imported` field and the `profile` manifest entry kind with `writeProfileEntries()` — RFC 0007 phase 4 waits on this phase for both. Useful alone: completion and validation of a file nothing reads yet. |
 | 2 | Bridge and view: merged severities, Problems rows on the file, the watcher, origins and reasons in the view. |
 | 3 | `Save as project profile`; the heavy steps of §6.5; `docs/guide/java/inspections.md` gains the profile section. |
 | 4 | With RFC 0002: `profile.ts` moved into `packages/java-rules`, `inspect --profile` on the command line and the project-valued report of the live-editor tools, the CI job of the docs example. With RFC 0016: `sonar/*` keys checked against the bridge. |

@@ -2,6 +2,7 @@
 // (RFC 0001 §4.2 "Clean removal", decision 24): `.batlehub/java/written.json`
 // records the previous value, and `Java: Remove BatleHub settings` replays it
 // backwards — restoring, not deleting. Pure over an injected store.
+import type { ProfileRule } from "@batlehub/java-rules/profile";
 
 export type Entry =
   | {
@@ -30,7 +31,22 @@ export type Entry =
       at: string;
     }
   | { kind: "gitignore"; path: string; line: string; at: string }
-  | { kind: "extSetting"; key: string; before: unknown; at: string };
+  | { kind: "extSetting"; key: string; before: unknown; at: string }
+  // RFC 0005 §6.6: rule entries a program wrote into the team's profile —
+  // what each became and what it replaced — so removal takes back only the
+  // entries still as written and leaves a person's edit alone.
+  | {
+      kind: "profile";
+      path: string;
+      created: boolean;
+      entries: Record<string, ProfileWrite>;
+      at: string;
+    };
+
+export interface ProfileWrite {
+  written: ProfileRule;
+  previous: ProfileRule | null;
+}
 
 /** `Omit` distributed over the union, so each kind keeps its own fields. */
 export type NewEntry = Entry extends infer E
@@ -64,11 +80,44 @@ export function parseManifest(text: string | undefined): Manifest {
  * write of the same key does not overwrite the original with the family's own.
  */
 export function record(m: Manifest, e: NewEntry): Manifest {
+  if (e.kind === "profile") return recordProfile(m, e);
   const same = m.entries.some((x) => targetOf(x) === targetOf(e as Entry));
   if (same) return m;
   return {
     version: 1,
     entries: [...m.entries, { ...e, at: new Date().toISOString() } as Entry],
+  };
+}
+
+/**
+ * A profile write merges into the file's one entry: a key written again keeps
+ * what it replaced the first time (the value before the family) and takes the
+ * new `written`; `created` stays what the first write found.
+ */
+function recordProfile(
+  m: Manifest,
+  e: Extract<NewEntry, { kind: "profile" }>,
+): Manifest {
+  const cur = m.entries.find(
+    (x): x is Extract<Entry, { kind: "profile" }> =>
+      x.kind === "profile" && x.path === e.path,
+  );
+  if (!cur)
+    return {
+      version: 1,
+      entries: [...m.entries, { ...e, at: new Date().toISOString() }],
+    };
+  const entries = { ...cur.entries };
+  // `previous: null` is a value (no entry before the family), so presence,
+  // not `??`, decides whether the first write is already recorded.
+  for (const [k, w] of Object.entries(e.entries))
+    entries[k] = {
+      written: w.written,
+      previous: k in cur.entries ? cur.entries[k]!.previous : w.previous,
+    };
+  return {
+    version: 1,
+    entries: m.entries.map((x) => (x === cur ? { ...cur, entries } : x)),
   };
 }
 
@@ -102,6 +151,8 @@ export function targetOf(e: Entry): string {
       return `block:${e.path}:${e.marker}`;
     case "gitignore":
       return `gitignore:${e.path}:${e.line}`;
+    case "profile":
+      return `profile:${e.path}`;
   }
 }
 
@@ -126,6 +177,10 @@ export function describe(m: Manifest): string[] {
         return `remove the ${e.marker} block from ${e.path}${mode(e.mode)}`;
       case "gitignore":
         return `remove "${e.line}" from ${e.path}`;
+      case "profile": {
+        const n = Object.keys(e.entries).length;
+        return `take back ${n} rule${n > 1 ? "s" : ""} written into ${e.path} (${Object.keys(e.entries).join(", ")}), keeping any edited since${e.created ? ", and delete it if none is left" : ""}`;
+      }
     }
   });
 }
@@ -140,6 +195,11 @@ export interface Replayer {
   ): Promise<void>;
   block(path: string, marker: string, mode?: number | null): Promise<void>;
   gitignore(path: string, line: string): Promise<void>;
+  profile(
+    path: string,
+    created: boolean,
+    entries: Record<string, ProfileWrite>,
+  ): Promise<void>;
 }
 
 /** Newest first, every entry, errors collected rather than stopping the replay. */
@@ -151,7 +211,8 @@ export async function replay(m: Manifest, r: Replayer): Promise<string[]> {
       else if (e.kind === "extSetting") await r.extSetting(e.key, e.before);
       else if (e.kind === "file") await r.file(e.path, e.before, e.mode);
       else if (e.kind === "block") await r.block(e.path, e.marker, e.mode);
-      else await r.gitignore(e.path, e.line);
+      else if (e.kind === "gitignore") await r.gitignore(e.path, e.line);
+      else await r.profile(e.path, e.created, e.entries);
     } catch (err) {
       errors.push(`${targetOf(e)}: ${(err as Error).message}`);
     }

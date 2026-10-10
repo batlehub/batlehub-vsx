@@ -4,11 +4,11 @@
 // diagnostic, its owner's (§5.1). Its language server is a JVM the core does
 // not start, so it is counted in the resource sum as an estimate (§7 Memory).
 import * as vscode from "vscode";
-import { parseXmx } from "../detect/resources";
+import { parseXmx } from "@batlehub/java-rules/resources";
 import type { Core } from "../extension";
 import { log } from "../log";
 import { wire } from "../wire";
-import type { Row } from "./rules";
+import type { Row } from "@batlehub/java-rules/rules";
 
 export const SONARLINT = "SonarSource.sonarlint-vscode";
 /** Phase 0 (decision 12): what SonarLint 5.9.0 puts in `Diagnostic.source`. */

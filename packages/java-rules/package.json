@@ -1,0 +1,25 @@
+{
+  "name": "@batlehub/java-rules",
+  "version": "0.1.0",
+  "private": true,
+  "description": "The Java rules the extension and the headless engine share: JDK discovery and resolution, the inspection rows, redaction, the MCP tool table (RFC 0002 decision 7). Nothing here imports vscode.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "exports": {
+    "./*": "./src/*.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "lint": "oxlint src && prettier --check \"src/**/*.ts\"",
+    "format": "prettier --write \"src/**/*.ts\""
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "oxlint": "^1.0.0",
+    "prettier": "^3.6.0",
+    "typescript": "^5.9.0"
+  },
+  "dependencies": {
+    "jsonc-parser": "^3.3.1"
+  }
+}

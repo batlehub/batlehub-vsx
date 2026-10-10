@@ -5,11 +5,11 @@ import * as vscode from "vscode";
 import type { JdkService, Resolution, Runtime } from "../api-types";
 import { readSettings } from "../config";
 import type { Snapshot } from "../detect";
-import { realIo } from "../io";
+import { realIo } from "@batlehub/java-rules/io";
 import { log } from "../log";
 import { writeForeignSetting } from "../manifest";
 import { chooseManager, installCommand, offers } from "./install";
-import { toSettingsRuntimes } from "./resolve";
+import { toSettingsRuntimes } from "@batlehub/java-rules/resolve";
 
 export class Jdk implements JdkService, vscode.Disposable {
   private readonly changed = new vscode.EventEmitter<void>();

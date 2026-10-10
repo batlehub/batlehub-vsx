@@ -28,6 +28,28 @@ importers:
         specifier: ^3.5.0
         version: 3.5.42(typescript@5.9.3)
 
+  engine:
+    dependencies:
+      '@batlehub/java-rules':
+        specifier: workspace:*
+        version: link:../packages/java-rules
+    devDependencies:
+      '@types/node':
+        specifier: ^24.0.0
+        version: 24.13.3
+      oxlint:
+        specifier: ^1.0.0
+        version: 1.81.0
+      prettier:
+        specifier: ^3.6.0
+        version: 3.9.6
+      typescript:
+        specifier: ^5.9.0
+        version: 5.9.3
+      vitest:
+        specifier: ^3.2.0
+        version: 3.2.7(@types/node@24.13.3)(supports-color@9.4.0)
+
   extensions/batlehub-seasons:
     devDependencies:
       '@types/node':
@@ -198,6 +220,9 @@ importers:
 
   extensions/java-core:
     devDependencies:
+      '@batlehub/java-rules':
+        specifier: workspace:*
+        version: link:../../packages/java-rules
       '@types/mocha':
         specifier: ^10.0.10
         version: 10.0.10
@@ -339,6 +364,25 @@ importers:
       vitest:
         specifier: ^3.2.0
         version: 3.2.7(@types/node@24.13.3)(supports-color@9.4.0)
+
+  packages/java-rules:
+    dependencies:
+      jsonc-parser:
+        specifier: ^3.3.1
+        version: 3.3.1
+    devDependencies:
+      '@types/node':
+        specifier: ^24.0.0
+        version: 24.13.3
+      oxlint:
+        specifier: ^1.0.0
+        version: 1.81.0
+      prettier:
+        specifier: ^3.6.0
+        version: 3.9.6
+      typescript:
+        specifier: ^5.9.0
+        version: 5.9.3
 
 packages:
 

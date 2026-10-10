@@ -3,7 +3,7 @@
 import * as path from "node:path";
 import * as vscode from "vscode";
 import type { Bridge } from "./bridge";
-import { group, type Row } from "./rules";
+import { group, type Row } from "@batlehub/java-rules/rules";
 import { sonarOf } from "./sonar";
 import { CODE as SPELLING, spellingOf } from "./spelling";
 

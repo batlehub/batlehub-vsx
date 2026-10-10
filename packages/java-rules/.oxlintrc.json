@@ -1,0 +1,12 @@
+{
+  "rules": {
+    "no-restricted-imports": [
+      "error",
+      {
+        "paths": [
+          { "name": "vscode", "message": "java-rules is shared with the headless engine: nothing here imports vscode (RFC 0002 decision 7)." }
+        ]
+      }
+    ]
+  }
+}

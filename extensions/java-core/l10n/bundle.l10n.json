@@ -137,5 +137,6 @@
   "not available (install Code Spell Checker)": "not available (install Code Spell Checker)",
   "disabled by you": "disabled by you",
   "Install": "Install",
-  "SonarLint is not installed — breadth comes from it": "SonarLint is not installed — breadth comes from it"
+  "SonarLint is not installed — breadth comes from it": "SonarLint is not installed — breadth comes from it",
+  "Java: the MCP configuration is on the clipboard — paste it into your agent's .mcp.json.": "Java: the MCP configuration is on the clipboard — paste it into your agent's .mcp.json."
 }

@@ -6,7 +6,7 @@ import {
   parseMiseLs,
   parseRelease,
   runtimeName,
-} from "../src/jdk/discover";
+} from "@batlehub/java-rules/discover";
 import {
   availableManagers,
   chooseManager,
@@ -14,7 +14,7 @@ import {
   parseMiseRemote,
   parseSdkList,
 } from "../src/jdk/install";
-import { resolve, toSettingsRuntimes } from "../src/jdk/resolve";
+import { resolve, toSettingsRuntimes } from "@batlehub/java-rules/resolve";
 import { homeWithBin, miseHome } from "../src/detect";
 
 const release = (v: string, vendor = "Eclipse Adoptium") =>

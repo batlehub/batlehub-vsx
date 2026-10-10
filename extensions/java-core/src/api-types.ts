@@ -9,30 +9,15 @@ export interface ContractVersion {
   readonly minor: number;
 }
 
-export type JdkSource = "mise" | "sdkman" | "env" | "wellKnown" | "settings";
-
-export interface Runtime {
-  /** `JavaSE-21`, the name `java.configuration.runtimes` uses. */
-  name: string;
-  path: string;
-  version: string;
-  major: number;
-  vendor?: string;
-  source: JdkSource;
-}
-
-export interface JavaVersionRange {
-  min: number;
-  max?: number;
-  /** Where the requirement came from: `maven.compiler.release`, `toolchain`, … */
-  origin: string;
-}
-
-export interface Resolution {
-  runtime?: Runtime;
-  required?: JavaVersionRange;
-  reason: "matches" | "newest" | "none";
-}
+// The JDK's description is the shared package's (RFC 0002 decision 7): one
+// definition for the extension and the engine, re-exported as the contract.
+export type {
+  JavaVersionRange,
+  JdkSource,
+  Resolution,
+  Runtime,
+} from "@batlehub/java-rules/types";
+import type { Resolution, Runtime } from "@batlehub/java-rules/types";
 
 export interface JdkService {
   list(): Promise<Runtime[]>;

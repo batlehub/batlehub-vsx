@@ -30,6 +30,7 @@ defaults. This table is checked against `package.json` by `task lint`
 | `batlehub.java.run.stopGraceMs` | `10000` | Grace a managed process gets after `SIGTERM` before `SIGKILL` |
 | `batlehub.java.run.defaultMemoryMiB` | `512` | What a `process` step of an orchestrated run declares when it names no `memoryMiB` |
 | `batlehub.java.run.showTerminals` | `true` | A terminal per `process` and `server` step, kept open after the stop; off: the debug console only |
+| `batlehub.java.mcp.enabled` | `true` | The Java tools (`java_status`, `java_inspect`, `java_fix`, `java_generate`, `java_rename`) offered to agents over MCP, on the language server this editor already runs; edits arrive unsaved. See [Agents](./agents) |
 | `batlehub.java.inspections.enabled` | `true` | Show the BatleHub inspections (JDT bundle) |
 | `batlehub.java.inspections.severityOverrides` | `{}` | Rule id → `error`, `warning`, `info`, `hint`, `off` |
 | `batlehub.java.inspections.sonar` | `auto` | `auto`: SonarLint's findings in Java files join the Inspections view as `sonar/<ruleKey>` (read, never re-emitted) and its server is counted in the resource sum; without SonarLint, one row says so. `off`: neither |

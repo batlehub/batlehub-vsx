@@ -16,6 +16,7 @@ import { registerRefactor } from "./refactor/menu";
 import { reportProblem } from "./report/report";
 import { editConfigs, newConfig, startConfig } from "./run/editor";
 import "./inspections/bridge";
+import "./mcp/server";
 import "./run/session";
 
 wire((core: Core) => {

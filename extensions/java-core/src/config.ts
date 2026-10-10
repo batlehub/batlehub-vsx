@@ -4,7 +4,7 @@
 import * as vscode from "vscode";
 import type { JdkSource } from "./api-types";
 import type { InstallVia } from "./jdk/install";
-import type { Level } from "./redact";
+import type { Level } from "@batlehub/java-rules/redact";
 
 export interface MavenConfiguration {
   name: string;

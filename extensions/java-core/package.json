@@ -212,6 +212,12 @@
           "default": true,
           "markdownDescription": "%config.run.showTerminals%"
         },
+        "batlehub.java.mcp.enabled": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "%config.mcp.enabled%",
+          "scope": "window"
+        },
         "batlehub.java.inspections.enabled": {
           "type": "boolean",
           "default": true,
@@ -590,6 +596,11 @@
         "title": "%cmd.inspections.fixAll%",
         "category": "Java",
         "icon": "$(wand)"
+      },
+      {
+        "command": "batlehub.java.mcp.copyConfig",
+        "title": "%cmd.mcp.copyConfig%",
+        "category": "Java"
       },
       {
         "command": "batlehub.java.inspections.refresh",
@@ -1434,6 +1445,20 @@
     ],
     "javaExtensions": [
       "./jdt/batlehub-jdt-core.jar"
+    ],
+    "jsonValidation": [
+      {
+        "fileMatch": [
+          "**/.batlehub/java/inspections.json"
+        ],
+        "url": "./schema/java-inspections.schema.json"
+      },
+      {
+        "fileMatch": [
+          "**/.batlehub/java/project.json"
+        ],
+        "url": "./schema/java-project.schema.json"
+      }
     ]
   },
   "scripts": {
@@ -1448,6 +1473,7 @@
     "package": "node esbuild.mjs && vsce package --no-dependencies --skip-license -o java-core.vsix"
   },
   "devDependencies": {
+    "@batlehub/java-rules": "workspace:*",
     "@types/mocha": "^10.0.10",
     "@types/node": "^24.0.0",
     "@types/vscode": "^1.96.0",

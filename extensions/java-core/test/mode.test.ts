@@ -9,7 +9,7 @@ import {
   TESTED_REDHAT_JAVA,
   versionAtLeast,
 } from "../src/server/mode";
-import { anonymise, passes, redact } from "../src/redact";
+import { anonymise, passes, redact } from "@batlehub/java-rules/redact";
 
 describe("server-mode gating (decision 36)", () => {
   it("enables everything in Standard and nothing else, with a reason", () => {

@@ -15,20 +15,20 @@ tasks:
       - pnpm run watch
 
   lint:
-    desc: "Type-check, oxlint and prettier --check every extension"
+    desc: "Type-check, oxlint and prettier --check every extension, packages/java-rules and engine/"
     cmds:
-      - pnpm -r --filter './extensions/*' run typecheck
-      - pnpm -r --filter './extensions/*' run lint
+      - pnpm -r --filter './extensions/*' --filter './packages/*' --filter './engine' run typecheck
+      - pnpm -r --filter './extensions/*' --filter './packages/*' --filter './engine' run lint
 
   fix:
-    desc: "Format every extension's sources"
+    desc: "Format the sources of every extension, packages/java-rules and engine/"
     cmds:
-      - pnpm -r --filter './extensions/*' run format
+      - pnpm -r --filter './extensions/*' --filter './packages/*' --filter './engine' run format
 
   test:
     desc: "Unit tests (vitest) of every extension"
     cmds:
-      - pnpm -r --filter './extensions/*' run test
+      - pnpm -r --filter './extensions/*' --filter './engine' run test
 
   coverage:
     desc: "Unit tests with coverage, HTML report under extensions/<name>/coverage/"
@@ -50,6 +50,12 @@ tasks:
     desc: "Fail when a batlehub.java.* setting is in package.json but not in docs/guide/java/settings.md, or the reverse (RFC 0001 §13 lint)"
     cmds:
       - node scripts/check-settings-doc.mjs
+
+  schema:check:
+    desc: "Fail when a generated schema file has drifted: the profile schema from the JDT bundle's rules (RFC 0005 §6.4), and project.json's key table from its schema (RFC 0006 §6.1); each script regenerates its file"
+    cmds:
+      - node scripts/inspections-schema.mjs --check
+      - node scripts/project-schema-walker.mjs --check
 
   l10n:check:
     desc: "Fail on a user-visible string that bypasses package.nls.json or vscode.l10n.t (RFC 0001 §13 lint)"

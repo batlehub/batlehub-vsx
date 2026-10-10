@@ -44,6 +44,7 @@ tasks:
       - task ext:lint
       - task ext:settings:check
       - task ext:l10n:check
+      - task ext:schema:check
 
   test:
     desc: "Unit tests of every extension"

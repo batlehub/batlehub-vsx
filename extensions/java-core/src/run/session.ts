@@ -9,7 +9,7 @@ import * as vscode from "vscode";
 import type { ServerStep } from "../api-types";
 import { goalCommand } from "../build/tasks";
 import { readSettings } from "../config";
-import { parseXmx } from "../detect/resources";
+import { parseXmx } from "@batlehub/java-rules/resources";
 import type { Core } from "../extension";
 import { log } from "../log";
 import { wire } from "../wire";

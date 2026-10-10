@@ -1,5 +1,7 @@
 packages:
   - extensions/*
+  - packages/*
+  - engine
   - docs
 
 # pnpm 10+ denies install-time scripts by default. Each decision names why.

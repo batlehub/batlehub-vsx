@@ -1,0 +1,686 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://batlehub.dev/schema/java-inspections.schema.json",
+  "title": "BatleHub Java inspection profile",
+  "description": "The team's severities for the BatleHub inspections (RFC 0005), committed and reviewed. Generated from the JDT bundle by scripts/inspections-schema.mjs.",
+  "type": "object",
+  "required": [
+    "version",
+    "rules"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "version": {
+      "const": 1,
+      "description": "The format's version; this java-core reads 1."
+    },
+    "rules": {
+      "type": "object",
+      "description": "area/ruleId → the team's level. A rule left out runs at its default.",
+      "properties": {
+        "unused/privateField": {
+          "type": "object",
+          "description": "unused/privateField (UnusedPrivateField) — default warning",
+          "required": [
+            "severity"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "severity": {
+              "enum": [
+                "error",
+                "warning",
+                "info",
+                "hint",
+                "off"
+              ],
+              "description": "The team's level for this rule; the bundle's default is warning."
+            },
+            "why": {
+              "type": "string",
+              "description": "Why the team chose this level — required for off and for any level below the default, and shown beside the rule."
+            },
+            "imported": {
+              "type": "string",
+              "description": "Set only by a program (the IntelliJ import): the why was generated, not argued."
+            },
+            "options": {
+              "type": "object",
+              "description": "Reserved: no rule reads options yet."
+            }
+          },
+          "if": {
+            "properties": {
+              "severity": {
+                "enum": [
+                  "info",
+                  "hint",
+                  "off"
+                ]
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "why"
+            ],
+            "properties": {
+              "why": {
+                "type": "string",
+                "pattern": "\\S",
+                "errorMessage": "a level below the default needs a why"
+              }
+            }
+          }
+        },
+        "unused/privateMethod": {
+          "type": "object",
+          "description": "unused/privateMethod (UnusedPrivateMethod) — default warning",
+          "required": [
+            "severity"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "severity": {
+              "enum": [
+                "error",
+                "warning",
+                "info",
+                "hint",
+                "off"
+              ],
+              "description": "The team's level for this rule; the bundle's default is warning."
+            },
+            "why": {
+              "type": "string",
+              "description": "Why the team chose this level — required for off and for any level below the default, and shown beside the rule."
+            },
+            "imported": {
+              "type": "string",
+              "description": "Set only by a program (the IntelliJ import): the why was generated, not argued."
+            },
+            "options": {
+              "type": "object",
+              "description": "Reserved: no rule reads options yet."
+            }
+          },
+          "if": {
+            "properties": {
+              "severity": {
+                "enum": [
+                  "info",
+                  "hint",
+                  "off"
+                ]
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "why"
+            ],
+            "properties": {
+              "why": {
+                "type": "string",
+                "pattern": "\\S",
+                "errorMessage": "a level below the default needs a why"
+              }
+            }
+          }
+        },
+        "style/redundantThis": {
+          "type": "object",
+          "description": "style/redundantThis (RedundantThis) — default info",
+          "required": [
+            "severity"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "severity": {
+              "enum": [
+                "error",
+                "warning",
+                "info",
+                "hint",
+                "off"
+              ],
+              "description": "The team's level for this rule; the bundle's default is info."
+            },
+            "why": {
+              "type": "string",
+              "description": "Why the team chose this level — required for off and for any level below the default, and shown beside the rule."
+            },
+            "imported": {
+              "type": "string",
+              "description": "Set only by a program (the IntelliJ import): the why was generated, not argued."
+            },
+            "options": {
+              "type": "object",
+              "description": "Reserved: no rule reads options yet."
+            }
+          },
+          "if": {
+            "properties": {
+              "severity": {
+                "enum": [
+                  "hint",
+                  "off"
+                ]
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "why"
+            ],
+            "properties": {
+              "why": {
+                "type": "string",
+                "pattern": "\\S",
+                "errorMessage": "a level below the default needs a why"
+              }
+            }
+          }
+        },
+        "collections/sizeIsZero": {
+          "type": "object",
+          "description": "collections/sizeIsZero (SizeIsZero) — default info",
+          "required": [
+            "severity"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "severity": {
+              "enum": [
+                "error",
+                "warning",
+                "info",
+                "hint",
+                "off"
+              ],
+              "description": "The team's level for this rule; the bundle's default is info."
+            },
+            "why": {
+              "type": "string",
+              "description": "Why the team chose this level — required for off and for any level below the default, and shown beside the rule."
+            },
+            "imported": {
+              "type": "string",
+              "description": "Set only by a program (the IntelliJ import): the why was generated, not argued."
+            },
+            "options": {
+              "type": "object",
+              "description": "Reserved: no rule reads options yet."
+            }
+          },
+          "if": {
+            "properties": {
+              "severity": {
+                "enum": [
+                  "hint",
+                  "off"
+                ]
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "why"
+            ],
+            "properties": {
+              "why": {
+                "type": "string",
+                "pattern": "\\S",
+                "errorMessage": "a level below the default needs a why"
+              }
+            }
+          }
+        },
+        "performance/stringConcatInLoop": {
+          "type": "object",
+          "description": "performance/stringConcatInLoop (StringConcatInLoop) — default warning",
+          "required": [
+            "severity"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "severity": {
+              "enum": [
+                "error",
+                "warning",
+                "info",
+                "hint",
+                "off"
+              ],
+              "description": "The team's level for this rule; the bundle's default is warning."
+            },
+            "why": {
+              "type": "string",
+              "description": "Why the team chose this level — required for off and for any level below the default, and shown beside the rule."
+            },
+            "imported": {
+              "type": "string",
+              "description": "Set only by a program (the IntelliJ import): the why was generated, not argued."
+            },
+            "options": {
+              "type": "object",
+              "description": "Reserved: no rule reads options yet."
+            }
+          },
+          "if": {
+            "properties": {
+              "severity": {
+                "enum": [
+                  "info",
+                  "hint",
+                  "off"
+                ]
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "why"
+            ],
+            "properties": {
+              "why": {
+                "type": "string",
+                "pattern": "\\S",
+                "errorMessage": "a level below the default needs a why"
+              }
+            }
+          }
+        },
+        "correctness/missingOverride": {
+          "type": "object",
+          "description": "correctness/missingOverride (MissingOverride) — default warning",
+          "required": [
+            "severity"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "severity": {
+              "enum": [
+                "error",
+                "warning",
+                "info",
+                "hint",
+                "off"
+              ],
+              "description": "The team's level for this rule; the bundle's default is warning."
+            },
+            "why": {
+              "type": "string",
+              "description": "Why the team chose this level — required for off and for any level below the default, and shown beside the rule."
+            },
+            "imported": {
+              "type": "string",
+              "description": "Set only by a program (the IntelliJ import): the why was generated, not argued."
+            },
+            "options": {
+              "type": "object",
+              "description": "Reserved: no rule reads options yet."
+            }
+          },
+          "if": {
+            "properties": {
+              "severity": {
+                "enum": [
+                  "info",
+                  "hint",
+                  "off"
+                ]
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "why"
+            ],
+            "properties": {
+              "why": {
+                "type": "string",
+                "pattern": "\\S",
+                "errorMessage": "a level below the default needs a why"
+              }
+            }
+          }
+        },
+        "correctness/objectsEqualsLiteral": {
+          "type": "object",
+          "description": "correctness/objectsEqualsLiteral (ObjectsEqualsLiteral) — default info",
+          "required": [
+            "severity"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "severity": {
+              "enum": [
+                "error",
+                "warning",
+                "info",
+                "hint",
+                "off"
+              ],
+              "description": "The team's level for this rule; the bundle's default is info."
+            },
+            "why": {
+              "type": "string",
+              "description": "Why the team chose this level — required for off and for any level below the default, and shown beside the rule."
+            },
+            "imported": {
+              "type": "string",
+              "description": "Set only by a program (the IntelliJ import): the why was generated, not argued."
+            },
+            "options": {
+              "type": "object",
+              "description": "Reserved: no rule reads options yet."
+            }
+          },
+          "if": {
+            "properties": {
+              "severity": {
+                "enum": [
+                  "hint",
+                  "off"
+                ]
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "why"
+            ],
+            "properties": {
+              "why": {
+                "type": "string",
+                "pattern": "\\S",
+                "errorMessage": "a level below the default needs a why"
+              }
+            }
+          }
+        },
+        "performance/boxingConstructor": {
+          "type": "object",
+          "description": "performance/boxingConstructor (BoxingConstructor) — default warning",
+          "required": [
+            "severity"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "severity": {
+              "enum": [
+                "error",
+                "warning",
+                "info",
+                "hint",
+                "off"
+              ],
+              "description": "The team's level for this rule; the bundle's default is warning."
+            },
+            "why": {
+              "type": "string",
+              "description": "Why the team chose this level — required for off and for any level below the default, and shown beside the rule."
+            },
+            "imported": {
+              "type": "string",
+              "description": "Set only by a program (the IntelliJ import): the why was generated, not argued."
+            },
+            "options": {
+              "type": "object",
+              "description": "Reserved: no rule reads options yet."
+            }
+          },
+          "if": {
+            "properties": {
+              "severity": {
+                "enum": [
+                  "info",
+                  "hint",
+                  "off"
+                ]
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "why"
+            ],
+            "properties": {
+              "why": {
+                "type": "string",
+                "pattern": "\\S",
+                "errorMessage": "a level below the default needs a why"
+              }
+            }
+          }
+        },
+        "correctness/emptyCatch": {
+          "type": "object",
+          "description": "correctness/emptyCatch (EmptyCatch) — default warning",
+          "required": [
+            "severity"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "severity": {
+              "enum": [
+                "error",
+                "warning",
+                "info",
+                "hint",
+                "off"
+              ],
+              "description": "The team's level for this rule; the bundle's default is warning."
+            },
+            "why": {
+              "type": "string",
+              "description": "Why the team chose this level — required for off and for any level below the default, and shown beside the rule."
+            },
+            "imported": {
+              "type": "string",
+              "description": "Set only by a program (the IntelliJ import): the why was generated, not argued."
+            },
+            "options": {
+              "type": "object",
+              "description": "Reserved: no rule reads options yet."
+            }
+          },
+          "if": {
+            "properties": {
+              "severity": {
+                "enum": [
+                  "info",
+                  "hint",
+                  "off"
+                ]
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "why"
+            ],
+            "properties": {
+              "why": {
+                "type": "string",
+                "pattern": "\\S",
+                "errorMessage": "a level below the default needs a why"
+              }
+            }
+          }
+        },
+        "style/booleanLiteralComparison": {
+          "type": "object",
+          "description": "style/booleanLiteralComparison (BooleanLiteralComparison) — default info",
+          "required": [
+            "severity"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "severity": {
+              "enum": [
+                "error",
+                "warning",
+                "info",
+                "hint",
+                "off"
+              ],
+              "description": "The team's level for this rule; the bundle's default is info."
+            },
+            "why": {
+              "type": "string",
+              "description": "Why the team chose this level — required for off and for any level below the default, and shown beside the rule."
+            },
+            "imported": {
+              "type": "string",
+              "description": "Set only by a program (the IntelliJ import): the why was generated, not argued."
+            },
+            "options": {
+              "type": "object",
+              "description": "Reserved: no rule reads options yet."
+            }
+          },
+          "if": {
+            "properties": {
+              "severity": {
+                "enum": [
+                  "hint",
+                  "off"
+                ]
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "why"
+            ],
+            "properties": {
+              "why": {
+                "type": "string",
+                "pattern": "\\S",
+                "errorMessage": "a level below the default needs a why"
+              }
+            }
+          }
+        },
+        "style/ifReturnBoolean": {
+          "type": "object",
+          "description": "style/ifReturnBoolean (IfReturnBoolean) — default info",
+          "required": [
+            "severity"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "severity": {
+              "enum": [
+                "error",
+                "warning",
+                "info",
+                "hint",
+                "off"
+              ],
+              "description": "The team's level for this rule; the bundle's default is info."
+            },
+            "why": {
+              "type": "string",
+              "description": "Why the team chose this level — required for off and for any level below the default, and shown beside the rule."
+            },
+            "imported": {
+              "type": "string",
+              "description": "Set only by a program (the IntelliJ import): the why was generated, not argued."
+            },
+            "options": {
+              "type": "object",
+              "description": "Reserved: no rule reads options yet."
+            }
+          },
+          "if": {
+            "properties": {
+              "severity": {
+                "enum": [
+                  "hint",
+                  "off"
+                ]
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "why"
+            ],
+            "properties": {
+              "why": {
+                "type": "string",
+                "pattern": "\\S",
+                "errorMessage": "a level below the default needs a why"
+              }
+            }
+          }
+        }
+      },
+      "patternProperties": {
+        "^sonar/.+$": {
+          "type": "object",
+          "description": "A SonarLint rule, through the bridge (RFC 0016): sonar/<its own key>.",
+          "required": [
+            "severity"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "severity": {
+              "enum": [
+                "error",
+                "warning",
+                "info",
+                "hint",
+                "off"
+              ],
+              "description": "The team's level for this rule; the bundle's default is error."
+            },
+            "why": {
+              "type": "string",
+              "description": "Why the team chose this level — required for off and for any level below the default, and shown beside the rule."
+            },
+            "imported": {
+              "type": "string",
+              "description": "Set only by a program (the IntelliJ import): the why was generated, not argued."
+            },
+            "options": {
+              "type": "object",
+              "description": "Reserved: no rule reads options yet."
+            }
+          },
+          "if": {
+            "properties": {
+              "severity": {
+                "enum": [
+                  "warning",
+                  "info",
+                  "hint",
+                  "off"
+                ]
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "why"
+            ],
+            "properties": {
+              "why": {
+                "type": "string",
+                "pattern": "\\S",
+                "errorMessage": "a level below the default needs a why"
+              }
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

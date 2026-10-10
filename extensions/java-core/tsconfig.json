@@ -3,8 +3,24 @@
   "compilerOptions": {
     "rootDir": ".",
     "outDir": "dist",
-    "types": ["node", "vscode"],
-    "lib": ["ES2022", "DOM", "DOM.Iterable"]
+    "types": [
+      "node",
+      "vscode"
+    ],
+    "lib": [
+      "ES2022",
+      "DOM",
+      "DOM.Iterable"
+    ],
+    "module": "Preserve",
+    "moduleResolution": "Bundler",
+    "moduleDetection": "force",
+    "allowImportingTsExtensions": true,
+    "noEmit": true
   },
-  "include": ["src/**/*.ts", "test/**/*.ts", "media/**/*.ts"]
+  "include": [
+    "src/**/*.ts",
+    "test/**/*.ts",
+    "media/**/*.ts"
+  ]
 }

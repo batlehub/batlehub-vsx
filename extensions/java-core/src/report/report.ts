@@ -10,11 +10,11 @@ import * as path from "node:path";
 import * as vscode from "vscode";
 import { readSettings } from "../config";
 import { redactSnapshot } from "../detect";
-import { formatSize } from "../detect/resources";
+import { formatSize } from "@batlehub/java-rules/resources";
 import type { Core } from "../extension";
 import { linesOf } from "../log";
 import { readHistory } from "../process/history";
-import { anonymise, redact } from "../redact";
+import { anonymise, redact } from "@batlehub/java-rules/redact";
 import { zip } from "./zip";
 
 const DEFAULT_ISSUES = "https://github.com/batleforc/batlehub-vsx/issues/new";

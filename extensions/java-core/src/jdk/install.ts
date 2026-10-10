@@ -1,7 +1,7 @@
 // JDK install is delegated, always (RFC 0001 §4.2, decision 10): `mise use
 // java@<ver>` or `sdk install java <id>`; with no manager the answer is a
 // link to the guide. Pure over `Io`.
-import type { Io } from "./discover";
+import type { Io } from "@batlehub/java-rules/discover";
 
 export type InstallVia = "auto" | "mise" | "sdkman" | "none";
 export type Manager = "mise" | "sdkman";

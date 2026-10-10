@@ -29,6 +29,8 @@ tasks:
     desc: "Build the bundle jar and copy it into extensions/java-core/jdt/"
     deps: [deps]
     cmds:
+      # A version bump leaves the old jar in target/, and the cp below would get two.
+      - rm -f jdt/batlehub-jdt-core/target/batlehub-jdt-core-*.jar
       - "{{.MVN}} -q -B -f jdt/batlehub-jdt-core/pom.xml -DskipTests package"
       - mkdir -p extensions/java-core/jdt
       - cp jdt/batlehub-jdt-core/target/batlehub-jdt-core-*.jar {{.JAR}}

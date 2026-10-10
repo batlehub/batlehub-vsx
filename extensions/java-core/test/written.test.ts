@@ -68,6 +68,7 @@ describe("the manifest of §4.2 (decision 24)", () => {
         throw new Error("locked");
       },
       gitignore: async (p) => void calls.push(`gitignore ${p}`),
+      profile: async () => {},
     });
     expect(calls).toEqual([
       "block /home/u/.m2/settings.xml 644",
@@ -93,5 +94,47 @@ describe("the manifest of §4.2 (decision 24)", () => {
     expect(addGitignoreLine(once)).toBe(once);
     expect(addGitignoreLine(undefined)).toBe(`${GITIGNORE_LINE}\n`);
     expect(removeGitignoreLine(once)).toBe("node_modules/\n");
+  });
+});
+
+describe("the profile entry (RFC 0005 §6.6)", () => {
+  it("merges writes to one file: the first previous kept, new keys added, created as first found", () => {
+    let m = parseManifest(undefined);
+    m = record(m, {
+      kind: "profile",
+      path: "/w/.batlehub/java/inspections.json",
+      created: true,
+      entries: {
+        "a/x": { written: { severity: "off", why: "i" }, previous: null },
+      },
+    });
+    m = record(m, {
+      kind: "profile",
+      path: "/w/.batlehub/java/inspections.json",
+      created: false,
+      entries: {
+        "a/x": {
+          written: { severity: "warning" },
+          previous: { severity: "off", why: "i" },
+        },
+        "a/y": {
+          written: { severity: "error" },
+          previous: { severity: "info" },
+        },
+      },
+    });
+    expect(m.entries).toHaveLength(1);
+    const e = m.entries[0] as Extract<
+      (typeof m.entries)[number],
+      { kind: "profile" }
+    >;
+    expect(e.created).toBe(true);
+    expect(e.entries).toEqual({
+      "a/x": { written: { severity: "warning" }, previous: null },
+      "a/y": { written: { severity: "error" }, previous: { severity: "info" } },
+    });
+    expect(describeManifest(m)).toEqual([
+      "take back 2 rules written into /w/.batlehub/java/inspections.json (a/x, a/y), keeping any edited since, and delete it if none is left",
+    ]);
   });
 });

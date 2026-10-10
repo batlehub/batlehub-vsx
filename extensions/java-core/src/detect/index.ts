@@ -9,16 +9,16 @@ import type { JavaVersionRange, Resolution, Runtime } from "../api-types";
 import { requiredJavaOf as gradleRequired } from "../build/gradle/script";
 import { requiredJavaOf as mavenRequired, parsePom } from "../build/maven/pom";
 import { isOverridden, readSettings, type MavenConfiguration } from "../config";
-import { homeIo } from "../io";
+import { homeIo } from "@batlehub/java-rules/io";
 import {
   discover,
   type Io,
   parseMiseLs,
   type SettingsRuntime,
-} from "../jdk/discover";
+} from "@batlehub/java-rules/discover";
 import { availableManagers, type Manager } from "../jdk/install";
-import { resolve } from "../jdk/resolve";
-import { budget, type ResourceSnapshot } from "./resources";
+import { resolve } from "@batlehub/java-rules/resolve";
+import { budget, type ResourceSnapshot } from "@batlehub/java-rules/resources";
 
 export type Origin =
   | { kind: "detected"; source: string }

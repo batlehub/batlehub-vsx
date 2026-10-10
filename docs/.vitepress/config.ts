@@ -44,6 +44,7 @@ export default withMermaid(
             { text: "Clean removal", link: "/guide/java/removal" },
             { text: "Completion, and the chain", link: "/guide/java/editing" },
             { text: "Spell checking", link: "/guide/java/spelling" },
+            { text: "Agents (MCP)", link: "/guide/java/agents" },
             { text: "Groovy, Gradle DSL, Jenkinsfile", link: "/guide/java/groovy" },
             { text: "Quarkus", link: "/guide/java/quarkus" },
             { text: "Spring Boot", link: "/guide/java/spring" },

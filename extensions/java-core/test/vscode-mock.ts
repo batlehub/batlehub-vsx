@@ -36,6 +36,12 @@ export enum StatusBarAlignment {
 export enum ProgressLocation {
   Notification = 15,
 }
+export enum SymbolKind {
+  Class = 4,
+  Interface = 10,
+  Enum = 9,
+  Struct = 22,
+}
 export enum QuickPickItemKind {
   Separator = -1,
   Default = 0,

@@ -2,7 +2,7 @@
 // … — filtered by `batlehub.java.log.level` and redacted before anything is
 // written (§4.2 "Logging"). `Report a problem` reads `linesOf()` back.
 import * as vscode from "vscode";
-import { Level, passes, redact } from "./redact";
+import { Level, passes, redact } from "@batlehub/java-rules/redact";
 
 const channels = new Map<string, vscode.OutputChannel>();
 const kept = new Map<string, string[]>();

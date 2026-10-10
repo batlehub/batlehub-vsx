@@ -20,6 +20,11 @@ tasks:
     cmds:
       - HEAVY_ONLY=broker bash tests/heavy/view.sh
 
+  engine:
+    desc: "The command line of RFC 0002 against maven-multi with a real server, no editor and no browser: status, inspect in text, JSON and SARIF, the --fail-on exit codes (needs a JDK ≥ 21 and 'task jdt:build')"
+    cmds:
+      - node tests/heavy/engine.mjs
+
   view:java:
     desc: "Only the Java half of the heavy suite (RFC 0001): redhat.java + java-core in the real editor, no BatleHub, no Postgres"
     cmds:

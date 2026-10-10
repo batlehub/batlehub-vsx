@@ -6,13 +6,14 @@
 // `batlehub.generate.accessors` on Person.java of the maven-multi fixture,
 // and `batlehub.completion.chain` on Main.java (RFC 0012 use case 6).
 // Prints what came back; exits non-zero when any of the three is missing.
+// The server itself is started by `engine/launch.ts` (RFC 0002 phase 1).
 //
 //   node jdt/smoke.mjs        (JDK 21 as `java` on PATH; `task jdt:smoke` wraps mise)
-import { spawn } from "node:child_process";
-import { cpSync, existsSync, mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs";
+import { cpSync, existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
+import { fileURLToPath } from "node:url";
+import { fileUri as uri, launch } from "../engine/launch.ts";
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const VERSION = process.env.REDHAT_JAVA_VERSION ?? "1.56.0";
@@ -21,96 +22,26 @@ const SERVER = path.join(CACHE, `redhat.java-${VERSION}`, "extension", "server")
 const JAR = path.resolve(REPO, "extensions/java-core/jdt/batlehub-jdt-core.jar");
 if (!existsSync(SERVER)) throw new Error(`no unpacked redhat.java at ${SERVER}: run 'task jdt:deps'`);
 if (!existsSync(JAR)) throw new Error(`no ${JAR}: run 'task jdt:build'`);
-const launcher = readdirSync(path.join(SERVER, "plugins")).find((f) => /^org\.eclipse\.equinox\.launcher_.*\.jar$/.test(f));
 
 const work = mkdtempSync(path.join(tmpdir(), "batlehub-jdt-smoke-"));
 const ws = path.join(work, "maven-multi");
 cpSync(path.join(REPO, "tests/heavy/fixtures/maven-multi"), ws, { recursive: true });
-const data = path.join(work, "data");
-// A fresh OSGi configuration area: the shared one caches a bundle by location
-// and version, so a rebuilt jar at the same version would never be read.
-const config = path.join(work, "config");
-cpSync(path.join(SERVER, "config_linux", "config.ini"), path.join(config, "config.ini"));
-
-const java = process.env.JAVA_HOME ? path.join(process.env.JAVA_HOME, "bin", "java") : "java";
-const proc = spawn(java, [
-  "-Declipse.application=org.eclipse.jdt.ls.core.id1",
-  "-Dosgi.bundles.defaultStartLevel=4",
-  "-Declipse.product=org.eclipse.jdt.ls.core.product",
-  "-Dlog.level=ALL",
-  "-Xmx1G",
-  "-jar", path.join(SERVER, "plugins", launcher),
-  "-configuration", config,
-  "-data", data,
-], { stdio: ["pipe", "pipe", "pipe"] });
-const stderr = [];
-proc.stderr.on("data", (d) => stderr.push(String(d)));
-
-// Minimal JSON-RPC over stdio.
-let buf = Buffer.alloc(0);
-const pending = new Map();
-const notes = [];
-let id = 0;
-proc.stdout.on("data", (chunk) => {
-  buf = Buffer.concat([buf, chunk]);
-  for (;;) {
-    const i = buf.indexOf("\r\n\r\n");
-    if (i < 0) return;
-    const len = Number(/Content-Length: (\d+)/.exec(buf.subarray(0, i).toString())?.[1]);
-    if (buf.length < i + 4 + len) return;
-    const msg = JSON.parse(buf.subarray(i + 4, i + 4 + len).toString());
-    buf = buf.subarray(i + 4 + len);
-    if (msg.id !== undefined && pending.has(msg.id)) {
-      pending.get(msg.id)(msg);
-      pending.delete(msg.id);
-    } else if (msg.method && msg.id !== undefined) {
-      // A server → client request (client/registerCapability, workspace/configuration…): answer empty.
-      send({ jsonrpc: "2.0", id: msg.id, result: msg.method === "workspace/configuration" ? (msg.params?.items ?? []).map(() => null) : null });
-    } else notes.push(msg);
-  }
+const server = await launch({
+  server: SERVER,
+  workspace: ws,
+  data: path.join(work, "data"),
+  bundles: [JAR],
+  settings: { java: { import: { gradle: { enabled: false } }, configuration: { updateBuildConfiguration: "automatic" } } },
 });
-const send = (o) => {
-  const s = JSON.stringify(o);
-  proc.stdin.write(`Content-Length: ${Buffer.byteLength(s)}\r\n\r\n${s}`);
-};
-const request = (method, params, timeout = 120000) =>
-  new Promise((resolve, reject) => {
-    const my = ++id;
-    const t = setTimeout(() => reject(new Error(`${method} timed out`)), timeout);
-    pending.set(my, (m) => {
-      clearTimeout(t);
-      m.error ? reject(new Error(`${method}: ${JSON.stringify(m.error)}`)) : resolve(m.result);
-    });
-    send({ jsonrpc: "2.0", id: my, method, params });
-  });
-const notify = (method, params) => send({ jsonrpc: "2.0", method, params });
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-const uri = (p) => pathToFileURL(p).href;
+const { request, notify } = server;
 
 let ok = true;
 try {
-  const init = await request("initialize", {
-    processId: process.pid,
-    rootUri: uri(ws),
-    workspaceFolders: [{ uri: uri(ws), name: "maven-multi" }],
-    capabilities: { workspace: { executeCommand: { dynamicRegistration: false } }, textDocument: {} },
-    initializationOptions: {
-      bundles: [JAR],
-      workspaceFolders: [uri(ws)],
-      settings: { java: { import: { gradle: { enabled: false } }, configuration: { updateBuildConfiguration: "automatic" } } },
-      extendedClientCapabilities: { classFileContentsSupport: false },
-    },
-  });
-  notify("initialized", {});
-  const commands = init.capabilities?.executeCommandProvider?.commands ?? [];
+  const commands = server.init.capabilities?.executeCommandProvider?.commands ?? [];
   console.log(`initialize: ${commands.length} commands advertised; batlehub.* = ${JSON.stringify(commands.filter((c) => c.startsWith("batlehub.")))}`);
   // Wait for the service to be ready (import done) — status notifications carry it.
-  const t0 = Date.now();
-  while (Date.now() - t0 < 300000) {
-    if (notes.some((n) => n.method === "language/status" && /ServiceReady/.test(n.params?.type))) break;
-    await sleep(1000);
-  }
-  console.log(`status after ${Math.round((Date.now() - t0) / 1000)} s: ${[...new Set(notes.filter((n) => n.method === "language/status").map((n) => n.params.type))].join(", ")}`);
+  const ready = await server.ready(300000);
+  console.log(`status after ${Math.round(ready.ms / 1000)} s: ${ready.statuses.join(", ")}`);
 
   const ping = await request("workspace/executeCommand", { command: "batlehub.ping", arguments: [] });
   console.log("batlehub.ping →", JSON.stringify(ping));
@@ -127,6 +58,26 @@ try {
   const fixEdits = fix?.changes?.[uri(greeter)] ?? [];
   console.log(`batlehub.inspections.fixAll(Greeter.java, sizeIsZero) → ${fixEdits.length} edit(s): ${JSON.stringify(fixEdits)}`);
   if (!fixEdits.some((e) => /isEmpty/.test(e.newText))) ok = false;
+
+  // RFC 0002 §5.3: `batlehub.rename` through JDT.LS's own RenameHandler — the
+  // spike of open question 1. Greeter#all is declared at 14:19 and called
+  // from Main.java (another module) and MainTest.java.
+  const renamed = await request("workspace/executeCommand", { command: "batlehub.rename", arguments: [uri(greeter), 13, 18, "everyone"] });
+  const renamedFiles = Object.keys(renamed?.changes ?? {}).map((u) => path.relative(ws, fileURLToPath(u))).sort();
+  console.log(`batlehub.rename(Greeter#all → everyone) → ${renamedFiles.length} file(s): ${renamedFiles.join(", ")}${renamed?.documentChanges ? " (documentChanges)" : ""}`);
+  if (renamedFiles.length !== 3 || !renamedFiles.some((f) => f.endsWith("app/Main.java"))) ok = false;
+  // Phase 4: the symbol form resolves in the Java model; a file's primary
+  // type is refused (its rename moves the file); an unknown type is named.
+  const bySymbol = await request("workspace/executeCommand", { command: "batlehub.rename", arguments: ["com.acme.core.Greeter#all", "everyone"] });
+  const symbolFiles = Object.keys(bySymbol?.changes ?? {}).map((u) => path.relative(ws, fileURLToPath(u))).sort();
+  console.log(`batlehub.rename(com.acme.core.Greeter#all → everyone) → ${symbolFiles.length} file(s): ${symbolFiles.join(", ")}`);
+  if (JSON.stringify(symbolFiles) !== JSON.stringify(renamedFiles)) ok = false;
+  const refusal = async (args) => request("workspace/executeCommand", { command: "batlehub.rename", arguments: args }).then(() => "no refusal", (e) => e.message);
+  const typeRefused = await refusal(["com.acme.core.Greeter", "Hello"]);
+  const unknown = await refusal(["com.acme.core.Nope#x", "y"]);
+  console.log(`batlehub.rename(com.acme.core.Greeter → Hello) → ${typeRefused}`);
+  console.log(`batlehub.rename(com.acme.core.Nope#x) → ${unknown}`);
+  if (!/moves its file \(Greeter\.java\)/.test(typeRefused) || !/no type com\.acme\.core\.Nope/.test(unknown)) ok = false;
 
   const person = path.join(ws, "core/src/main/java/com/acme/core/Person.java");
   const params = { textDocument: { uri: uri(person) }, range: { start: { line: 4, character: 4 }, end: { line: 4, character: 4 } }, context: { diagnostics: [] }, kind: 0 };
@@ -159,14 +110,12 @@ try {
   console.log(`batlehub.completion.chain(local; int p0 = g|) → ${JSON.stringify(localChains)}`);
   if (localChains?.rows?.[0]?.label !== "config.getServer().getPort()") ok = false;
 
-  await request("shutdown", null, 30000).catch(() => {});
-  notify("exit", null);
 } catch (e) {
   ok = false;
   console.error("smoke failed:", e.message);
-  console.error(stderr.join("").split("\n").filter((l) => /batlehub|Exception|ERROR|resolv/i.test(l)).slice(0, 40).join("\n"));
+  console.error(server.stderr().split("\n").filter((l) => /batlehub|Exception|ERROR|resolv/i.test(l)).slice(0, 40).join("\n"));
 } finally {
-  proc.kill();
+  await server.stop();
   rmSync(work, { recursive: true, force: true });
 }
 console.log(ok ? "SMOKE-OK" : "SMOKE-FAILED");

@@ -27,10 +27,12 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - name: Type-check, lint, format
         run: pnpm run typecheck && pnpm run lint
-      - name: Settings ↔ docs, localisation, RFC index
+      - name: Settings ↔ docs, localisation, the profile schema, RFC index
         run: |
           node scripts/check-settings-doc.mjs
           node scripts/check-l10n.mjs
+          node scripts/inspections-schema.mjs --check
+          node scripts/project-schema-walker.mjs --check
           (cd docs && node build/rfc.mjs index --check)
       - name: Unit tests
         run: pnpm run test
@@ -41,8 +43,10 @@ jobs:
           cache: maven
       - uses: actions/cache@v4
         with:
-          path: ~/.cache/batlehub-heavy/redhat.java-1.56.0*
-          key: redhat-java-1.56.0
+          path: |
+            ~/.cache/batlehub-heavy/redhat.java-1.56.0*
+            ~/.cache/batlehub/jdtls/1.56.0*
+          key: redhat-java-1.56.0-engine
       - name: The JDT bundle (RFC 0001 phase 6, layer 1b)
         # `task jdt:build` in the tree: the jars of the pinned redhat.java into
         # ~/.m2, then Maven (the JUnit layer runs with `package`).
@@ -51,6 +55,10 @@ jobs:
           mvn -q -B -f jdt/batlehub-jdt-core/pom.xml package
           mkdir -p extensions/java-core/jdt && cp jdt/batlehub-jdt-core/target/batlehub-jdt-core-*.jar extensions/java-core/jdt/batlehub-jdt-core.jar
           node jdt/smoke.mjs
+      - name: The engine (RFC 0002 phase 2, use cases 1 and 5)
+        # The command line against maven-multi with a real server: status,
+        # inspect in text, JSON and SARIF, the --fail-on exit codes.
+        run: node tests/heavy/engine.mjs
       - name: The Groovy language server jar (RFC 0001 phase 8)
         run: |
           curl -fsSL https://raw.githubusercontent.com/go-task/task/main/install-task.sh | sh -s -- -d -b /usr/local/bin >/dev/null

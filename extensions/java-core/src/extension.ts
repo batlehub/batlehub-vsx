@@ -19,7 +19,7 @@ import {
   resourceWarning,
   withDeclared,
   type ResourceSnapshot,
-} from "./detect/resources";
+} from "@batlehub/java-rules/resources";
 import { Jdk } from "./jdk/service";
 import { channelOf, disposeLog, log, setLogLevel } from "./log";
 import {

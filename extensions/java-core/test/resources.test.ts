@@ -7,7 +7,7 @@ import {
   readCgroupLimit,
   resourceWarning,
   withDeclared,
-} from "../src/detect/resources";
+} from "@batlehub/java-rules/resources";
 
 const files = (m: Record<string, string>) => (p: string) => m[p];
 

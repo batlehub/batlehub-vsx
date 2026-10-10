@@ -4,7 +4,7 @@ import {
   group,
   pingDecision,
   type Row,
-} from "../src/inspections/rules";
+} from "@batlehub/java-rules/rules";
 
 const row = (
   code: string,

@@ -1,0 +1,83 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://batlehub.dev/schema/java-project.schema.json",
+  "title": "BatleHub Java project configuration",
+  "description": "The team's committed configuration of a Java workspace (RFC 0006), read by the editor and by the headless engine. Every key is optional: absent means the team did not say, and the developer's settings or detection decide.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "$schema": { "type": "string" },
+    "version": {
+      "const": 1,
+      "description": "The format's version; this java-core reads 1."
+    },
+    "jdk": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "requirement": {
+          "type": "string",
+          "pattern": "^[0-9]+$",
+          "description": "The Java major version the project needs, e.g. \"21\"; overrides what pom.xml or build.gradle ask for. Absent: the build tool decides."
+        }
+      }
+    },
+    "maven": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "configuration": {
+          "type": "string",
+          "description": "The Maven configuration to use: a name from maven.configurations here, from batlehub.java.maven.configurations, or a detected ~/.m2/settings*.xml."
+        },
+        "configurations": {
+          "type": "array",
+          "description": "Named Maven configurations, the same shape as batlehub.java.maven.configurations. A committed settingsFile is announced before it is used.",
+          "items": {
+            "type": "object",
+            "required": ["name"],
+            "additionalProperties": false,
+            "properties": {
+              "name": { "type": "string" },
+              "settingsFile": { "type": "string" },
+              "toolchainsFile": { "type": "string" },
+              "mavenHome": { "type": "string" },
+              "profiles": { "type": "array", "items": { "type": "string" } }
+            }
+          }
+        },
+        "activeProfiles": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Maven profiles: -P on every goal and the m2e preference."
+        }
+      }
+    },
+    "gradle": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "activeProfiles": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Reserved: Gradle has no profiles; kept so the file has one shape per tool."
+        }
+      }
+    },
+    "registry": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "enum": ["ask", "true", "false"],
+          "description": "Whether Maven and Gradle resolve through BatleHub: ask, true, or false (a public repository can say never)."
+        }
+      }
+    },
+    "satellites": {
+      "type": "object",
+      "description": "One object per satellite id, each with its own schema; a satellite that is not installed keeps its section.",
+      "additionalProperties": { "type": "object" }
+    }
+  }
+}

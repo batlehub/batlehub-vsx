@@ -4,15 +4,15 @@
       "error",
       {
         "paths": [
-          { "name": "child_process", "message": "Long-lived processes start through src/process/managed.ts, short-lived calls through src/io.ts (RFC 0003 §5.2)." },
-          { "name": "node:child_process", "message": "Long-lived processes start through src/process/managed.ts, short-lived calls through src/io.ts (RFC 0003 §5.2)." }
+          { "name": "child_process", "message": "Long-lived processes start through src/process/managed.ts, short-lived calls through @batlehub/java-rules/io (RFC 0003 §5.2)." },
+          { "name": "node:child_process", "message": "Long-lived processes start through src/process/managed.ts, short-lived calls through @batlehub/java-rules/io (RFC 0003 §5.2)." }
         ]
       }
     ]
   },
   "overrides": [
     {
-      "files": ["src/process/managed.ts", "src/io.ts", "test/**"],
+      "files": ["src/process/managed.ts", "test/**"],
       "rules": { "no-restricted-imports": "off" }
     }
   ]

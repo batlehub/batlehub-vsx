@@ -1,0 +1,27 @@
+{
+  "name": "@batlehub/java-engine",
+  "version": "0.1.0",
+  "private": true,
+  "description": "The headless engine of RFC 0002: a JDT.LS launcher, and from phase 2 the batlehub java verbs over it. Erasable TypeScript, run by Node 24 as is.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "exports": {
+    "./*": "./*.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "lint": "oxlint . && prettier --check \"*.ts\" \"test/**/*.ts\"",
+    "format": "prettier --write \"*.ts\" \"test/**/*.ts\"",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "oxlint": "^1.0.0",
+    "prettier": "^3.6.0",
+    "typescript": "^5.9.0",
+    "vitest": "^3.2.0"
+  },
+  "dependencies": {
+    "@batlehub/java-rules": "workspace:*"
+  }
+}

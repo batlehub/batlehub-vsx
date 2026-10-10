@@ -9,7 +9,7 @@
 | Author      | Max Batleforc <maxleriche.60@gmail.com>                       |
 | Co-author   | —                                                             |
 | Created     | 2026-09-18                                                    |
-| Revised     | 2026-09-29 — revision 3, the recommendations of §11 promoted to decisions 12 and 13: `satellites.<id>` handed over as a raw object until a second satellite needs a validated sub-schema, and `Keep mine` remembered in the extension's storage rather than as a setting that would trip its own warning |
+| Revised     | 2026-10-09 — revision 4, phase 1 built: `project-config.ts` in `packages/java-rules` (`parseProjectFile`, `resolve`, `saveToProject`), its key table generated from `schema/java-project.schema.json` by `scripts/project-schema-walker.mjs` and checked in `lint` and CI, the schema contributed through `jsonValidation`; decisions 14–17 · 2026-09-29 — revision 3, the recommendations of §11 promoted to decisions 12 and 13: `satellites.<id>` handed over as a raw object until a second satellite needs a validated sub-schema, and `Keep mine` remembered in the extension's storage rather than as a setting that would trip its own warning |
 | Supersedes  | —                                                             |
 | Depends on  | RFC 0001 (the core, its settings of §4.1, the manifest and the overlay of §4.2); consumed by RFC 0005 (inspection profiles), RFC 0013 (spell checking) and RFC 0002 (the headless engine reads the same files) |
 | Touches     | `packages/java-rules` (the pure `project-config.ts`, shared with RFC 0002's engine), `extensions/java-core/src/project/` (new `config.ts`), `src/written.ts` (the `.gitignore` line), `src/manifest.ts`, `src/build/maven/overlay.ts`, `src/panel/`, `schema/`, `tests/heavy/java.mjs`, `docs/guide/java/` |
@@ -655,6 +655,11 @@ sequenceDiagram
 | 12 | The `satellites.<id>` contract surface? | **A raw-object `projectConfig(id)` accessor** in the first phase; a typed sub-schema registration when a second satellite needs the editor to validate its section. Either way the member is `projectConfig(id)` of RFC 0001 §5.2's contract changelog, 1.1; the typed form would be a later minor. |
 | 13 | Does `Keep mine` on the `settingsFile` warning write a workspace setting? | **No — the extension's storage.** A setting recording the choice would itself show as "differs from project", which is the warning the developer just dismissed. |
 
+| 14 | Where does the schema live? (revision 4) | **`extensions/java-core/schema/java-project.schema.json`**, inside the VSIX the `jsonValidation` contribution points at (`**/.batlehub/java/project.json`). It is the source; the walker's table is generated from it (decision 11). The `$schema` URL is a name, not yet served: the editor validates through the contribution, not the URL, and serving it from the docs site waits for a domain the docs actually have. |
+| 15 | How is "generated from the schema" done? (revision 4) | **`packages/java-rules/src/project-keys.ts`, written by `scripts/project-schema-walker.mjs`** from the schema's closed sections (`jdk`, `maven`, `gradle`, `registry`; `satellites` is open by design). `--check` fails `task lint` and CI's `check` job when the table is not what the schema gives, and a unit test compares the two directly. Prettier is kept off the generated file, which the check compares byte for byte. The §6.5 comparison of the schema with this RFC's §4.1 text is not built: it would check code against prose. |
+| 16 | `jdk.requirement`'s form (revision 4) | **A major version as a string, `"21"`** (`^[0-9]+$`): the minimum, as `maven.compiler.release` gives it. A range waits for a team that needs one. |
+| 17 | `registry.enabled`'s values (revision 4) | **The setting's own: the strings `ask`, `true`, `false`**, so the file and `batlehub.java.registry.enabled` say the same thing the same way. A JSON boolean is refused, with the key's line. |
+
 ### Still open
 
 None at this revision.
@@ -665,7 +670,7 @@ None at this revision.
 
 | Phase | Content |
 | --- | --- |
-| 1 | `project-config.ts` pure (in `packages/java-rules` once RFC 0002 phase 1 creates it, in `src/project/` until then): parse, resolve, save; unit tests; the schema file, its `jsonValidation` contribution and the schema ↔ walker check in `lint`. Useful alone: the schema gives completion even before any reader changes. |
+| 1 | **Built** (revision 4, 2026-10-09). `project-config.ts` pure (in `packages/java-rules` once RFC 0002 phase 1 creates it, in `src/project/` until then): parse, resolve, save; unit tests; the schema file, its `jsonValidation` contribution and the schema ↔ walker check in `lint`. Useful alone: the schema gives completion even before any reader changes. |
 | 2 | The `local/` split: `written.ts`, `manifest.ts`, the overlay path, the migration with `wouldExpose` and its question; layer 2's removal assertion extended. |
 | 3 | Readers switch to the effective value (tasks, m2e prefs, registry link, Profiles tab), applied only after trust; origins, the "differs from project" marker and `Save to project` in the panel; the repo-supplied `settingsFile` warning; `Java: Show effective configuration` with its `project` view. |
 | 4 | Heavy steps of §6.6; docs page `docs/guide/java/project-config.md`, which says in its first screen that the editor and CI can differ and where the marker is. With RFC 0002: `batlehub java config --print` and use case 6. |

@@ -1,7 +1,7 @@
 // The resolution rule of RFC 0001 §4.2: build-tool requirement → matching
 // installed runtime → otherwise the newest installed → otherwise none (offer
 // an install). Pure; the table is the unit test.
-import type { JavaVersionRange, Resolution, Runtime } from "../api-types";
+import type { JavaVersionRange, Resolution, Runtime } from "./types.ts";
 
 export function resolve(
   runtimes: Runtime[],

@@ -33,6 +33,26 @@ export function applyOverrides(
   return out;
 }
 
+/**
+ * What an agent or CI is told (RFC 0002 §4.1): the rows at the project's
+ * severities, never the developer's overrides — a row those overrides change
+ * or hide is marked, not changed. Until RFC 0005's committed profile lands,
+ * the project's severities are the bundle's defaults.
+ */
+export function projectRows(
+  raw: Row[],
+  editor: { enabled: boolean; severityOverrides: Record<string, string> },
+): (Row & { differsFromEditor?: true })[] {
+  return raw.map((r) => {
+    const [shown] = editor.enabled
+      ? applyOverrides([r], editor.severityOverrides)
+      : [];
+    return shown?.severity === r.severity
+      ? r
+      : { ...r, differsFromEditor: true };
+  });
+}
+
 export interface Grouped {
   code: string;
   count: number;

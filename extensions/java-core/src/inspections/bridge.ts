@@ -9,7 +9,11 @@ import { wire } from "../wire";
 import { applyLspEdit } from "../generate/menu";
 import { log } from "../log";
 import { InspectionsView } from "./view";
-import { applyOverrides, pingDecision, type Row } from "./rules";
+import {
+  applyOverrides,
+  pingDecision,
+  type Row,
+} from "@batlehub/java-rules/rules";
 
 const SOURCE = "batlehub";
 

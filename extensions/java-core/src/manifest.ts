@@ -5,6 +5,11 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 import * as vscode from "vscode";
+import {
+  type ProfileRule,
+  unwriteRules,
+  writeRules,
+} from "@batlehub/java-rules/profile";
 import { withLock } from "./lock";
 import { log } from "./log";
 import {
@@ -216,6 +221,44 @@ export function writeOwnedFile(p: string, content: string): void {
   fs.chmodSync(p, 0o600);
 }
 
+/**
+ * The one way a program writes the team's profile (RFC 0005 §6.6): RFC 0007's
+ * import and `Save as project profile` both call it. Each rule of `patch` is
+ * set (`null` removes it), comments and other keys kept, and the manifest
+ * records what each key replaced. The file is the team's, committed: its mode
+ * is left alone.
+ */
+export function writeProfileEntries(
+  file: string,
+  patch: Record<string, ProfileRule | null>,
+): void {
+  let text: string | undefined;
+  try {
+    text = fs.readFileSync(file, "utf8");
+  } catch {
+    text = undefined;
+  }
+  const out = writeRules(text, patch);
+  const entries = Object.fromEntries(
+    Object.entries(patch)
+      .filter((e): e is [string, ProfileRule] => e[1] !== null)
+      .map(([k, written]) => [
+        k,
+        { written, previous: out.previous[k] ?? null },
+      ]),
+  );
+  save(
+    record(readManifest(), {
+      kind: "profile",
+      path: file,
+      created: text === undefined,
+      entries,
+    }),
+  );
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.writeFileSync(file, out.text);
+}
+
 /** A fenced block inside a shared file (`settings.xml`); the caller has already rewritten the file, and read its mode before doing so. */
 export function recordBlock(
   p: string,
@@ -322,10 +365,36 @@ export async function removeBatleHubSettings(
         /* already gone */
       }
     },
+    profile: async (p, created, entries) => {
+      let text: string;
+      try {
+        text = fs.readFileSync(p, "utf8");
+      } catch {
+        return; /* deleted by someone: nothing to take back */
+      }
+      const u = unwriteRules(text, entries, created);
+      if (u.text === null) fs.rmSync(p, { force: true });
+      else if (u.text !== text) fs.writeFileSync(p, u.text);
+      if (u.kept.length)
+        log.info(
+          `remove: kept in ${p}, edited since the family wrote them: ${u.kept.join(", ")}`,
+        );
+    },
   });
   suspendForeignWrites();
+  // The manifest, then its directories only when nothing else is in them:
+  // `.batlehub/java/` holds the team's committed files too (RFC 0005, RFC
+  // 0006), which are not the family's to delete.
   const mp = manifestPath();
-  if (mp) fs.rmSync(path.dirname(mp), { recursive: true, force: true });
+  if (mp) {
+    fs.rmSync(mp, { force: true });
+    for (const d of [path.dirname(mp), path.dirname(path.dirname(mp))])
+      try {
+        fs.rmdirSync(d);
+      } catch {
+        break; /* not empty, or gone */
+      }
+  }
   for (const p of ownStorage()) fs.rmSync(p, { recursive: true, force: true });
   for (const e of errors) log.error(`remove: ${e}`);
   void vscode.window.showInformationMessage(

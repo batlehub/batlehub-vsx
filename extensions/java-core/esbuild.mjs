@@ -29,6 +29,15 @@ const contexts = await Promise.all([
     // extension host's AMD `define` and throws at load — the ESM build has no wrapper.
     mainFields: ["module", "main"],
   }),
+  // RFC 0002 decision 16: the stdio relay an agent outside the editor spawns.
+  esbuild.context({
+    ...common,
+    entryPoints: ["src/mcp/relay.ts"],
+    outfile: "dist/mcp-relay.js",
+    platform: "node",
+    target: "node20",
+    format: "cjs",
+  }),
   esbuild.context({
     ...common,
     entryPoints: ["media/panel/main.ts"],

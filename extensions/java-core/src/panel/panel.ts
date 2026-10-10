@@ -16,11 +16,11 @@ import {
   undoChainDefault,
 } from "../completion/chain";
 import { isOverridden, readSettings, writeWorkspace } from "../config";
-import { formatSize, resourceWarning } from "../detect/resources";
+import { formatSize, resourceWarning } from "@batlehub/java-rules/resources";
 import type { Core } from "../extension";
 import { log } from "../log";
 import { javaConfigs, readLaunch } from "../run/configs";
-import { toSettingsRuntimes } from "../jdk/resolve";
+import { toSettingsRuntimes } from "@batlehub/java-rules/resolve";
 import { writeExtSetting, writeForeignSetting } from "../manifest";
 
 export interface PanelState {

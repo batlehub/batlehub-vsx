@@ -5,7 +5,15 @@
     "outDir": ".",
     "declaration": true,
     "emitDeclarationOnly": true,
-    "types": ["node", "vscode"]
+    "types": [
+      "node",
+      "vscode"
+    ],
+    "module": "Preserve",
+    "moduleResolution": "Bundler",
+    "allowImportingTsExtensions": true
   },
-  "files": ["src/api-types.ts"]
+  "files": [
+    "src/api-types.ts"
+  ]
 }

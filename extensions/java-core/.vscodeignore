@@ -3,6 +3,7 @@
 !media/**
 !l10n/**
 !jdt/*.jar
+!schema/**
 !api.d.ts
 !package.nls.json
 !README.md

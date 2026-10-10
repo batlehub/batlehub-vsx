@@ -9,7 +9,7 @@ import * as vscode from "vscode";
 import type { JavaVersionRange, Module } from "../../api-types";
 import { readSettings, type MavenConfiguration } from "../../config";
 import type { Core } from "../../extension";
-import { run } from "../../io";
+import { run } from "@batlehub/java-rules/io";
 import { withLock } from "../../lock";
 import { log } from "../../log";
 import {

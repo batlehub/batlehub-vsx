@@ -13,11 +13,11 @@ import org.eclipse.jdt.ls.core.internal.JDTUtils;
 /**
  * The one delegate (RFC 0001 §6.2): `batlehub.ping`, `batlehub.generate.accessors`,
  * `batlehub.inspections.list`, `batlehub.inspections.fixAll`, `batlehub.completion.chain`
- * (RFC 0012 phase 2). Arguments arrive
+ * (RFC 0012 phase 2), `batlehub.rename` (RFC 0002 §5.3). Arguments arrive
  * Gson-deserialised (Map/List/String); answers are plain maps and lists.
  */
 public class Handler implements IDelegateCommandHandler {
-  public static final String VERSION = "0.2.1";
+  public static final String VERSION = "0.5.0";
 
   @Override
   public Object executeCommand(String commandId, List<Object> arguments, IProgressMonitor monitor) throws Exception {
@@ -26,8 +26,12 @@ public class Handler implements IDelegateCommandHandler {
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("version", VERSION);
         out.put("inspections", Engine.inspections().stream().map(i -> i.area() + "/" + i.id()).toList());
+        // RFC 0005 §6.3: each rule's declared severity, so a profile's downgrade is known for what it is.
+        Map<String, String> defaults = new LinkedHashMap<>();
+        for (Inspection i : Engine.inspections()) defaults.put(i.area() + "/" + i.id(), i.severity());
+        out.put("defaults", defaults);
         // The core decides its fallbacks from this list, not from a failed call (RFC 0012 §4.3).
-        out.put("commands", List.of("batlehub.generate.accessors", "batlehub.inspections.list", "batlehub.inspections.fixAll", "batlehub.completion.chain"));
+        out.put("commands", List.of("batlehub.generate.accessors", "batlehub.inspections.list", "batlehub.inspections.fixAll", "batlehub.completion.chain", "batlehub.rename"));
         return out;
       }
       case "batlehub.completion.chain": {
@@ -39,6 +43,16 @@ public class Handler implements IDelegateCommandHandler {
         long budget = arguments.size() > 3 ? ((Number) arguments.get(3)).longValue() : 150;
         int maxDepth = arguments.size() > 4 ? ((Number) arguments.get(4)).intValue() : 3;
         return Chains.find(cu, offset, budget, maxDepth);
+      }
+      case "batlehub.rename": {
+        // (symbol, newName) or (uri, line, character, newName), 0-based like LSP.
+        if (arguments.size() == 2) return Rename.symbol(String.valueOf(arguments.get(0)), String.valueOf(arguments.get(1)), monitor);
+        return Rename.at(
+            String.valueOf(arguments.get(0)),
+            ((Number) arguments.get(1)).intValue(),
+            ((Number) arguments.get(2)).intValue(),
+            String.valueOf(arguments.get(3)),
+            monitor);
       }
       case "batlehub.inspections.list": {
         String uri = String.valueOf(arguments.get(0));

@@ -9,7 +9,7 @@
 | Author      | Max Batleforc <maxleriche.60@gmail.com>                       |
 | Co-author   | —                                                             |
 | Created     | 2026-09-18                                                    |
-| Revised     | 2026-09-29 — revision 3, the recommendations of §11 promoted to decisions 12–16: `node` on `PATH` rather than a bundled runtime, the server's source roots as the only exclusion list, no server quick fixes in `fix`, the cap ledger consumed from RFC 0003, and the stdio relay chosen over `registerTool` because an agent outside the editor has to reach the live one. Only the `RenameSupport` spike stays open |
+| Revised     | 2026-10-09 — revision 9, phase 5 built: `batlehub java mcp` over stdio (`engine/mcp.ts`), the same `McpSession` and tool table as the live editor (`protocol.ts` joins `java-rules`), the verbs' work in `engine/ops.ts`, the table-vs-CLI property test, use case 3 as MCP calls in `ENGINE-OK`, the `.mcp.json` in the guide; decisions 38–41 · 2026-10-09 — revision 8, phase 4 built: `batlehub.rename`'s symbol form in the bundle (0.4.0), a file's primary type refused, `RenameTest`, the `rename` verb, use case 3 through the command line in `ENGINE-OK`; a fresh `-data` per engine process; decisions 35–37 · 2026-10-09 — revision 7, phase 3 built: `fix` and `generate accessors|getters|setters`, `engine/apply.ts` (dry run by default, `--write` refused on a changed file or a symlink out of the workspace, exit 3), a unified diff matching GNU `diff -u`; use cases 2 and 4 in `ENGINE-OK`; decisions 32–34 · 2026-10-09 — revision 6, phase 2 built but its profile and config verbs: `engine/cli.ts` (`status`, `inspect` in text, JSON and SARIF, `--fail-on`), `engine/server.ts` (the pinned VSIX, sha256, the unpack), the cap against the cgroup limit, `tests/heavy/engine.mjs` (`ENGINE-OK`) in CI's `check` job; decisions 26–31 · 2026-10-09 — revision 5, phase 1 built: `packages/java-rules` (`discover`, `resolve`, `rules`, `redact`, `verbs`, and the JDK `types` the contract re-exports), `engine/launch.ts` with `jdt/smoke.mjs` its first caller, open question 1 answered by a running spike (`batlehub.rename` over JDT.LS's `RenameHandler`, bundle 0.3.0); decisions 22–25 · 2026-10-09 — revision 4, phase 0 built: the live editor as an MCP server (`src/mcp/`: the five tools over the running JDT.LS, the `0600` socket and its stdio relay, `batlehub.java.mcp.enabled`, `Java: Copy the MCP configuration for agents`), `MCP-LIVE-OK` and `MCP-PROJECT-VALUES-OK` in the real editor; decisions 17–21, §11 "Measured — phase 0" · 2026-09-29 — revision 3, the recommendations of §11 promoted to decisions 12–16: `node` on `PATH` rather than a bundled runtime, the server's source roots as the only exclusion list, no server quick fixes in `fix`, the cap ledger consumed from RFC 0003, and the stdio relay chosen over `registerTool` because an agent outside the editor has to reach the live one. Only the `RenameSupport` spike stays open |
 | Supersedes  | —                                                             |
 | Depends on  | RFC 0001 (the bundle of §6.2 and its delegates, phase 6; the JDK resolution of §4.2; the red lines of §7.1); RFC 0003 (the managed process and its cap accounting); RFC 0006 and RFC 0005 (the committed `.batlehub/java/` files, the only configuration either surface reports under); BatleHub RFC 0011 (`batlehub-cli`, whose subcommand the command-line twin becomes) |
 | Touches     | `extensions/java-core` (new `src/mcp/`: the tools registered with the editor over the running JDT.LS; one setting, one command), `packages/java-rules` (the verbs table both surfaces render), `jdt/batlehub-jdt-core` (one new delegate, `batlehub.rename`), a new `engine/` directory (Node, the launcher `jdt/smoke.mjs` already is), `tests/heavy` (live-editor steps in the `java` half, an `engine` half), `docs/guide/java/engine.md` |
@@ -755,13 +755,160 @@ engine/config.ts      .batlehub/java/project.json and inspections.json only, thr
 | 15 | How does the command line join the cap accounting? | **A ledger of the running declared caps**, per workspace, under the user's cache directory, `0600`, written under the manifest's lock discipline: the engine adds its line while it runs and removes it at exit, a stale line dropped when its pid is gone. RFC 0003 decision 16 owns its shape; this RFC only consumes it. |
 | 16 | The registration form in the editor? | **The JVM-less stdio relay**, not `vscode.lm.registerTool`: an external agent — Claude Code in the pod's terminal — has to reach the live editor, which is the goal RFC 0001 §7.1 names, and `registerTool` is seen only by the editor's own agents. A unix socket in the extension's storage, `0600`, no listener. The tool table and the handlers are the same either way. |
 
+| 17 | Where does the tool table live before the engine exists? (revision 4) | **`extensions/java-core/src/mcp/verbs.ts`**, importing nothing from `vscode`, until phase 1 creates `packages/java-rules`. Phase 0 has one consumer; a package for one file is the split RFC 0001 phase 9 has not earned. It moves as is with `discover`, `resolve` and `rules`. |
+| 18 | How does an agent find the socket? (revision 4) | **The relay takes the socket path as its argument**, and `Java: Copy the MCP configuration for agents` puts the whole `.mcp.json` entry (`node <extension>/dist/mcp-relay.js <socket>`) on the clipboard. That command replaces §6.4's "Copy the engine command for this file", which waits for the CLI of phase 2. The socket is `<storage>/mcp/java.sock` in a `0700` directory, or `<tmpdir>/batlehub-<uid>/java-<hash>.sock` when the storage path is too long for a unix socket's ~108 bytes. That fallback is what the heavy suite's editor gets. |
+| 19 | `registerMcpServerDefinitionProvider` for the editor's own agents? (revision 4) | **Not in phase 0.** Decision 16's audience is an agent outside the editor; the editor's own chat could reach the same relay as a stdio definition when someone asks for it. It also needs VS Code ≥ 1.101, above `engines.vscode`. |
+| 20 | Type renames in the live editor? (revision 4) | **Refused.** A type rename moves its file, which is a disk write the tool never makes (§4.2). `vscode.WorkspaceEdit.entries()` returns text edits only, and `size` is `entries().length` (read in the editor's own extension host), so the move cannot be seen from the edit. The tool refuses when the symbol at the resolved position is a class, interface, enum or record, and names F2. |
+| 26 | Which JDK runs the engine's server? (revision 6) | **The lowest discovered JDK ≥ 21**, or `BATLEHUB_JAVA_HOME`. The RFC said ≥ 17; `redhat.java` 1.56's server refuses to start below 21, so the line is `no JDK ≥ 21: install one with 'mise use java@temurin-21'`. The project's own JDK does not matter yet: the bundle's rules are syntactic. |
+| 27 | What else joins `packages/java-rules`? (revision 6) | **`resources.ts` (the cgroup reader) and `io.ts` (the real `Io`)**, both needed by the engine and both already free of `vscode`. The package is `"type": "module"` with `.ts` imports, so Node 24 loads it without a warning. java-core typechecks it with `Bundler` resolution and `moduleDetection: force`: java-core is bundled by esbuild and never loaded by Node's CommonJS loader, which is what `Node16` described. The satellites and the contract test are unchanged and green. |
+| 28 | How is the VSIX unpacked? (revision 6) | **With the resolved JDK's own `jar` tool**, the one unpacker the engine can count on. Its listing is checked first, and an entry with `..` or an absolute path refuses the whole VSIX. The download goes to a `.part` file, and a sha256 mismatch deletes it. |
+| 29 | Which workspaces are refused? (revision 6) | **`/`, and a root that is neither under `$HOME`, nor under the current directory, nor above it.** The RFC's "outside `$HOME` and not the cwd's ancestor" refused Che's `/projects/<repo>` named from `/projects`. |
+| 30 | A section of `view.sh`, or its own script? (revision 6) | **Its own script**, `tests/heavy/engine.mjs` behind `task heavy:engine`. It needs no editor and no browser, and `view.sh`'s preflight needs both. It runs in CI's `check` job after the smoke. It removes the `-data` directory its temporary workspace caused (about 42 MB each). |
+| 31 | `--profile`, `--print-profile`, `config --print` in phase 2? (revision 6) | **Not until RFCs 0005 and 0006 exist.** They print and apply those RFCs' files, whose formats are not written yet. Until then, the command line reports at the bundle's defaults, as the live editor does (decision 21). |
+| 32 | How does a dry run show its edit? (revision 7) | **A unified diff on stdout, and the count on stderr**, so `fix … > change.patch` is a patch `git apply` takes. With `--write` the count goes to stdout (`1 file, 1 edit`, `0 files`). The diff is the engine's own: the common head and tail are cut, then a line LCS runs over the rest. It matches GNU `diff -u` on the cases the unit tests hold, with no new dependency. |
+| 33 | What does the `--write` guard compare? (revision 7) | **Each file's mtime and content, by real path, from just before the server is asked**, checked for every file before any file is written. One file changed or outside the workspace refuses the whole edit with exit 3, so a write is all or nothing. |
+| 34 | What does `generate` default to? (revision 7) | **The bundle's own defaults**: `get`, `is`, setters not fluent, `finalFields: keepSetters`. The command line reads no settings (§4.1); the flags are the only taste input. |
+| 35 | What does `RenameTest` test? (revision 8) | **The symbol grammar only.** The rename needs a Java model over a real workspace, and the `AbstractProjectsManagerBasedTest` harness §6.3 counted on is not among the jars `jdt/deps.sh` installs. Layer 1b stays plain JUnit over the AST, as for ChainsTest, and the cross-module rename is proven over the real server by `task jdt:smoke` and `ENGINE-RENAME-OK`. |
+| 36 | Where is the engine's `-data`? (revision 8) | **A fresh temporary directory per engine process, removed at stop**, not `~/.cache/batlehub/jdtls/ws/<hash>` (§4.1). A kept `-data` goes out of sync with any file changed between two runs, by git or an editor or the engine's own `--write`, and JDT's refactoring then refuses: `Resource '…/Greeter.java' is out of sync with file system`, measured. A warm `-data` saved about 4 s of a 19 s run. It is still the engine's own, never the editor's (decision 3, use case 6). |
+| 37 | Type renames on the command line? (revision 8) | **Refused by the bundle**, for both the symbol and the position form. JDT.LS answers a client without resource operations with the text edits alone, so `Greeter → Hello` would leave `class Hello` in Greeter.java, measured. `batlehub.rename` checks `codeSelect` against the file's primary type and says so; a nested type or a member is renamed. The live editor refuses the same (decision 20). |
+| 38 | Where does the MCP protocol live? (revision 9) | **`packages/java-rules/src/protocol.ts`**, one `McpSession` for both surfaces. The live editor feeds it a unix socket, the command line its stdin. The class uses plain fields, not parameter properties, because Node strips types and runs only erasable syntax; `erasableSyntaxOnly` is now on for the whole package. |
+| 39 | The stdio server's session (revision 9) | **One server per session, started by the first tool that needs it**, and stopped when stdin ends or on SIGTERM. A failed start is retried by the next call. Paths are relative to the workspace root and refused outside it, as in the live editor. `dryRun` defaults to `true` (decision 6), and `false` writes under the same guards as `--write`. |
+| 40 | A long session after its own writes (revision 9) | **The server is told**, with `workspace/didChangeWatchedFiles` (type 2) for each file written. Decision 36's fresh `-data` covers one process, but a session is one process with many writes. Measured enough: after a written rename, the new name resolves, and after a written fix, the next `java_inspect` no longer lists the row. |
+| 41 | How do the CLI and the schema stay "one table"? (revision 9) | **A property test over `VERBS`**: every tool argument has exactly one CLI form (a flag or a positional) that `usage()` documents, nothing in the table lacks one, stdio's `required` arguments are the CLI's positionals, and stdio's `dryRun` is `true`. The verbs' work is `engine/ops.ts`; `cli.ts` and `mcp.ts` only parse and render. |
+| 22 | `RenameSupport` or JDT.LS's `RenameHandler` for `batlehub.rename`? (revision 5, was open question 1) | **`RenameHandler`.** It is the code behind `textDocument/rename`, so F2 in the editor and the delegate cannot disagree. It takes two internal imports and returns an lsp4j `WorkspaceEdit`. `RenameSupport` would need the element resolved by hand, LTK's refactoring (not on the bundle's classpath) and an internal `Change` → `WorkspaceEdit` conversion. Measured, not argued: §11 "Measured — phase 1". |
+| 23 | Where do the JDK types live once `discover` and `resolve` move? (revision 5) | **In `packages/java-rules/src/types.ts`**, and `api-types.ts` re-exports them. One description, and the contract keeps the same names. A change to them is a contract change, which the file's header says. |
+| 24 | How are the two new directories built? (revision 5) | **They are not.** `packages/java-rules` exports its TypeScript sources (`"./*": "./src/*.ts"`): esbuild bundles them into the VSIX and vitest reads them as they are. `engine/` is erasable TypeScript (`erasableSyntaxOnly`) that Node 24 runs directly; `jdt/smoke.mjs` imports `../engine/launch.ts`. Both are workspace members with `lint` and `typecheck`. A lint rule forbids `vscode` in `java-rules`. |
+| 25 | Do the moved modules' tests move too? (revision 5) | **Not yet.** They stay in `java-core/test`, with only their import paths changed, as §10 asks: the same 159 assertions, green. They move when the engine's own suite exists (phase 2) and needs them beside it. |
+| 21 | The "project values" before RFC 0005? (revision 4) | **The bundle's own severities**, since `.batlehub/java/inspections.json` does not exist yet. The developer's `severityOverrides` only set `differsFromEditor`. With `batlehub.java.inspections.enabled: false`, every row differs. |
+
+### Measured — phase 0, 2026-10-09
+
+`task heavy:view:java`, VS Code 1.136.1 web build, `redhat.java` 1.56.0; the
+suite plays the agent with `node mcp-relay.js <socket>`, the path read off the
+core's log.
+
+- **Case 7 (`MCP-LIVE-OK`).** `java_rename com.acme.core.Greeter#all →
+  everyone` renamed the declaration, a caller typed into Greeter.java and never
+  saved, `Main.java` and `MainTest.java` across the two modules: 465–527 ms
+  through the relay. Disk was unchanged after the dry run, after the apply, and
+  3 s later. One **Undo** reverted the rename in Greeter.java and Main.java (the two the suite reads back). One JDT.LS process before
+  and after. The fixture has no `greet`; `all()` is its cross-module method.
+- **Case 8 (`MCP-PROJECT-VALUES-OK`).** A workspace `settings.json` turning
+  `stringConcatInLoop` off and `redundantThis` to `hint`: the Problems panel
+  lost both rows (a hint is not listed there). `java_inspect` returned the four
+  findings at the bundle's severities, with exactly those two marked
+  `differsFromEditor`. The user-scope half of the case was played at
+  workspace scope: `readSettings()` merges the scopes before `projectRows`
+  sees them.
+- **The browser build auto-saves.** `files.autoSave` defaults to `afterDelay`
+  in VS Code's web build. The first runs found the agent's edit on disk, saved
+  by the editor rather than the tool. The suite turns auto-save off for the
+  step, and the guide says what auto-save means for an agent's edit.
+- **A rename edit is not one edit per occurrence.** `redhat.java` returned
+  one `TextEdit` for Greeter.java's declaration and caller together. An agent
+  must not count occurrences from the edit.
+- **Writing a file behind the editor desynchronises the server.** After the
+  inspections step's write and `Revert File`, JDT.LS placed findings two lines
+  off the buffer until the editors were closed and reopened. This is the
+  existing step's doing, not the tools', and the suite closes everything
+  before case 7.
+- **The suite reads the channels from disk now.** Scrolling the Output panel
+  stopped early when consecutive entries wrapped into identical fragments,
+  and the step found no MCP line and no `CHAIN-DELEGATE` round trip.
+  `channelLog()` in `java.mjs` reads `<server data>/logs/…/<n>-<channel>.log`
+  instead. `ALL-OK` 2026-10-09 with `chainDelegateMs` 36 ms.
+
+### Measured — phase 1, 2026-10-09
+
+- **The spike (decision 22).** `Rename.java`, eleven lines over
+  `RenameHandler`, compiled against the pinned 1.61 jars with two internal
+  imports (`RenameHandler`, `JavaLanguageServerPlugin`). Loaded through
+  `initializationOptions.bundles` with the existing `Import-Package: *`, it
+  ran: `batlehub.rename` at `Greeter#all` returned `changes` for Greeter.java,
+  `app/…/Main.java` and `app/…/MainTest.java` (`SMOKE-OK`).
+- **`jdt/smoke.mjs` through `engine/launch.ts`**: same output, same
+  `SMOKE-OK`. The server stops with `shutdown`/`exit`, and no process or
+  temporary configuration area is left behind.
+- **`task jdt:build` and a version bump.** The first bump with a stale
+  `target/` gave `cp` two jars, and the smoke silently ran the old one. The
+  task now removes old jars before packaging.
+- **The contract with re-exported types.** `api.d.ts` now carries
+  `export type { … } from "@batlehub/java-rules/types"`. java-groovy and the
+  fixture satellite type-check against it (`TYPES-OK`, `FIXTURE-KIND-OK`):
+  the workspace link resolves from `extensions/java-core`.
+
+### Measured — phase 2, 2026-10-09
+
+`node engine/cli.ts`, on a copy of maven-multi, redhat.java 1.56.0, JDK 21
+through mise, a 16 GiB cgroup limit.
+
+- **`status` is use case 5's line**: `JDK: JavaSE-21 (21.0.11, mise)`; with
+  no JDK, or only a 17, the line of decision 26 and exit 2 (a unit test over
+  a fake `Io`: `/usr/lib/jvm` cannot be hidden without root).
+- **`inspect`, first run 19 s**, including the 55 MB download, the sha256
+  check against the pin (equal to Open VSX's published hash) and the unpack;
+  **15 s warm**. Three source roots, seven files. Peak RSS 882–949 MiB under
+  the declared 1 GiB.
+- **Use case 1 finds five, not four.** Greeter.java's four at the lines the
+  RFC names (8, 11, 17, 23), and Person.java's unused `active`, which the
+  fixture gained after this RFC was written. Exit 1 at `--fail-on warning`,
+  0 at `error`, the same lines both times. JSON is the rows plus `path`;
+  SARIF 2.1.0 has five results and four rules on `core/`.
+- **`-data` is about 42 MB per workspace.** That is per real workspace in
+  use, and the suite removes its own.
+
+### Measured — phase 3, 2026-10-09
+
+`node engine/cli.ts` on a copy of maven-multi made into a git repository.
+
+- **Use case 2 as written.** The dry run prints the hunk replacing
+  `people.size() == 0` with `people.isEmpty()`, and `git diff --stat` stays
+  empty. `--write` prints `1 file, 1 edit`, and `git diff` names
+  Greeter.java and that one line. A second run prints `0 files`, exit 0.
+- **Use case 4: one edit, not sixteen.** The bundle's `Engine.edits()`
+  returns one edit over the changed span since RFC 0001's `Fix all` fix, so
+  the "sixteen edits" this RFC counted are one. The file gains getName,
+  fluent setName returning `this`, getAge, setAge, isActive, getCount,
+  setCount in the file's 4-space indent. `--format json` writes nothing. With
+  nothing left to generate, exit 1.
+- **`setActive` on a `final` field.** `keepSetters`, the bundle's default,
+  writes a setter that cannot compile, as the editor's menu does with the
+  same default. That is RFC 0001's option (§4.1), which the engine passes
+  unchanged; changing the default is that RFC's call, not this one's.
+- **`ENGINE-OK` takes about 90 s**: each verb starts its own server (15–20 s
+  each). `mcp` (phase 5) keeps one server for a session.
+
+### Measured — phase 4, 2026-10-09
+
+- **The symbol form** `com.acme.core.Greeter#all` resolves through
+  `IJavaProject.findType` (sources only) and the type's methods and fields;
+  it returns the same three files as the position form (`SMOKE-OK`). An
+  unknown type or member is named (measured). An overloaded member is
+  refused as ambiguous with each signature, the position form being the way
+  out; the fixture has no overload, so that branch is written, not measured.
+- **`rename` through the command line**: a dry run touching nothing, then
+  `--write` printing `3 files, 3 edits`, i.e. Greeter.java and the two
+  callers in `app/`. `Greeter → Hello` is exit 1 with the bundle's sentence.
+- **The engine half now takes about 3 minutes**, eleven server starts, each
+  importing into a fresh `-data`. Phase 5's `mcp` keeps one server for a
+  session; it then owes `workspace/didChangeWatchedFiles` after its own
+  writes, which decision 36 avoided for single runs.
+
+### Measured — phase 5, 2026-10-09
+
+- **`ENGINE-MCP-OK`, one server for 16 s and seven calls**: `initialize`,
+  `tools/list`, a dry-run rename, the written rename, the reverse rename,
+  a written fix and an inspection. Five separate CLI runs would take about
+  100 s.
+- **`tools/list`** is the five tools; `java_rename` requires `symbol` and
+  `newName`, and `java_generate` requires `what`, `file` and `line`, the
+  CLI's positionals. The dry run's result is one `WorkspaceEdit` over
+  Greeter.java, Main.java and MainTest.java, each edit with `range` and
+  `newText`, and nothing on disk.
+
 ### Still open
 
-1. **`RenameSupport` versus JDT.LS's `RenameHandler`** for the delegate,
-   given that `org.eclipse.jdt.ls.core` exports unversioned (revision 4 of
-   RFC 0001): whichever compiles against the pinned jars with the fewest
-   internal imports. A spike in phase 1 answers it — a measurement, not a
-   choice to argue.
+None. The phases below are work, not questions.
 
 ---
 
@@ -769,10 +916,10 @@ engine/config.ts      .batlehub/java/project.json and inspections.json only, thr
 
 | Phase | Content |
 | --- | --- |
-| 0 | **The live editor as an MCP server, built first.** `packages/java-rules/verbs.ts` (the five tool schemas), `extensions/java-core/src/mcp/` (registration — open question 6's spike —, handlers over the running JDT.LS and the bridge, edits applied unsaved as one undo step, `report.ts` under the committed files), `batlehub.java.mcp.enabled`; `mcp.test.ts`; use cases 7 and 8 (editor side) in the `java` heavy half. No new process, no bundle change. Useful alone: an agent beside the editor has the rename, the fixes and the generators. |
-| 1 | `packages/java-rules` grows (move `discover`, `resolve`, `rules`, `redact`; both consumers green); `engine/launch.ts` from `smoke.mjs`, `task jdt:smoke` reduced to a caller; the `RenameSupport` spike (open question 2). Useful alone: the shared package is RFC 0001 phase 9's first half. |
-| 2 | `status`, `inspect` (text, json, sarif, `--fail-on`, `--profile`, `--print-profile`), `config --print`, `engine/config.ts`, `server.ts` with the cache and sha256, the declared cap and the cgroup check; `tests/heavy/engine.mjs` use cases 1 and 5 in the `check` job. Useful alone: the CI gate. |
-| 3 | `fix`, `generate accessors`, `apply.ts` with the guards; use cases 2 and 4. |
-| 4 | `batlehub.rename` in the bundle, `RenameTest`, the `rename` verb; use case 3's rename through the CLI. |
-| 5 | `mcp.ts` (stdio) over the same verbs table as phase 0, the schema property test, the stdio client in the heavy half; use case 3 as an MCP call; `.mcp.json` snippet in the guide. |
+| 0 | **Built** (revision 4, 2026-10-09). **The live editor as an MCP server, built first.** `packages/java-rules/verbs.ts` (the five tool schemas), `extensions/java-core/src/mcp/` (registration — open question 6's spike —, handlers over the running JDT.LS and the bridge, edits applied unsaved as one undo step, `report.ts` under the committed files), `batlehub.java.mcp.enabled`; `mcp.test.ts`; use cases 7 and 8 (editor side) in the `java` heavy half. No new process, no bundle change. Useful alone: an agent beside the editor has the rename, the fixes and the generators. |
+| 1 | **Built** (revision 5, 2026-10-09). `packages/java-rules` grows (move `discover`, `resolve`, `rules`, `redact`; both consumers green); `engine/launch.ts` from `smoke.mjs`, `task jdt:smoke` reduced to a caller; the `RenameSupport` spike (open question 2). Useful alone: the shared package is RFC 0001 phase 9's first half. |
+| 2 | **Built** (revision 6, 2026-10-09), but `--profile`, `--print-profile`, `config --print` and `engine/config.ts`, which wait for RFCs 0005 and 0006 (decision 31). `status`, `inspect` (text, json, sarif, `--fail-on`, `--profile`, `--print-profile`), `config --print`, `engine/config.ts`, `server.ts` with the cache and sha256, the declared cap and the cgroup check; `tests/heavy/engine.mjs` use cases 1 and 5 in the `check` job. Useful alone: the CI gate. |
+| 3 | **Built** (revision 7, 2026-10-09). `fix`, `generate accessors`, `apply.ts` with the guards; use cases 2 and 4. |
+| 4 | **Built** (revision 8, 2026-10-09). `batlehub.rename` in the bundle, `RenameTest`, the `rename` verb; use case 3's rename through the CLI. |
+| 5 | **Built** (revision 9, 2026-10-09). `mcp.ts` (stdio) over the same verbs table as phase 0, the schema property test, the stdio client in the heavy half; use case 3 as an MCP call; `.mcp.json` snippet in the guide. |
 | 6 | `batlehub java` in `batlehub-cli` (BatleHub repository, open question 1), `docs/guide/java/engine.md`, use case 6 in the `java` heavy half with the cap accounting (open question 5); RFC status → Implemented. |

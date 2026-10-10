@@ -10,7 +10,7 @@ import { applyEdits, modify, parse, type ParseError } from "jsonc-parser";
 import type { Core } from "../extension";
 import { log } from "../log";
 import { wire } from "../wire";
-import type { Row } from "./rules";
+import type { Row } from "@batlehub/java-rules/rules";
 
 export const CSPELL = "streetsidesoftware.code-spell-checker";
 export const CODE = "spelling/unknownWord";
