@@ -19,6 +19,11 @@ defaults. This table is checked against `package.json` by `task lint`
 | `batlehub.java.generate.booleanPrefix` | `is` | Generator option (JDT bundle) |
 | `batlehub.java.generate.fluentSetters` | `false` | Setters return `this` |
 | `batlehub.java.generate.finalFields` | `keepSetters` | `keepSetters` or `skipSetters` for final fields |
+| `batlehub.java.generate.builder.methodPrefix` | `with` | The builder's (and With methods') prefix: `with`, `set`, or empty for a bare `name(…)` |
+| `batlehub.java.generate.builder.placement` | `inner` | `inner` (static nested class) or `file` (`<Type>Builder.java` beside the type) |
+| `batlehub.java.generate.builder.lombok` | `offer` | Where Lombok is on the classpath: `offer` asks, `always` adds `@Builder` / `@With`, `never` generates code |
+| `batlehub.java.generate.withers.style` | `copy` | `copy` returns a new instance (records: the only form); `mutate` assigns and returns `this` |
+| `batlehub.java.generate.surroundWith.catchType` | `precise` | `precise` (the thrown checked types, when the project is resolved) or `Exception` |
 | `batlehub.java.completion.chain` | `auto` | Chained-call completion: `auto` (BatleHub's chains on every completion, ranked, `int`/`String` included), `shortcut` (the server's own, on Ctrl+Space), `off` |
 | `batlehub.java.completion.chainBudgetMs` | `150` | Time budget of one chain search (`auto`); `0` is the server's 3 s, below 30 is raised to 30 |
 | `batlehub.java.completion.chainMaxDepth` | `3` | Longest chain proposed, every segment counted (`config.getServer().getPort()` is 3) |

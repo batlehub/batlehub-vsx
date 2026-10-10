@@ -87,6 +87,37 @@ try {
   const all = edits.map((e) => e.newText).join("");
   if (!/getName\(\)/.test(all) || !/setAge\(int age\)/.test(all)) ok = false;
 
+  // RFC 0015 use case 7, first half: the builder and the withers, headless.
+  const builder = await request("workspace/executeCommand", { command: "batlehub.generate.builder", arguments: [params, JSON.stringify({ methodPrefix: "with", placement: "inner" })] });
+  const bText = (builder?.changes?.[uri(person)] ?? []).map((e) => e.newText).join("");
+  console.log(`batlehub.generate.builder(Person.java) → ${bText.length} chars${builder?.refused ? `, refused: ${builder.refused}` : ""}`);
+  if (!/public static final class Builder/.test(bText) || !/withName\(String name\)/.test(bText) || /withActive/.test(bText)) ok = false;
+  const withers = await request("workspace/executeCommand", { command: "batlehub.generate.withers", arguments: [params, JSON.stringify({ style: "copy" })] });
+  const wText = (withers?.changes?.[uri(person)] ?? []).map((e) => e.newText).join("");
+  console.log(`batlehub.generate.withers(Person.java, copy) → ${withers?.refused ?? wText.trim().split("\n")[0]}`);
+  // Person(String name, int age) takes every field a constructor can set (the initialized final is not one).
+  if (withers?.refused || !/return new Person\(name, this\.age\)/.test(wText)) ok = false;
+  if (!ping?.commands?.includes("batlehub.generate.builder")) ok = false;
+  // Use case 2 headless: the builder applied, a field added, the same command — only the new field.
+  const cust = path.join(ws, "core/src/main/java/com/acme/core/Customer.java");
+  const c0 = ["package com.acme.core;", "", "public class Customer {", "    private String name;", "    private final String id;", "", "    public String describe() {", "        return name + id;", "    }", "}", ""].join("\n");
+  notify("textDocument/didOpen", { textDocument: { uri: uri(cust), languageId: "java", version: 1, text: c0 } });
+  const cParams = { textDocument: { uri: uri(cust) }, range: { start: { line: 3, character: 4 }, end: { line: 3, character: 4 } }, context: { diagnostics: [] } };
+  const applyEdits = (text, edits) => {
+    const lines = text.split("\n");
+    const off = (p) => lines.slice(0, p.line).reduce((n, l) => n + l.length + 1, 0) + p.character;
+    for (const e of [...edits].sort((x, y) => off(y.range.start) - off(x.range.start))) text = text.slice(0, off(e.range.start)) + e.newText + text.slice(off(e.range.end));
+    return text;
+  };
+  const b1 = await request("workspace/executeCommand", { command: "batlehub.generate.builder", arguments: [cParams, JSON.stringify({})] });
+  const c1 = applyEdits(c0, b1?.changes?.[uri(cust)] ?? []).replace("    private final String id;\n", "    private final String id;\n    private String email;\n");
+  notify("textDocument/didChange", { textDocument: { uri: uri(cust), version: 2 }, contentChanges: [{ text: c1 }] });
+  const b2 = await request("workspace/executeCommand", { command: "batlehub.generate.builder", arguments: [cParams, JSON.stringify({})] });
+  const c2 = applyEdits(c1, b2?.changes?.[uri(cust)] ?? []);
+  const count = (re) => (c2.match(re) ?? []).length;
+  console.log(`batlehub.generate.builder re-run after a new field → withName ×${count(/withName\(/g)}, withEmail ×${count(/withEmail\(/g)}`);
+  if (count(/withName\(/g) !== 1 || count(/withEmail\(/g) !== 1) ok = false;
+
   // RFC 0012 use case 6: the chain delegate, on an unsaved Main.java (the
   // working copy is what the command reads). An `int` and a `String` — the two
   // expected types the stock computer refuses — reached from a field.
@@ -109,6 +140,16 @@ try {
   const localChains = await chains(5, local[5].length);
   console.log(`batlehub.completion.chain(local; int p0 = g|) → ${JSON.stringify(localChains)}`);
   if (localChains?.rows?.[0]?.label !== "config.getServer().getPort()") ok = false;
+
+  // RFC 0015 phase 2: surround-with on the working copy, bindings on — the
+  // catch names the checked exception the statement throws.
+  const sleepy = ["package com.acme.app;", "", "public class Main {", "    void m() {", "        Thread.sleep(1);", "        System.out.println(1);", "    }", "}", ""];
+  notify("textDocument/didChange", { textDocument: { uri: uri(main), version: 3 }, contentChanges: [{ text: sleepy.join("\n") }] });
+  const at = { line: 4, character: 10 };
+  const surrounded = await request("workspace/executeCommand", { command: "batlehub.generate.surroundWith", arguments: [uri(main), { start: at, end: at }, JSON.stringify({ construct: "tryCatch" })] });
+  const sText = (surrounded?.changes?.[uri(main)] ?? []).map((e) => e.newText).join("");
+  console.log(`batlehub.generate.surroundWith(Thread.sleep, tryCatch) → ${surrounded?.refused ?? (/catch \((\w+)/.exec(sText)?.[1] ?? "?")}${surrounded?.note ? ` (${surrounded.note})` : ""}`);
+  if (!/catch \(InterruptedException e\)/.test(sText) || surrounded?.note) ok = false;
 
 } catch (e) {
   ok = false;

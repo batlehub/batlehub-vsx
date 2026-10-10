@@ -14,4 +14,17 @@ server and a running build on **their largest real project**, against the
 
 ## Entries
 
-None yet.
+### 2026-10-10 — the generators they use (RFC 0015 §2.1)
+
+Relayed by the maintainer. The team uses **every generator** in this list:
+builder, `with…` methods, `equals`/`hashCode`, `toString()`, constructors,
+delegate methods (and getters/setters, already built). **Lombok is used in
+some projects, not all.** The options they expect are the ones named: the
+builder's placement (inner class or its own file), the naming of the
+`with…` methods (`with`, `set`, bare), and how `final` fields are treated.
+
+**Surround-with** (`Ctrl+Alt+T`: wrap a selection in `try`/`catch`, `if`,
+`for`…) is used too — confirmed by the maintainer the same day.
+
+Still owed from this team: the inspections they rely on (RFC 0016), and the
+peak-memory measurement on their largest project.

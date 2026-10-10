@@ -112,5 +112,13 @@
   "config.inspections.sonar": "`auto`: SonarLint's findings in Java files join the Inspections view (read, never re-emitted), and its language server is counted in the resource sum; without it, one row says it is missing. `off`: neither.",
   "config.inspections.sonar.estimatedCapMiB": "What SonarLint's language server is counted as in the resource sum when `sonarlint.ls.vmargs` names no `-Xmx` (measured: about 600 MiB on a small project; its own heap has no cap by default).",
   "cmd.sonar.install": "Install SonarLint",
-  "cmd.showEffectiveConfiguration": "Show effective configuration"
+  "cmd.showEffectiveConfiguration": "Show effective configuration",
+  "gen.builder": "Builder…",
+  "gen.withers": "With methods…",
+  "config.generate.builder.methodPrefix": "The builder's method prefix: `with` (`withName`), `set` (`setName`) or empty (`name`). The With methods… generator uses it too. Pre-selected in the quick input.",
+  "config.generate.builder.placement": "Where the builder goes: `inner` (a static nested class, which can call a private constructor) or `file` (`<Type>Builder.java` beside the type).",
+  "config.generate.builder.lombok": "Where Lombok is on the module's classpath: `offer` asks between `@Builder`/`@With` and generated code, `always` adds the annotation, `never` generates code. Lombok is never added to a project that does not use it.",
+  "config.generate.withers.style": "With methods: `copy` returns a new instance (the only form a record allows), `mutate` assigns and returns `this` (final fields skipped).",
+  "gen.surroundWith": "Surround with…",
+  "config.generate.surroundWith.catchType": "Surround with try/catch: `precise` catches the checked exceptions the statements throw (when the project is resolved; `Exception` otherwise), `Exception` always catches `Exception`."
 }

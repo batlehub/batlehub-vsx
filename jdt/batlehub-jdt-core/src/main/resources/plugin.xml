@@ -11,6 +11,9 @@
       <command id="batlehub.completion.chain"/>
       <command id="batlehub.rename"/>
       <command id="batlehub.refresh"/>
+      <command id="batlehub.generate.builder"/>
+      <command id="batlehub.generate.withers"/>
+      <command id="batlehub.generate.surroundWith"/>
     </delegateCommandHandler>
   </extension>
 </plugin>

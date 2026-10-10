@@ -9,7 +9,7 @@
 | Author      | Max Batleforc <maxleriche.60@gmail.com>                       |
 | Co-author   | —                                                             |
 | Created     | 2026-09-18                                                    |
-| Revised     | 2026-09-29 — revision 2, the three answerable questions of §11 promoted to decisions 8–10: the builder an inner static class so it can call a private constructor, `copy` built for records now and deleted when JEP 468 lands, and LightWeight mode disabled with its reason rather than given a second syntactic implementation. Rows 3–10 stay owed to Team A's diary |
+| Revised     | 2026-10-10 — revision 6, use case 3 proven in the real editor (`LOMBOK-OK`) on a new `orders` module of the fixture · 2026-10-10 — revision 5, phase 2 built: `Surround.java` (the range mapping, nine constructs, hoisting, the precise catch type with bindings — `Engine.parse(ICompilationUnit)`), `batlehub.java.surroundWith`, the `catchType` setting, ten golden files, `SMOKE-OK` (InterruptedException named), `SURROUND-OK` · 2026-10-10 — revision 4, phase 1 built: `Builders.java` and `Withers.java` (bundle 0.7.0) with nine golden files, the two Generate entries and `options.ts`, the Lombok step, `docs/guide/java/generate.md` (rather than `editing.md`, which is completion), `SMOKE-OK`, `SHORTCUTS-OK` · 2026-10-10 — revision 3, phase 0 done: Team A's answer (diary, 2026-10-10) fills §2.1 — builder and `with` methods are delegates of this RFC, `equals`/`hashCode`, `toString()`, constructors and delegate methods are already Red Hat's prompts in the Generate menu, getters/setters the bundle's accessors; Lombok is used in some projects, so the annotation step stays; open question 1 closed · 2026-09-29 — revision 2, the three answerable questions of §11 promoted to decisions 8–10: the builder an inner static class so it can call a private constructor, `copy` built for records now and deleted when JEP 468 lands, and LightWeight mode disabled with its reason rather than given a second syntactic implementation. Rows 3–10 stay owed to Team A's diary |
 | Supersedes  | —                                                             |
 | Depends on  | RFC 0001 (the bundle of §6.2, the Generate menu of §4.2, the mode gating of decision 36); RFC 0002 for the agent surface; RFC 0007 for the imported live templates this complements |
 | Touches     | `jdt/batlehub-jdt-core` (three delegates, `Builders.java`, `Withers.java`, `Surround.java`, golden files), `extensions/java-core` (`src/generate/menu.ts`, new `src/generate/options.ts`, settings), `packages/java-rules/verbs.ts` (three `kind`s of `java_generate`), `tests/heavy/java.mjs` (a `SHORTCUTS-OK` step), `jdt/smoke.mjs`, `docs/guide/java/editing.md` |
@@ -93,16 +93,16 @@ filled row that a snippet, a Red Hat command or an imported live template
 
 | # | Shortcut (in the team's words) | IDEA's name | Status | Answered by |
 | --- | --- | --- | --- | --- |
-| 1 | Builder class with `with…` methods | Generate ▸ Builder (the InnerBuilder plugin, for most teams) | **known** — named by Team A | `batlehub.generate.builder` (this RFC) |
-| 2 | Surround-with | Code ▸ Surround With (`Ctrl+Alt+T`) | **known** — Appendix A.8 | `batlehub.generate.surroundWith` (this RFC) |
-| 3 | — | — | *owed by Team A* | — |
-| 4 | — | — | *owed by Team A* | — |
-| 5 | — | — | *owed by Team A* | — |
-| 6 | — | — | *owed by Team A* | — |
-| 7 | — | — | *owed by Team A* | — |
-| 8 | — | — | *owed by Team A* | — |
-| 9 | — | — | *owed by Team A* | — |
-| 10 | — | — | *owed by Team A* | — |
+| 1 | Builder class with `with…` methods | Generate ▸ Builder (the InnerBuilder plugin, for most teams) | **delegate** — named by Team A | `batlehub.generate.builder` (this RFC, phase 1); placement `inner` and `file` both used, so both stay |
+| 2 | `with…` methods on an existing class | Generate ▸ Wither (a plugin) | **delegate** — named by Team A (2026-10-10) | `batlehub.generate.withers` (this RFC, phase 1), its own menu entry |
+| 3 | `equals()` / `hashCode()` | Generate ▸ equals() and hashCode() | **already covered** | Red Hat's `java.action.hashCodeEqualsPrompt`, in the core's Generate menu; its options are `java.codeGeneration.hashCodeEquals.*`; Lombok's `@EqualsAndHashCode` where the project uses it |
+| 4 | `toString()` | Generate ▸ toString() | **already covered** | Red Hat's `java.action.generateToStringPrompt`, in the Generate menu; options `java.codeGeneration.toString.*` |
+| 5 | Constructors | Generate ▸ Constructor | **already covered** | Red Hat's `java.action.generateConstructorsPrompt`, in the Generate menu |
+| 6 | Delegate methods | Generate ▸ Delegate Methods | **already covered** | Red Hat's `java.action.generateDelegateMethodsPrompt`, in the Generate menu |
+| 7 | Getters and setters, with options | Generate ▸ Getter and Setter | **built** (RFC 0001 phase 6) | `batlehub.generate.accessors`: prefixes, fluent setters, `final` fields kept or skipped |
+| 8 | Surround-with | Code ▸ Surround With (`Ctrl+Alt+T`) | **delegate** — Appendix A.8, confirmed by Team A (2026-10-10) | `batlehub.generate.surroundWith` (this RFC, phase 2) |
+| 9 | — | — | **closed: not named** | Team A named no other generator (2026-10-10) |
+| 10 | — | — | **closed: not named** | — |
 
 `with…` methods on an existing class (row 1's second half, IDEA's "wither")
 are designed here as `batlehub.generate.withers` because the builder needs
@@ -517,12 +517,11 @@ JDT.LS, starts no process, and its write is an unsaved edit.
 | 9 | `with` on records? | **A `copy` generator now** — forty lines — deleted the day JEP 468's derived record creation is final on the team's JDK. Withers returning copies are the only form a record allows, and forty lines is cheaper than the wait. |
 | 10 | LightWeight mode? | **Disabled with the reason and the switch offer**, as decision 36 of RFC 0001 does for every delegate. The generators are syntactic in principle, but a fallback outside the bundle is a second implementation of each; RFC 0018 (parked) is the only place a pre-index tier is discussed at all. |
 
+| 11 | Rows 3–10 of §2.1 (was open question 1) | **Filled from Team A's diary entry of 2026-10-10.** Two new delegates (builder, withers), four rows closed as Red Hat's prompts already in the Generate menu, getters/setters already built; Lombok confirmed as *sometimes*, so decision 5's annotation step is kept. |
+
 ### Still open
 
-1. **Rows 3–10 of §2.1.** Owed, and owed by Team A's diary
-   (`docs/diary/team-a.md`) rather than by this document: the list is taken
-   from what a team leaving IntelliJ reaches for, not guessed here. The RFC
-   leaves Draft when the table has no *owed* cell.
+None at this revision.
 
 ---
 
@@ -530,8 +529,8 @@ JDT.LS, starts no process, and its write is an unsaved edit.
 
 | Phase | Content |
 | --- | --- |
-| 0 | Team A fills §2.1 in `docs/diary/team-a.md`; each row is classified — delegate, already covered (and by what), or refused with a reason. No code. Open questions 1 and 4 close here. |
-| 1 | `Builders.java` + `Withers.java`, their golden files, the two menu entries and `options.ts`, the Lombok step, `SHORTCUTS-OK` use cases 1–3, the smoke. Useful alone: it is the named example. |
-| 2 | `Surround.java` with the range mapping and the constructs, `batlehub.java.surroundWith`, use cases 5–6; bindings through `Engine.parse` if RFC 0012 phase 2 has landed it, syntactic-only otherwise. |
+| 0 | **Done** (revision 3, 2026-10-10). Team A's diary entry fills §2.1; each row classified (decision 11). |
+| 1 | **Built** (revision 4, 2026-10-10). `Builders.java` + `Withers.java` (inner and own-file builder, re-run adds only what is missing, copy and mutate withers, `@Builder`/`@With`), `GeneratorsTest` with nine golden files; the two Generate entries, `options.ts`, the Lombok step; the smoke; `SHORTCUTS-OK` for use cases 1–2. Found while building: a `final` field with an initializer is left out of builders and copies (assigning it would not compile); Eclipse's formatter defaults now reach every rewrite, so new members get their blank lines. Use case 3 in the real editor too (`LOMBOK-OK`, revision 6): `maven-multi` gained an `orders` module depending on Lombok 1.18.38 (`provided`), with no source of its own so every count on the fixture stays. |
+| 2 | **Built** (revision 5, 2026-10-10). `Surround.java`: the selection → statement-range mapping, `if`, `if/else`, `while`, `for`, `try/catch`, `try/finally`, `try-with-resources`, `synchronized`, `Runnable`; locals used after the range hoisted (or refused with `var`); the precise catch type through `Engine.parse(ICompilationUnit)` with bindings, `Exception` and a note without. `batlehub.java.surroundWith`; `SurroundTest` with ten golden files; the smoke names `InterruptedException`; `SURROUND-OK` for use cases 5–6. Found while building: a one-statement move is a replace in `ListRewrite`, which undid that statement's hoisting — its body is written as text instead. The cursor is not placed in the catch body (the edit is an LSP `WorkspaceEdit`, which carries no selection). |
 | 3 | Whatever rows 3–10 classified as *delegate*, one handler case and one golden set each; the guide's shortcut table. |
 | 4 | With RFC 0002: the three `kind`s in `verbs.ts` and the live-editor half of use case 7. |

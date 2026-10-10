@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!-- The Maven fixture of RFC 0001 §10: two modules, a main class, JUnit, the
-     accessor class, and a profile-only dependency for decision 14 (spike a). -->
+     accessor class, and a profile-only dependency for decision 14 (spike a);
+     a third module, `orders`, depends on Lombok (RFC 0015 use case 3). -->
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
   <modelVersion>4.0.0</modelVersion>
@@ -18,6 +19,7 @@
   <modules>
     <module>core</module>
     <module>app</module>
+    <module>orders</module>
   </modules>
 
   <dependencyManagement>

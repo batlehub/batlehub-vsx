@@ -152,6 +152,58 @@
           "markdownDescription": "%config.generate.finalFields%",
           "scope": "resource"
         },
+        "batlehub.java.generate.builder.methodPrefix": {
+          "type": "string",
+          "enum": [
+            "with",
+            "set",
+            ""
+          ],
+          "default": "with",
+          "markdownDescription": "%config.generate.builder.methodPrefix%",
+          "scope": "resource"
+        },
+        "batlehub.java.generate.builder.placement": {
+          "type": "string",
+          "enum": [
+            "inner",
+            "file"
+          ],
+          "default": "inner",
+          "markdownDescription": "%config.generate.builder.placement%",
+          "scope": "resource"
+        },
+        "batlehub.java.generate.builder.lombok": {
+          "type": "string",
+          "enum": [
+            "offer",
+            "always",
+            "never"
+          ],
+          "default": "offer",
+          "markdownDescription": "%config.generate.builder.lombok%",
+          "scope": "resource"
+        },
+        "batlehub.java.generate.withers.style": {
+          "type": "string",
+          "enum": [
+            "copy",
+            "mutate"
+          ],
+          "default": "copy",
+          "markdownDescription": "%config.generate.withers.style%",
+          "scope": "resource"
+        },
+        "batlehub.java.generate.surroundWith.catchType": {
+          "type": "string",
+          "enum": [
+            "precise",
+            "Exception"
+          ],
+          "default": "precise",
+          "markdownDescription": "%config.generate.surroundWith.catchType%",
+          "scope": "resource"
+        },
         "batlehub.java.report.url": {
           "type": "string",
           "default": "",
@@ -451,6 +503,21 @@
         "category": "Java"
       },
       {
+        "command": "batlehub.java.surroundWith",
+        "title": "%gen.surroundWith%",
+        "category": "Java"
+      },
+      {
+        "command": "batlehub.java.generate.builder",
+        "title": "%gen.builder%",
+        "category": "Java"
+      },
+      {
+        "command": "batlehub.java.generate.withers",
+        "title": "%gen.withers%",
+        "category": "Java"
+      },
+      {
         "command": "batlehub.java.generate.constructors",
         "title": "%gen.constructors%",
         "category": "Java"
@@ -670,6 +737,18 @@
           "when": "editorLangId == java"
         },
         {
+          "command": "batlehub.java.generate.builder",
+          "when": "editorLangId == java && batlehub.java.shortcuts"
+        },
+        {
+          "command": "batlehub.java.surroundWith",
+          "when": "editorLangId == java && batlehub.java.shortcuts"
+        },
+        {
+          "command": "batlehub.java.generate.withers",
+          "when": "editorLangId == java && batlehub.java.shortcuts"
+        },
+        {
           "command": "batlehub.java.generate.constructors",
           "when": "editorLangId == java"
         },
@@ -799,6 +878,21 @@
           "command": "batlehub.java.generate.constructors",
           "group": "2_members@3",
           "when": "batlehub.java.standard"
+        },
+        {
+          "command": "batlehub.java.generate.builder",
+          "group": "3_shortcuts@0",
+          "when": "batlehub.java.standard && batlehub.java.shortcuts"
+        },
+        {
+          "command": "batlehub.java.generate.withers",
+          "group": "3_shortcuts@1",
+          "when": "batlehub.java.standard && batlehub.java.shortcuts"
+        },
+        {
+          "command": "batlehub.java.surroundWith",
+          "group": "3_shortcuts@2",
+          "when": "batlehub.java.standard && batlehub.java.shortcuts"
         },
         {
           "command": "batlehub.java.generate.toString",

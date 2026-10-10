@@ -34,6 +34,10 @@ import {
 
 export const PROFILE = ".batlehub/java/inspections.json";
 
+/** The running bridge, for the Java panel's inspections line (RFC 0005 §6.2), and when its profile state changes. */
+export let current: Bridge | undefined;
+export const profileChanged = new vscode.EventEmitter<void>();
+
 const SOURCE = "batlehub";
 
 export class Bridge implements vscode.Disposable {
@@ -110,6 +114,13 @@ export class Bridge implements vscode.Disposable {
       "batlehub.java.bundle",
       decision === "loaded",
     );
+    // RFC 0015: the builder and withers entries, shown when the bundle has them.
+    void vscode.commands.executeCommand(
+      "setContext",
+      "batlehub.java.shortcuts",
+      decision === "loaded" &&
+        !!commands?.includes("batlehub.generate.builder"),
+    );
     if (decision === "restart-offered") {
       this.offeredRestart = true;
       const restart = vscode.l10n.t("Restart the Java language server");
@@ -170,6 +181,7 @@ export class Bridge implements vscode.Disposable {
       }
     }
     this.changed.fire();
+    profileChanged.fire();
     for (const d of vscode.workspace.textDocuments) this.schedule(d, 0);
   }
 
@@ -316,6 +328,7 @@ const SEVERITY: Record<
 
 wire((c: Core) => {
   const bridge = new Bridge(c);
+  current = bridge;
   const view = new InspectionsView(bridge);
   const tree = vscode.window.createTreeView("batlehub.java.inspections", {
     treeDataProvider: view,

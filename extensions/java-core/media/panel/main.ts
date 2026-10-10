@@ -62,6 +62,7 @@ type State = {
   profiles: { declared: string[]; active: string[] };
   experimental: Record<string, boolean>;
   chainNotice: boolean;
+  inspections: { profile: boolean; errors: number; differs: number };
   project: {
     origins: Record<string, string>;
     problems: { jdk: number; build: number; profiles: number };
@@ -150,6 +151,10 @@ ${b.mavenConfigurations.length ? `<table aria-label="Maven configurations"><thea
 <section aria-labelledby="h-reg"><h2 id="h-reg">BatleHub registry link ${origin(b.registry.origin)}</h2>
 <div class="field"><label for="reg">Route the build through BatleHub</label><select id="reg" data-set="registry.enabled"><option value="ask" ${b.registry.enabled === "ask" ? "selected" : ""}>ask</option><option value="true" ${b.registry.enabled === "true" ? "selected" : ""}>yes</option><option value="false" ${b.registry.enabled === "false" ? "selected" : ""}>no</option></select>${teamOrigin(s, "registry.enabled")}</div>
 <div class="field"><label for="regurl">Registry URL</label><input id="regurl" data-set-text="registry.url" value="${esc(b.registry.url)}" placeholder="empty: the one batlehub-vsx is signed into"></div>
+</section>
+<section aria-labelledby="h-insp"><h2 id="h-insp">Inspections</h2>
+<p>${s.inspections.profile ? `Team profile: <code>.batlehub/java/inspections.json</code>${s.inspections.errors ? ` · <span class="warn">${s.inspections.errors} error${s.inspections.errors > 1 ? "s" : ""}</span>` : ""}${s.inspections.differs ? ` · <span class="warn">${s.inspections.differs} rule${s.inspections.differs > 1 ? "s differ" : " differs"} from project</span>` : ""}` : `No team profile — each rule at its default level. <span class="muted">Java: Save as project profile writes your overrides as one.</span>`}</p>
+<div class="row"><button data-cmd="batlehub.java.inspections.focus">Open the Inspections view</button></div>
 </section>
 <section aria-labelledby="h-stock"><h2 id="h-stock">Stock Java extensions</h2>
 ${b.stock.length ? `<ul>${b.stock.map((x) => `<li>${esc(x.name)} — ${x.quiet ? `quieted <button data-restore="${esc(x.id)}">Put back</button>` : `<button data-quiet="${esc(x.id)}">Quiet its duplicates</button>`}</li>`).join("")}</ul>` : `<p class="muted">None installed.</p>`}

@@ -44,3 +44,6 @@ graphify-out/
 tests/heavy/fixtures/**/.gradle/
 tests/heavy/fixtures/**/build/
 tests/heavy/fixtures/**/target/
+
+# The working todo; personal, never committed
+todo.md

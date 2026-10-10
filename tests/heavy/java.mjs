@@ -867,6 +867,158 @@ try {
   const personAfter = await editorText(page);
   await snap(page, "generate");
   emit({ phase: "generate", generated: /getName\(\)/.test(personAfter) && /setAge\(/.test(personAfter), pickerRows: picker.rows.slice(0, 4) });
+
+  // 10a. RFC 0015 phase 1, use cases 1–2: Generate ▸ Builder… through the
+  // quick input (fields, prefix, placement — Enter keeps each default), on a
+  // class written for the step; one undo takes it all back; a re-run after a
+  // new field adds only that field. No Lombok here: the step is not shown.
+  {
+    const CUSTOMER = path.join(WS, "core", "src", "main", "java", "com", "acme", "core", "Customer.java");
+    const original = ["package com.acme.core;", "", "public class Customer {", "    private String name;", "    private int age;", "    private final String id;", "", "    public String describe() {", "        return name + \" \" + age + \" \" + id;", "    }", "}", ""].join("\n");
+    writeFileSync(CUSTOMER, original);
+    await sleep(3000);
+    const builderRun = async (done = /class Builder/) => {
+      await openFile(page, "Customer.java");
+      await sleep(1500);
+      await chord(page, "Control", "g");
+      await sleep(300);
+      await page.keyboard.type("4:5");
+      await page.keyboard.press("Enter");
+      await sleep(300);
+      await runCommand(page, "Java: Builder…");
+      for (let i = 0; i < 3; i++) {
+        await sleep(1500);
+        await page.keyboard.press("Enter");
+      }
+      await sleep(2500);
+      await chord(page, "Control", "s");
+      return (await settle(async () => readIfPresent(CUSTOMER), (t) => t !== null && done.test(t), 20000, 1000)).value ?? "";
+    };
+    const generated = await builderRun();
+    // Errors under Customer.java's header row only (Person.java keeps the GENERATE step's own).
+    const customerErrors = async () => {
+      await problems(page);
+      return page
+        .$$eval(".markers-panel .monaco-list-row", (els) => {
+          let file = "";
+          const out = [];
+          for (const e of els) {
+            const t = e.innerText.replace(/\s+/g, " ").trim();
+            if (!e.querySelector(".codicon-error, .codicon-warning, .codicon-info")) file = t;
+            else if (e.querySelector(".codicon-error") && file.startsWith("Customer.java")) out.push(t);
+          }
+          return out;
+        })
+        .catch(() => []);
+    };
+    const errors = await settle(customerErrors, (r) => r.length === 0, 15000, 2000);
+    await snap(page, "shortcuts-builder");
+    // One undo takes the whole edit back.
+    await openFile(page, "Customer.java");
+    await chord(page, "Control", "z");
+    await sleep(800);
+    await chord(page, "Control", "s");
+    const undone = (await settle(async () => readIfPresent(CUSTOMER), (t) => t === original, 10000, 1000)).value;
+    // Use case 2, the way a developer does it: the builder again, a field
+    // typed below `id`, the same command — only the new field is added.
+    await builderRun();
+    await openFile(page, "Customer.java");
+    const idLine = (readIfPresent(CUSTOMER) ?? "").split("\n").findIndex((l) => l.includes("private final String id;")) + 1;
+    await chord(page, "Control", "g");
+    await sleep(300);
+    await page.keyboard.type(`${idLine}`);
+    await page.keyboard.press("Enter");
+    await sleep(300);
+    await page.keyboard.press("End");
+    await page.keyboard.press("Enter");
+    await page.keyboard.type("private String email;");
+    await sleep(2000);
+    const rerun = await builderRun(/withEmail\(/);
+    // RFC 0015 phase 2, use cases 5–6: Surround with… on a selection that
+    // starts mid-statement and ends before the third's semicolon; then a
+    // `var` local used below the selection, refused, the file unchanged.
+    const STEPS = path.join(WS, "app", "src", "main", "java", "com", "acme", "app", "Steps.java");
+    const steps = ["package com.acme.app;", "", "public class Steps {", "    void run() {", "        int a = 1; // first", "        System.out.println(a);", "        int b = a + 1;", "        System.out.println(b);", "    }", "", "    static void later() {", "        var v = 1;", "        System.out.println(v);", "    }", "}", ""].join("\n");
+    writeFileSync(STEPS, steps);
+    await sleep(3000);
+    const surround = async (line, col, shiftDown, shiftEnd, construct) => {
+      await openFile(page, "Steps.java");
+      await sleep(1500);
+      await chord(page, "Control", "g");
+      await sleep(300);
+      await page.keyboard.type(`${line}:${col}`);
+      await page.keyboard.press("Enter");
+      await sleep(300);
+      await page.keyboard.down("Shift");
+      for (let i = 0; i < shiftDown; i++) await page.keyboard.press("ArrowDown");
+      if (shiftEnd) {
+        await page.keyboard.press("End");
+        await page.keyboard.press("ArrowLeft");
+      }
+      await page.keyboard.up("Shift");
+      await runCommand(page, "Java: Surround with…");
+      await sleep(1200);
+      await page.keyboard.type(construct);
+      await sleep(600);
+      await page.keyboard.press("Enter");
+      await sleep(2500);
+    };
+    await surround(5, 13, 2, true, "try / catch");
+    await chord(page, "Control", "s");
+    const wrapped = (await settle(async () => readIfPresent(STEPS), (t) => /try \{/.test(t ?? ""), 15000, 1000)).value ?? "";
+    await snap(page, "shortcuts-surround");
+    // The first surround moved everything below it: find `var v` where it is now.
+    const vLine = (readIfPresent(STEPS) ?? "").split("\n").findIndex((l) => l.includes("var v = 1;")) + 1;
+    await surround(vLine, 9, 0, true, "try / catch");
+    const refusal = (await notifications(page)).find((n) => /is used after the selection/.test(n)) ?? null;
+    await chord(page, "Control", "s");
+    await sleep(1000);
+    const later = readIfPresent(STEPS) ?? "";
+    await runCommand(page, "View: Close All Editors");
+    await dismissDialogs(page, /^(Don't Save|Do not save)/);
+    rmSync(STEPS, { force: true });
+
+    // Use case 3: in the `orders` module, which depends on Lombok, the first
+    // step offers @Builder (Lombok), pre-selected; Enter takes it — the
+    // annotation and its import, nothing else. (Customer, in `core`, never
+    // saw the step: its three Enters were fields, names and placement.)
+    const ORDER = path.join(WS, "orders", "src", "main", "java", "com", "acme", "orders", "Order.java");
+    mkdirSync(path.dirname(ORDER), { recursive: true });
+    writeFileSync(ORDER, ["package com.acme.orders;", "", "public class Order {", "    private String reference;", "    private int quantity;", "", "    public String describe() {", "        return reference + quantity;", "    }", "}", ""].join("\n"));
+    await sleep(4000);
+    await openFile(page, "Order.java");
+    await sleep(1500);
+    await chord(page, "Control", "g");
+    await sleep(300);
+    await page.keyboard.type("4:5");
+    await page.keyboard.press("Enter");
+    await sleep(300);
+    await runCommand(page, "Java: Builder…");
+    await sleep(2500);
+    const lombokStep = await page.$$eval(".quick-input-list .monaco-list-row", (els) => els.map((e) => e.innerText.replace(/\s+/g, " ").trim())).catch(() => []);
+    await page.keyboard.press("Enter");
+    await sleep(2500);
+    await chord(page, "Control", "s");
+    const lombokText = (await settle(async () => readIfPresent(ORDER), (t) => /@Builder/.test(t ?? ""), 15000, 1000)).value ?? "";
+    await snap(page, "shortcuts-lombok");
+    await runCommand(page, "View: Close All Editors");
+    await dismissDialogs(page, /^(Don't Save|Do not save)/);
+    rmSync(path.join(WS, "orders", "src"), { recursive: true, force: true });
+
+    emit({
+      phase: "shortcuts",
+      generated,
+      errors: errors.value ?? [],
+      undone: undone === original,
+      rerun: { withName: (rerun.match(/withName\(/g) ?? []).length, withEmail: (rerun.match(/withEmail\(/g) ?? []).length, emailAssigned: /this\.email = b\.email;/.test(rerun) },
+      lombok: { step: lombokStep, text: lombokText },
+      surround: { wrapped, refusal, laterUnchanged: later.includes("        var v = 1;\n        System.out.println(v);") && !/try/.test(later.slice(later.indexOf("later()"))) },
+    });
+    await runCommand(page, "View: Close All Editors");
+    await dismissDialogs(page, /^(Don't Save|Do not save)/);
+    rmSync(CUSTOMER, { force: true });
+    await sleep(1500);
+  }
   await runCommand(page, "File: Revert File");
   await sleep(500);
 
@@ -1073,7 +1225,17 @@ try {
     const overridden = await settle(async () => (await problems(page), await severityRows()), (r) => r.some((x) => /batlehub style\/redundantThis/.test(x)), 30000, 2000);
     const pane2 = await settle(inspectionsPane, (t) => /differs from project/.test(t), 30000, 2000);
     await snap(page, "profile-override");
-    emit({ phase: "profileOverride", problems: (overridden.value ?? []).filter((r) => /batlehub/.test(r)), pane: pane2.value ?? "", profileUnchanged: !readIfPresent(PROFILE)?.includes("warning") });
+    // The Java panel's inspections line counts it too (use case 3).
+    await clickActivity(page, "Java");
+    await sleep(1500);
+    const jf = await panelFrame(page);
+    let panelLine = "";
+    if (jf) {
+      await jf.click('[data-tab="build"]').catch(() => {});
+      await sleep(800);
+      panelLine = await jf.$eval("#panel-build", (e) => e.innerText.replace(/\s+/g, " ")).catch(() => "");
+    }
+    emit({ phase: "profileOverride", problems: (overridden.value ?? []).filter((r) => /batlehub/.test(r)), pane: pane2.value ?? "", panelLine, profileUnchanged: !readIfPresent(PROFILE)?.includes("warning") });
 
     // Use case 6: no profile, two overrides, `Save as project profile` — the
     // file the team reviews, invalid until someone writes the why.

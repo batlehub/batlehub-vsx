@@ -9,6 +9,7 @@ import { appliedProject } from "./project/config";
 import type { JdkSource } from "./api-types";
 import type { InstallVia } from "./jdk/install";
 import type { Level } from "@batlehub/java-rules/redact";
+import { SHORTCUT_DEFAULTS, type ShortcutSettings } from "./generate/options";
 
 export interface MavenConfiguration {
   name: string;
@@ -44,6 +45,7 @@ export interface Settings {
     fluentSetters: boolean;
     finalFields: "keepSetters" | "skipSetters";
   };
+  shortcuts: ShortcutSettings;
   inspections: { enabled: boolean; severityOverrides: Record<string, string> };
   completion: {
     chain: "auto" | "shortcut" | "off";
@@ -132,6 +134,25 @@ export function readSettings(scope?: vscode.ConfigurationScope): Settings {
       finalFields:
         c.get<"keepSetters" | "skipSetters">("generate.finalFields") ??
         "keepSetters",
+    },
+    shortcuts: {
+      methodPrefix:
+        c.get<ShortcutSettings["methodPrefix"]>(
+          "generate.builder.methodPrefix",
+        ) ?? SHORTCUT_DEFAULTS.methodPrefix,
+      placement:
+        c.get<ShortcutSettings["placement"]>("generate.builder.placement") ??
+        SHORTCUT_DEFAULTS.placement,
+      lombok:
+        c.get<ShortcutSettings["lombok"]>("generate.builder.lombok") ??
+        SHORTCUT_DEFAULTS.lombok,
+      withersStyle:
+        c.get<ShortcutSettings["withersStyle"]>("generate.withers.style") ??
+        SHORTCUT_DEFAULTS.withersStyle,
+      catchType:
+        c.get<ShortcutSettings["catchType"]>(
+          "generate.surroundWith.catchType",
+        ) ?? SHORTCUT_DEFAULTS.catchType,
     },
     inspections: {
       enabled: c.get<boolean>("inspections.enabled") ?? true,

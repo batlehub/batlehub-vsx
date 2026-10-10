@@ -29,6 +29,16 @@ public final class Engine {
     return out;
   }
 
+  /** The working copy with bindings (RFC 0015 §6.1): what JDT.LS has resolved, recovered where it could not. */
+  public static CompilationUnit parse(org.eclipse.jdt.core.ICompilationUnit unit) {
+    ASTParser parser = ASTParser.newParser(AST.getJLSLatest());
+    parser.setKind(ASTParser.K_COMPILATION_UNIT);
+    parser.setSource(unit);
+    parser.setResolveBindings(true);
+    parser.setBindingsRecovery(true);
+    return (CompilationUnit) parser.createAST(null);
+  }
+
   public static CompilationUnit parse(String source) {
     ASTParser parser = ASTParser.newParser(AST.getJLSLatest());
     parser.setKind(ASTParser.K_COMPILATION_UNIT);
@@ -50,7 +60,8 @@ public final class Engine {
 
   /** Indentation read off the file itself: the first indented line decides tab or N spaces. */
   public static Map<String, String> options(String source) {
-    Map<String, String> o = new java.util.HashMap<>();
+    // Eclipse's formatter defaults (a blank line before each new method, …), then the file's own indentation.
+    Map<String, String> o = new java.util.HashMap<>(org.eclipse.jdt.core.formatter.DefaultCodeFormatterConstants.getEclipseDefaultSettings());
     JavaCore.setComplianceOptions(JavaCore.VERSION_21, o);
     java.util.regex.Matcher m = java.util.regex.Pattern.compile("(?m)^( +|\\t)\\S").matcher(source);
     String indent = m.find() ? m.group(1) : "\t";

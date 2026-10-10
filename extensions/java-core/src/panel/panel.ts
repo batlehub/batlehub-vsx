@@ -33,6 +33,7 @@ import {
   type ProjectValues,
 } from "@batlehub/java-rules/project-config";
 import { buildOf, requiredOf } from "../detect";
+import { current as inspections, profileChanged } from "../inspections/bridge";
 import {
   effectiveConfiguration,
   PROJECT_FILE,
@@ -116,6 +117,8 @@ export interface PanelState {
    * array it obviously wants to be.
    */
   chainNotice: boolean;
+  /** RFC 0005 §6.2: the team's inspection profile, and how many rules the developer's overrides take from it. */
+  inspections: { profile: boolean; errors: number; differs: number };
   /** RFC 0006 §6.4: who set each key, project.json's problems per tab. */
   project: {
     origins: Partial<Record<ProjectKey, string>>;
@@ -306,6 +309,13 @@ export class JavaPanel
       experimental: s.experimental,
       chainNotice: chainNotice(this.core.context),
       project: { origins, problems },
+      inspections: {
+        profile: !!inspections?.profile,
+        errors: (inspections?.profile?.problems ?? []).filter(
+          (p) => p.severity !== "info",
+        ).length,
+        differs: inspections?.differs().length ?? 0,
+      },
       tabs,
     };
   }
@@ -450,6 +460,7 @@ export function registerPanel(core: Core): vscode.Disposable[] {
       webviewOptions: { retainContextWhenHidden: true },
     }),
     core.onDidDetect(() => void panel.push()),
+    profileChanged.event(() => void panel.push()),
     core.onDidChangeProcesses(() => void panel.push()),
     core.server.onDidChange(() => void panel.push()),
     core.registries.onDidChange.event(() => void panel.push()),

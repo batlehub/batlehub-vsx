@@ -72,6 +72,11 @@ final class Rename {
   }
 
   static WorkspaceEdit at(String uri, int line, int character, String newName, IProgressMonitor monitor) throws JavaModelException {
+    // Every open buffer reconciled first: JDT refuses a rename on a unit whose
+    // structure is unknown, and a buffer typed into just before the call (an
+    // agent beside a developer) can be left at the state of a mid-typing
+    // reconcile — "syntax errors in the compilation unit" with none on screen.
+    for (ICompilationUnit wc : JavaCore.getWorkingCopies(null)) wc.reconcile(ICompilationUnit.NO_AST, false, null, monitor);
     ICompilationUnit cu = JDTUtils.resolveCompilationUnit(uri);
     if (cu == null) throw new IllegalArgumentException("batlehub: not a Java compilation unit: " + uri);
     IType primary = cu.findPrimaryType();

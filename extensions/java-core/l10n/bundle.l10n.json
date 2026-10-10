@@ -146,5 +146,22 @@
   "BatleHub Java now ignores only .batlehub/java/local/, so the team's files there can be committed. These would become visible to git: {0}": "BatleHub Java now ignores only .batlehub/java/local/, so the team's files there can be committed. These would become visible to git: {0}",
   "Use it": "Use it",
   "Keep mine": "Keep mine",
-  "Java: this repository selects {0} for Maven (yours: {1}): the credentials in that file will be used.": "Java: this repository selects {0} for Maven (yours: {1}): the credentials in that file will be used."
+  "Java: this repository selects {0} for Maven (yours: {1}): the credentials in that file will be used.": "Java: this repository selects {0} for Maven (yours: {1}): the credentials in that file will be used.",
+  "Java: Lombok is on this module's classpath": "Java: Lombok is on this module's classpath",
+  "Generated code": "Generated code",
+  "Java: fields": "Java: fields",
+  "Java: method names": "Java: method names",
+  "Java: where the builder goes": "Java: where the builder goes",
+  "Inner class": "Inner class",
+  "can call a private constructor": "can call a private constructor",
+  "Its own file": "Its own file",
+  "Java: what a with method does": "Java: what a with method does",
+  "Return a copy": "Return a copy",
+  "records: the only form": "records: the only form",
+  "Set and return this": "Set and return this",
+  "final fields skipped": "final fields skipped",
+  "Generate a constructor": "Generate a constructor",
+  "Java: the BatleHub JDT bundle is not loaded, and this generator has no Red Hat equivalent: restart the language server.": "Java: the BatleHub JDT bundle is not loaded, and this generator has no Red Hat equivalent: restart the language server.",
+  "surround with": "surround with",
+  "Java: surround with": "Java: surround with"
 }
