@@ -271,6 +271,7 @@ export class MavenProvider implements BuildToolProvider {
     const modules = readModules(folder.uri.fsPath);
     const walk = (ms: Module[]): Module[] =>
       ms.flatMap((m) => [m, ...walk(m.children)]);
+    let changed = false;
     for (const m of walk(modules)) {
       const prefs = path.join(
         m.root,
@@ -284,12 +285,15 @@ export class MavenProvider implements BuildToolProvider {
         before = undefined;
       }
       if (activeProfilesOf(before).join(",") === profiles.join(",")) continue;
+      changed = true;
       // m2e's preference file is shared with the language server and with any
       // other window on this workspace: one writer at a time (§4.2).
       await withLock(prefs, () =>
         writeOwnedFile(prefs, setActiveProfiles(before, profiles)),
       );
     }
+    // Nothing to write and no overlay asked: no re-import either.
+    if (!changed && !overlay) return;
     log.info(
       `activeProfiles=${profiles.join(",")} written to ${walk(modules).length} module(s)' .settings/org.eclipse.m2e.core.prefs`,
       "Maven",

@@ -115,6 +115,15 @@ fail() {
   exit 1
 }
 fetch() { curl -fsSL --proto '=https' --proto-redir '=https' "$@"; }
+# The JDT bundle java-core carries (`javaExtensions`), built before any half
+# packages java-core — a CI job runs one half alone, and a jar the manifest
+# names but the VSIX lacks breaks JDT.LS's bundle loading for every extension.
+jdt_bundle() {
+  [[ -s "$REPO/extensions/java-core/jdt/batlehub-jdt-core.jar" ]] && return
+  log "Building the JDT bundle (task jdt:deps, jdt:build)"
+  (cd "$REPO" && task jdt:deps >>"$HEAVY_WORK/package.log" 2>&1 && task jdt:build >>"$HEAVY_WORK/package.log" 2>&1) \
+    || { tail -20 "$HEAVY_WORK/package.log" >&2; fail "the JDT bundle build failed"; }
+}
 
 PIDS=()
 PRODUCT_JSON=""
@@ -389,6 +398,7 @@ fi
 # ── 5b. Registry link: batlehub-vsx hands the token to java-core ─────────
 if [[ "$ONLY" == "all" || "$ONLY" == "registry" ]]; then
   log "Registry half: batlehub-vsx (BATLEHUB_TOKEN) + java-core, registry link → $HEAVY_BASE/proxy/mvn-$HEAVY_RUN/maven2"
+  jdt_bundle
   (cd "$REPO/extensions/java-core" && pnpm run package >>"$HEAVY_WORK/package.log" 2>&1) || fail "packaging java-core failed"
   JAVA_CORE_VSIX="$REPO/extensions/java-core/java-core.vsix"
   REDHAT_VSIX="$HEAVY_CACHE/redhat.java-$REDHAT_JAVA_VERSION.vsix"
@@ -433,15 +443,6 @@ if [[ "$ONLY" == "all" || "$ONLY" == "registry" ]]; then
   log "MAVEN-OK (mvn resolved commons-lang3 through $MVN_REG with the settings.xml the core wrote: _remote.repositories says 'batlehub' served it; anonymous reads are refused, so the bearer header was used)"
   log "REGISTRY-LINK-OK"
 fi
-
-# The JDT bundle java-core carries (`javaExtensions`): a half whose proof
-# reads the bundle's rows builds it first — a CI job runs one half alone.
-jdt_bundle() {
-  [[ -s "$REPO/extensions/java-core/jdt/batlehub-jdt-core.jar" ]] && return
-  log "Building the JDT bundle (task jdt:deps, jdt:build)"
-  (cd "$REPO" && task jdt:deps >>"$HEAVY_WORK/package.log" 2>&1 && task jdt:build >>"$HEAVY_WORK/package.log" 2>&1) \
-    || { tail -20 "$HEAVY_WORK/package.log" >&2; fail "the JDT bundle build failed"; }
-}
 
 # ── 6. Java: the Java extensions alone (RFC 0001, decision 39) ───────────
 if [[ "$ONLY" == "all" || "$ONLY" == "java" ]]; then
@@ -625,9 +626,18 @@ print("".join(list(difflib.unified_diff((d.get("golden") or "").splitlines(True)
   assert_json "$J_" profileSave "d['file'] and d['file'].get('\$schema','').endswith('java-inspections.schema.json') and d['file']['version']==1 and d['file']['rules']=={'style/redundantThis':{'severity':'off','why':''},'performance/stringConcatInLoop':{'severity':'error'}} and any('needs a \"why\"' in r for r in d['problems']) and d['manifest']" \
     "Save as project profile did not write the two overrides as the team's file, an empty why on the off, recorded in the manifest: $(field "$J_" profileSave | cut -c1-900)"
   log "PROFILE-SAVE-OK (Java: Save as project profile with two overrides and no file: inspections.json created with \$schema, version 1, style/redundantThis off with an empty why and stringConcatInLoop error, a profile entry in written.json, and the file's row '\"off\" needs a \"why\"' until someone argues it — RFC 0005 use case 6)"
-  assert_json "$J_" projectSchema "any(r.startswith('project.json') and r.endswith(' 2') for r in d['problems'])" \
-    "the project.json schema did not flag exactly the string activeProfiles and the boolean registry.enabled: $(field "$J_" projectSchema | cut -c1-900)"
+  assert_json "$J_" projectSchema "any(r.startswith('project.json') and r.endswith(' 4') for r in d['problems'])" \
+    "the project.json schema (and, RFC 0006 phase 3, the core's own walker) did not flag exactly the string activeProfiles and the boolean registry.enabled, twice each: $(field "$J_" projectSchema | cut -c1-900)"
   log "PROJECT-SCHEMA-OK (.batlehub/java/project.json under java-core's schema: activeProfiles as a string and registry.enabled as a boolean flagged, maven.configuration accepted — $(field "$J_" projectSchema | python3 -c 'import json,sys;print("; ".join(r[:60] for r in json.load(sys.stdin)["problems"][1:3]))') — RFC 0006 phase 1)"
+  assert_json "$J_" projectFile "d['prefs']=='ci' and any('project.json: maven.activeProfiles=[\"ci\"] (committed)' in l for l in d['channel'])" \
+    "project.json's maven.activeProfiles did not reach core/.settings/org.eclipse.m2e.core.prefs without a command, or the channel did not say so: $(field "$J_" projectFile | cut -c1-600)"
+  log "PROJECT-FILE-OK (.batlehub/java/project.json committing maven.activeProfiles [\"ci\"]: the m2e preference of core/ became activeProfiles=ci with nobody running a command, and the channel says 'project.json: maven.activeProfiles=[\"ci\"] (committed)' — RFC 0006 use case 1, trusted)"
+  assert_json "$J_" projectOverride "d['prefs']=='dev,ci' and d['effective']['value']==['dev','ci'] and d['effective']['origin']=='settings' and d['effective'].get('differsFromProject') and d['project']['value']==['ci'] and d['project']['origin']=='project.json' and d['fileUnchanged']" \
+    "the developer's batlehub.java.maven.activeProfiles did not win over project.json, or Show effective configuration did not mark it: $(field "$J_" projectOverride | cut -c1-900)"
+  log "PROJECT-OVERRIDE-OK (batlehub.java.maven.activeProfiles [dev, ci] in settings.json over the file's [ci]: the preference became dev,ci; Java: Show effective configuration gives effective = settings, differsFromProject, and project = [ci] from project.json; the file untouched — RFC 0006 use case 2)"
+  assert_json "$J_" projectInvalid "any('activeProfiles' in r and 'batlehub' in r for r in d['problems'])" \
+    "a string maven.activeProfiles in project.json got no batlehub Problems row on the file: $(field "$J_" projectInvalid | cut -c1-600)"
+  log "PROJECT-INVALID-OK (maven.activeProfiles as a string: a batlehub row on project.json, '$(field "$J_" projectInvalid | python3 -c 'import json,sys;print(next((r for r in json.load(sys.stdin)["problems"] if "batlehub" in r), "")[:90])')', the key treated as absent — RFC 0006 use case 3)"
   assert_json "$J_" groovy "d['registered'] and d['started'] and 'Groovy' in d['languageMode'] and d['statusItemHidden'] and d['statusItemShownAfterToggle']" \
     "the Groovy satellite did not register and start, or Hello.groovy did not open as Groovy: $(field "$J_" groovy | cut -c1-400)"
   log "GROOVY-OK (java-groovy registered through the contract, the server started on the core's JDK, Hello.groovy in Groovy mode; hover: '$(field "$J_" groovy | python3 -c 'import json,sys;print(json.load(sys.stdin)["hover"][:80])')'; its status bar item hidden by default and shown once batlehub.java.statusBar.items toggles it)"
@@ -878,6 +888,7 @@ if [[ "$ONLY" == "all" || "$ONLY" == "quarkus" ]]; then
   MICROPROFILE_VERSION="${MICROPROFILE_VERSION:-0.18.0}"
   VSCODE_QUARKUS_VERSION="${VSCODE_QUARKUS_VERSION:-1.24.2026082508}"
   JAVA_DEBUG_VERSION="${JAVA_DEBUG_VERSION:-0.59.0}"
+  jdt_bundle
   for p in java-core java-quarkus; do
     (cd "$REPO/extensions/$p" && pnpm run package >>"$HEAVY_WORK/package.log" 2>&1) || { tail -20 "$HEAVY_WORK/package.log" >&2; fail "packaging $p failed"; }
   done
@@ -976,6 +987,7 @@ if [[ "$ONLY" == "all" || "$ONLY" == "spring" ]]; then
   VMWARE_SPRING_VERSION="${VMWARE_SPRING_VERSION:-2.4.0}"
   VSCODE_MAVEN_VERSION="${VSCODE_MAVEN_VERSION:-0.45.3}"
   JAVA_DEBUG_VERSION="${JAVA_DEBUG_VERSION:-0.59.0}"
+  jdt_bundle
   for p in java-core java-spring; do
     (cd "$REPO/extensions/$p" && pnpm run package >>"$HEAVY_WORK/package.log" 2>&1) || { tail -20 "$HEAVY_WORK/package.log" >&2; fail "packaging $p failed"; }
   done
@@ -1055,7 +1067,7 @@ fi
 if [[ "$ONLY" == "all" || "$ONLY" == "sonar" ]]; then
   log "Sonar half: SonarLint bridged into the Inspections view, then absent - the maven-multi fixture plus a TODO"
   SONARLINT_VERSION="${SONARLINT_VERSION:-5.9.0}"
-  jdt_bundle # the bundle's rows sit beside SonarLint's in the view
+  jdt_bundle
   (cd "$REPO/extensions/java-core" && pnpm run package >>"$HEAVY_WORK/package.log" 2>&1) || { tail -20 "$HEAVY_WORK/package.log" >&2; fail "packaging java-core failed"; }
   JAVA_CORE_VSIX="$REPO/extensions/java-core/java-core.vsix"
   [[ "$(unzip -l "$JAVA_CORE_VSIX" | grep -c "jdt/batlehub-jdt-core.jar")" -gt 0 ]] || fail "java-core.vsix does not carry the JDT bundle"

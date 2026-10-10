@@ -371,9 +371,14 @@ written here is the first step and what blocks it.
       (revision 5): `.batlehub/java/local/` for the manifest and the overlay,
       the `.gitignore` line narrowed to it, the v1 layout migrated at
       activation (asking when something would become visible to git);
-      `MIGRATE-V1-OK`. **Next**: 0006 phase 3 (readers on the effective value
-      after trust, origins and `Save to project` in the panel, the
-      `settingsFile` warning, `Java: Show effective configuration`). 0005 phase 4 and
+      `MIGRATE-V1-OK`. **0006 phase 3, first half built** (revision 6): the
+      readers take settings over project.json once trusted (`readSettings()`
+      and detection), the file's Problems rows, the team's profiles in the
+      m2e preference without a command, `Java: Show effective configuration`;
+      `PROJECT-FILE-OK`, `PROJECT-OVERRIDE-OK`, `PROJECT-INVALID-OK`.
+      **Next**: the panel half (origins, the differs marker, `Save to
+      project`, the per-tab banner) and the `settingsFile` warning (use case
+      8). 0005 phase 4 and
       0006 phase 4 (the engine's `--profile`, `config --print`) wait with
       RFC 0002 phase 6.
 - [ ] **12 · RFC 0008's remaining phases, then [RFC 0009](docs/rfc/0009-scala-satellite.md).**

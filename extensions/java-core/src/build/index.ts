@@ -2,9 +2,17 @@
 // the Maven commands (configuration, profiles, effective POM, tree), the
 // registry link's prompt and apply, the block remover for the manifest.
 import * as vscode from "vscode";
-import { readSettings } from "../config";
+import * as path from "node:path";
+import { isOverridden, readSettings } from "../config";
+import { buildOf, requiredOf } from "../detect";
+import {
+  appliedProject,
+  effectiveConfiguration,
+  PROJECT_FILE,
+  projectFile,
+} from "../project/config";
 import { blockRemovers, type Core } from "../extension";
-import { log } from "../log";
+import { channelOf, log } from "../log";
 import { Explorer, Project } from "../project/explorer";
 import { Link } from "../registry/link";
 import { wire } from "../wire";
@@ -153,6 +161,82 @@ wire((core: Core) => {
       }
       if (e.affectsConfiguration("batlehub.java.registry")) await link.apply();
     }),
+  );
+  // RFC 0006: project.json's problems on the file, a line per key it names,
+  // and a re-detection on every save — the Detect button's path (§4.2).
+  const problems = vscode.languages.createDiagnosticCollection("batlehub");
+  const publish = () => {
+    problems.clear();
+    const p = projectFile();
+    if (!p) return;
+    problems.set(
+      vscode.Uri.file(p.file),
+      p.problems.map((x) => {
+        const d = new vscode.Diagnostic(
+          new vscode.Range(x.line, 0, x.line, Number.MAX_SAFE_INTEGER),
+          x.message,
+          x.severity === "error"
+            ? vscode.DiagnosticSeverity.Error
+            : vscode.DiagnosticSeverity.Warning,
+        );
+        d.source = "batlehub";
+        return d;
+      }),
+    );
+    for (const [k, v] of Object.entries(p.values))
+      log.info(
+        `project.json: ${k}=${JSON.stringify(v)} (committed${core.trusted() ? "" : ", untrusted: not applied"})`,
+      );
+  };
+  publish();
+  const root = firstFolder();
+  const watcher = root
+    ? vscode.workspace.createFileSystemWatcher(
+        new vscode.RelativePattern(root, PROJECT_FILE),
+      )
+    : undefined;
+  if (watcher)
+    for (const on of [
+      watcher.onDidCreate,
+      watcher.onDidChange,
+      watcher.onDidDelete,
+    ])
+      core.context.subscriptions.push(
+        on(() => {
+          publish();
+          void core.redetect();
+        }),
+      );
+  core.context.subscriptions.push(
+    problems,
+    ...(watcher ? [watcher] : []),
+    // The team's profiles reach the import without anyone running a command
+    // (use case 1) — once trusted, and only when no setting overrides them.
+    core.onDidDetect(async (snap) => {
+      const f = firstFolder();
+      if (
+        f &&
+        core.trusted() &&
+        snap.folders[0]?.tool === "maven" &&
+        appliedProject()["maven.activeProfiles"] !== undefined &&
+        !isOverridden("maven.activeProfiles")
+      )
+        await maven.applyProfiles(f, readSettings().mavenActiveProfiles ?? []);
+    }),
+    vscode.commands.registerCommand(
+      "batlehub.java.showEffectiveConfiguration",
+      () => {
+        const f = firstFolder();
+        const req = f ? requiredOf(buildOf(f.uri.fsPath)) : undefined;
+        const out = effectiveConfiguration(
+          req ? { "jdk.requirement": String(req.min) } : {},
+        );
+        log.info(
+          `effective configuration of ${f ? path.basename(f.uri.fsPath) : "(no folder)"}:\n${JSON.stringify(out, null, 2)}`,
+        );
+        channelOf().show(true);
+      },
+    ),
   );
   const once = core.onDidDetect((snap) => {
     if (snap.folders.some((f) => f.tool)) {

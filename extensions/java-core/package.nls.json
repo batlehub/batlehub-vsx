@@ -111,5 +111,6 @@
   "cmd.spelling.install": "Install Code Spell Checker",
   "config.inspections.sonar": "`auto`: SonarLint's findings in Java files join the Inspections view (read, never re-emitted), and its language server is counted in the resource sum; without it, one row says it is missing. `off`: neither.",
   "config.inspections.sonar.estimatedCapMiB": "What SonarLint's language server is counted as in the resource sum when `sonarlint.ls.vmargs` names no `-Xmx` (measured: about 600 MiB on a small project; its own heap has no cap by default).",
-  "cmd.sonar.install": "Install SonarLint"
+  "cmd.sonar.install": "Install SonarLint",
+  "cmd.showEffectiveConfiguration": "Show effective configuration"
 }

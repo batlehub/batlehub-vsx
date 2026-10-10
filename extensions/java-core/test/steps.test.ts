@@ -186,13 +186,26 @@ describe.skipIf(process.platform !== "linux")("the run (RFC 0003 §5.1)", () => 
     managers.push(m);
     return { m, dir };
   };
-  const freePort = () =>
-    new Promise<number>((resolve) => {
-      const s = net.createServer().listen(0, "127.0.0.1", () => {
-        const p = (s.address() as net.AddressInfo).port;
-        s.close(() => resolve(p));
-      });
-    });
+  /** `n` distinct free ports: all held open before any is let go, or the OS may hand the same one out twice. */
+  const freePorts = async (n: number) => {
+    const servers = await Promise.all(
+      Array.from(
+        { length: n },
+        () =>
+          new Promise<net.Server>((resolve) => {
+            const s = net
+              .createServer()
+              .listen(0, "127.0.0.1", () => resolve(s));
+          }),
+      ),
+    );
+    const ports = servers.map((s) => (s.address() as net.AddressInfo).port);
+    await Promise.all(
+      servers.map((s) => new Promise<void>((r) => s.close(() => r()))),
+    );
+    return ports;
+  };
+  const freePort = async () => (await freePorts(1))[0]!;
   const open = (port: number) =>
     new Promise<boolean>((r) => {
       const s = net.connect({ host: "127.0.0.1", port });
@@ -234,7 +247,7 @@ describe.skipIf(process.platform !== "linux")("the run (RFC 0003 §5.1)", () => 
   it("starts in order, waits on each port, and Stop stops in reverse (cases 1 and 4)", async () => {
     const { m, dir } = manager();
     const log = path.join(dir, "order.log");
-    const [a, b] = [await freePort(), await freePort()];
+    const [a, b] = (await freePorts(2)) as [number, number];
     const { run, lines } = go(
       m,
       cfg([
@@ -276,7 +289,7 @@ describe.skipIf(process.platform !== "linux")("the run (RFC 0003 §5.1)", () => 
   it("a probe that never answers fails the run and still stops step 1 (case 3)", async () => {
     const { m, dir } = manager();
     const log = path.join(dir, "order.log");
-    const [a, b] = [await freePort(), await freePort()];
+    const [a, b] = (await freePorts(2)) as [number, number];
     const { run, lines } = go(
       m,
       cfg([

@@ -609,6 +609,11 @@
         "icon": "$(refresh)"
       },
       {
+        "command": "batlehub.java.showEffectiveConfiguration",
+        "title": "%cmd.showEffectiveConfiguration%",
+        "category": "Java"
+      },
+      {
         "command": "batlehub.java.inspections.saveProfile",
         "title": "%cmd.inspections.saveProfile%",
         "category": "Java",

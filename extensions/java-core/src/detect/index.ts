@@ -9,6 +9,7 @@ import type { JavaVersionRange, Resolution, Runtime } from "../api-types";
 import { requiredJavaOf as gradleRequired } from "../build/gradle/script";
 import { requiredJavaOf as mavenRequired, parsePom } from "../build/maven/pom";
 import { isOverridden, readSettings, type MavenConfiguration } from "../config";
+import { appliedProject } from "../project/config";
 import { homeIo } from "@batlehub/java-rules/io";
 import {
   discover,
@@ -77,7 +78,7 @@ export function detectMavenConfigurations(io: Io): MavenConfiguration[] {
   }));
 }
 
-function buildOf(
+export function buildOf(
   root: string,
 ): Pick<FolderSnapshot, "tool" | "buildFile" | "wrapper"> {
   if (exists(path.join(root, "pom.xml")))
@@ -170,9 +171,15 @@ export async function detect(trusted: boolean): Promise<Snapshot> {
   const managers = await availableManagers(io);
   const folders: FolderSnapshot[] = [];
   let gradle = false;
-  for (const f of vscode.workspace.workspaceFolders ?? []) {
+  // RFC 0006: project.json's jdk.requirement wins over the build file's, for
+  // the folder it belongs to, once trusted.
+  const pinned = appliedProject()["jdk.requirement"];
+  for (const [i, f] of (vscode.workspace.workspaceFolders ?? []).entries()) {
     const build = buildOf(f.uri.fsPath);
-    const required = requiredOf(build);
+    const required =
+      i === 0 && typeof pinned === "string"
+        ? { min: Number(pinned), origin: "project.json" }
+        : requiredOf(build);
     let mavenProfiles: string[] = [];
     if (build.tool === "maven" && build.buildFile) {
       try {
@@ -192,7 +199,9 @@ export async function detect(trusted: boolean): Promise<Snapshot> {
       mavenProfiles,
     });
   }
-  const mavenOverride = isOverridden("maven.configurations");
+  const mavenOverride =
+    isOverridden("maven.configurations") ||
+    appliedProject()["maven.configurations"] !== undefined;
   const mavenConfigurations = mavenOverride
     ? (s.mavenConfigurations ?? [])
     : detectMavenConfigurations(io);

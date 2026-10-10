@@ -958,7 +958,18 @@ try {
         await sleep(1500);
         const typeRename = await tool("java_rename", { symbol: "com.acme.core.Greeter", newName: "Hello", dryRun: true });
         mcp.typeRename = { isError: !!typeRename?.isError, text: typeRename?.content?.[0]?.text };
-        const dry = await tool("java_rename", { symbol: "com.acme.core.Greeter#all", newName: "everyone", dryRun: true });
+        // JDT refuses a rename while the buffer just typed is not reconciled
+        // ("syntax errors in the compilation unit"): retry the dry run as an
+        // agent would, and record how many tries it took.
+        let dry;
+        mcp.dryTries = 0;
+        for (const t0 = Date.now(); Date.now() - t0 < 20000; ) {
+          mcp.dryTries++;
+          dry = await tool("java_rename", { symbol: "com.acme.core.Greeter#all", newName: "everyone", dryRun: true });
+          if (!dry?.isError) break;
+          mcp.dryError = dry?.content?.[0]?.text;
+          await sleep(1000);
+        }
         mcp.dry = { applied: dry?.structuredContent?.applied, files: Object.keys(dry?.structuredContent?.edit?.changes ?? {}) };
         const onDisk = () => readIfPresent(GREETER) === greeterDisk && readIfPresent(MAIN) === mainDisk;
         mcp.diskAfterDry = onDisk();
@@ -1131,7 +1142,11 @@ try {
   }
   // RFC 0003 case 5: the Groovy server is the core's managed process, and the
   // JDK tab's sum (the same consumers as this command) lists its cap.
-  const resourcesLog = (await outputLines(page, "Java: Show the container's resources")).join(" ");
+  // From the channel's file: the summary is the channel's newest lines, which
+  // the panel's scroll stops short of once the channel is long (see channelLog).
+  await runCommand(page, "Java: Show the container's resources");
+  await sleep(1500);
+  const resourcesLog = channelLog("BatleHub Java").join(" ");
   emit({
     phase: "procGroovy",
     started: /started groovy-ls \(pid \d+, 768 MiB declared\)/.test(resourcesLog),
@@ -1255,12 +1270,15 @@ try {
 
   // 12. Spike (a): the classpath before, the m2e preference, the classpath after.
   await openFile(page, "Greeter.java");
+  // Read from the channel's file, not the panel: the panel's scroll stops
+  // early once the channel is long (see channelLog).
   const dump = async () => {
     await runCommand(page, "Java: Dump the classpath (spike)");
     await sleep(3000);
-    const l = await outputLines(page);
+    const l = channelLog("BatleHub Java");
     const idx = l.reduce((last, x, i) => (/classpath of /.test(x) ? i : last), -1);
-    return idx >= 0 ? l.slice(idx).join("\n") : l.slice(-5).join("\n");
+    const end = l.findIndex((x, i) => i > idx && /^\[\d{4}-/.test(x));
+    return idx >= 0 ? l.slice(idx, end < 0 ? undefined : end).join("\n") : l.slice(-5).join("\n");
   };
   const before = await dump();
   let ran = null;
@@ -1272,6 +1290,50 @@ try {
   const after = await settle(dump, (cp) => /commons-lang3/.test(cp), 120000, 5000);
   await snap(page, "classpath");
   emit({ phase: "classpath", before: /commons-lang3/.test(before), afterBaseline: ran, after: /commons-lang3/.test(after.value), entriesBefore: (before.match(/\.jar/g) ?? []).length, entriesAfter: (after.value.match(/\.jar/g) ?? []).length, tail: after.value.slice(-300) });
+
+  // 12a. RFC 0006 phase 3, use cases 1–3: the team's project.json applied
+  // (trusted), a developer's setting over it with the marker, and a bad key
+  // degraded to a Problems row. Spike (a) left `dev` in the m2e preference;
+  // the fixture's other profile, `ci`, is what the file names.
+  {
+    const PROJECT = path.join(WS, ".batlehub", "java", "project.json");
+    const PREFS = path.join(WS, "core", ".settings", "org.eclipse.m2e.core.prefs");
+    const SETTINGS = path.join(WS, ".vscode", "settings.json");
+    const settingsBefore = readIfPresent(SETTINGS);
+    const s0 = settingsBefore ? JSON.parse(settingsBefore) : {};
+    const prefsProfiles = () => /^activeProfiles=(.*)$/m.exec(readIfPresent(PREFS) ?? "")?.[1] ?? null;
+    mkdirSync(path.dirname(PROJECT), { recursive: true });
+    writeFileSync(PROJECT, JSON.stringify({ version: 1, maven: { activeProfiles: ["ci"] } }, null, 2));
+    const applied = await settle(async () => prefsProfiles(), (p) => p === "ci", 60000, 2000);
+    emit({ phase: "projectFile", prefs: applied.value, channel: channelLog("BatleHub Java").filter((l) => /project\.json: /.test(l)).slice(-3) });
+
+    writeFileSync(SETTINGS, JSON.stringify({ ...s0, "batlehub.java.maven.activeProfiles": ["dev", "ci"] }, null, 2));
+    const overridden = await settle(async () => prefsProfiles(), (p) => p === "dev,ci", 60000, 2000);
+    await runCommand(page, "Java: Show effective configuration");
+    await sleep(1500);
+    const log = channelLog("BatleHub Java").join("\n");
+    const at = log.lastIndexOf("effective configuration of");
+    let effective = null;
+    try {
+      effective = JSON.parse(log.slice(log.indexOf("{", at), log.indexOf("\n}", at) + 2));
+    } catch {}
+    emit({ phase: "projectOverride", prefs: overridden.value, effective: effective?.effective?.["maven.activeProfiles"] ?? null, project: effective?.project?.["maven.activeProfiles"] ?? null, fileUnchanged: !readIfPresent(PROJECT)?.includes("dev") });
+    if (settingsBefore === null) rmSync(SETTINGS, { force: true });
+    else writeFileSync(SETTINGS, settingsBefore);
+
+    writeFileSync(PROJECT, JSON.stringify({ version: 1, maven: { activeProfiles: "dev" } }, null, 2));
+    await openFile(page, "project.json");
+    const bad = await settle(() => problems(page), (r) => r.some((x) => /activeProfiles/.test(x) && /batlehub/.test(x)), 30000, 2000);
+    await snap(page, "project-invalid");
+    emit({ phase: "projectInvalid", problems: (bad.value ?? []).filter((r) => /project\.json|activeProfiles/.test(r)) });
+
+    // Back to spike (a)'s state for what follows: `dev` in the preference, no file.
+    writeFileSync(PROJECT, JSON.stringify({ version: 1, maven: { activeProfiles: ["dev"] } }, null, 2));
+    await settle(async () => prefsProfiles(), (p) => p === "dev", 60000, 2000);
+    rmSync(PROJECT, { force: true });
+    await runCommand(page, "View: Close All Editors");
+    await sleep(1500);
+  }
 
   // 12b. RFC 0012 phase 1, use cases 1–3: the default-on write of
   // `java.completion.chain.enabled`, a chain on the completion shortcut, and

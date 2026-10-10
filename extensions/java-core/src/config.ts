@@ -1,7 +1,11 @@
 // The `batlehub.java.*` settings (RFC 0001 §4.1), read once per use. An
 // environment key that is absent is "detect"; a value is an override that
-// wins until removed. Only taste keys have plain defaults.
+// wins until removed. Only taste keys have plain defaults. In a trusted
+// workspace the team's project.json (RFC 0006) sits under the developer's
+// settings: a key nobody set takes the file's value.
 import * as vscode from "vscode";
+import type { ProjectKey } from "@batlehub/java-rules/project-config";
+import { appliedProject } from "./project/config";
 import type { JdkSource } from "./api-types";
 import type { InstallVia } from "./jdk/install";
 import type { Level } from "@batlehub/java-rules/redact";
@@ -79,6 +83,12 @@ export function readSettings(scope?: vscode.ConfigurationScope): Settings {
     "wellKnown",
   ];
   const lvl = c.get<Level>("log.level") ?? "info";
+  const project = appliedProject();
+  /** The setting when set in any scope, else project.json's value, else the setting's default. */
+  const layered = <T>(setting: string, key: ProjectKey): T | undefined =>
+    !isOverridden(setting, scope) && project[key] !== undefined
+      ? (project[key] as T)
+      : c.get<T>(setting);
   return {
     jdkSources: sources.filter((s) =>
       ["mise", "sdkman", "env", "wellKnown"].includes(s),
@@ -94,12 +104,23 @@ export function readSettings(scope?: vscode.ConfigurationScope): Settings {
     defaultMemoryMiB: c.get<number>("run.defaultMemoryMiB") ?? 512,
     showTerminals: c.get<boolean>("run.showTerminals") ?? true,
     statusBarItems: c.get<Record<string, boolean>>("statusBar.items") ?? {},
-    mavenConfigurations: c.get<MavenConfiguration[]>("maven.configurations"),
-    mavenActiveConfiguration: c.get<string>("maven.activeConfiguration"),
-    mavenActiveProfiles: c.get<string[]>("maven.activeProfiles"),
+    mavenConfigurations: layered<MavenConfiguration[]>(
+      "maven.configurations",
+      "maven.configurations",
+    ),
+    mavenActiveConfiguration: layered<string>(
+      "maven.activeConfiguration",
+      "maven.configuration",
+    ),
+    mavenActiveProfiles: layered<string[]>(
+      "maven.activeProfiles",
+      "maven.activeProfiles",
+    ),
     registryEnabled:
-      (c.get<string>("registry.enabled") as Settings["registryEnabled"]) ??
-      "ask",
+      layered<Settings["registryEnabled"]>(
+        "registry.enabled",
+        "registry.enabled",
+      ) ?? "ask",
     registryUrl: (c.get<string>("registry.url") ?? "").trim(),
     reportUrl: (c.get<string>("report.url") ?? "").trim(),
     experimental: c.get<Record<string, boolean>>("experimental") ?? {},
