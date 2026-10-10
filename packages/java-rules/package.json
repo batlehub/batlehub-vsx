@@ -14,10 +14,10 @@
     "format": "prettier --write \"src/**/*.ts\""
   },
   "devDependencies": {
-    "@types/node": "^24.0.0",
-    "oxlint": "^1.0.0",
-    "prettier": "^3.6.0",
-    "typescript": "^5.9.0"
+    "@types/node": "^26.6.4",
+    "oxlint": "^1.87.0",
+    "prettier": "^3.9.9",
+    "typescript": "^7.0.2"
   },
   "dependencies": {
     "jsonc-parser": "^3.3.1"
