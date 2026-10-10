@@ -2,9 +2,11 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import {
+  originLabel,
   parseProjectFile,
   resolve,
   saveToProject,
+  unsaveFromProject,
 } from "@batlehub/java-rules/project-config";
 import { PROJECT_KEYS } from "@batlehub/java-rules/project-keys";
 
@@ -197,5 +199,58 @@ describe("Save to project (RFC 0006 §4.2)", () => {
     expect(p.values["maven.activeProfiles"]).toEqual(["dev", "it"]);
     expect(p.values["jdk.requirement"]).toBeUndefined();
     expect(text).not.toContain('"jdk"');
+  });
+});
+
+describe("the panel's origins and Save to project's undo (RFC 0006 §6.4, red line 1)", () => {
+  it("names who set a key, and says when the developer differs from the team (use cases 1, 2)", () => {
+    const r = resolve(
+      { "maven.activeProfiles": ["dev", "fast"] },
+      { "maven.activeProfiles": ["dev"], "registry.enabled": "false" },
+      {},
+    );
+    expect(originLabel(r["maven.activeProfiles"], true)).toBe(
+      "set by you (settings.json) — differs from project: dev",
+    );
+    expect(originLabel(r["registry.enabled"], true)).toBe("project.json");
+    expect(originLabel(r["registry.enabled"], false)).toBe(
+      "project.json (untrusted, not applied)",
+    );
+    expect(originLabel(r["gradle.activeProfiles"], true)).toBeUndefined();
+  });
+
+  it("puts back what Save to project replaced, keeps a key edited since, deletes a file it created when empty", () => {
+    const created = saveToProject(undefined, {
+      "maven.activeProfiles": ["dev"],
+    });
+    expect(
+      unsaveFromProject(
+        created,
+        { "maven.activeProfiles": { written: ["dev"], previous: null } },
+        true,
+      ),
+    ).toEqual({ text: null, kept: [] });
+    const before = saveToProject(undefined, {
+      "registry.enabled": "false",
+      "maven.activeProfiles": ["ci"],
+    });
+    const after = saveToProject(before, {
+      "maven.activeProfiles": ["dev"],
+      "registry.enabled": "true",
+    });
+    const edited = saveToProject(after, { "registry.enabled": "ask" });
+    const u = unsaveFromProject(
+      edited,
+      {
+        "maven.activeProfiles": { written: ["dev"], previous: ["ci"] },
+        "registry.enabled": { written: "true", previous: "false" },
+      },
+      false,
+    );
+    expect(u.kept).toEqual(["registry.enabled"]);
+    expect(parseProjectFile(u.text!).values).toEqual({
+      "maven.activeProfiles": ["ci"],
+      "registry.enabled": "ask",
+    });
   });
 });

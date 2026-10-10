@@ -376,9 +376,12 @@ written here is the first step and what blocks it.
       and detection), the file's Problems rows, the team's profiles in the
       m2e preference without a command, `Java: Show effective configuration`;
       `PROJECT-FILE-OK`, `PROJECT-OVERRIDE-OK`, `PROJECT-INVALID-OK`.
-      **Next**: the panel half (origins, the differs marker, `Save to
-      project`, the per-tab banner) and the `settingsFile` warning (use case
-      8). 0005 phase 4 and
+      **0006 phase 3 built, phase 4's editor half too** (revision 7): the
+      panel's origins and banner, `Save to project` (recorded, removable),
+      the `settingsFile` warning, `docs/guide/java/project-config.md`;
+      `PROJECT-PANEL-OK`, `SETTINGSFILE-WARN-OK`. What is left of item 11
+      waits with RFC 0002 phase 6 (the engine's `--profile` and
+      `config --print`), plus the Java panel's inspections line (RFC 0005). 0005 phase 4 and
       0006 phase 4 (the engine's `--profile`, `config --print`) wait with
       RFC 0002 phase 6.
 - [ ] **12 · RFC 0008's remaining phases, then [RFC 0009](docs/rfc/0009-scala-satellite.md).**

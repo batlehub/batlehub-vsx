@@ -143,5 +143,8 @@
   "Move to local/ and continue": "Move to local/ and continue",
   "Leave them and continue": "Leave them and continue",
   "Not now": "Not now",
-  "BatleHub Java now ignores only .batlehub/java/local/, so the team's files there can be committed. These would become visible to git: {0}": "BatleHub Java now ignores only .batlehub/java/local/, so the team's files there can be committed. These would become visible to git: {0}"
+  "BatleHub Java now ignores only .batlehub/java/local/, so the team's files there can be committed. These would become visible to git: {0}": "BatleHub Java now ignores only .batlehub/java/local/, so the team's files there can be committed. These would become visible to git: {0}",
+  "Use it": "Use it",
+  "Keep mine": "Keep mine",
+  "Java: this repository selects {0} for Maven (yours: {1}): the credentials in that file will be used.": "Java: this repository selects {0} for Maven (yours: {1}): the credentials in that file will be used."
 }

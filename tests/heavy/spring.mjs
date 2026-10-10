@@ -243,7 +243,7 @@ async function openFile(page, name) {
     await page.keyboard.type(name);
     await sleep(1200);
     const listed = await page
-      .$$eval(".quick-input-list .monaco-list-row", (els, n) => els.some((e) => e.innerText.includes(n)), name)
+      .$$eval(".quick-input-list .monaco-list-row", (els, n) => els.some((e) => e.innerText.includes(n)), name.split("/").pop())
       .catch(() => false);
     if (listed) break;
   }
@@ -336,10 +336,10 @@ try {
       await openWorkbench(page);
       await trust();
     }
-    await openFile(page, "application.yml");
+    await openFile(page, "src/main/resources/application.yml");
     const hover = await settle(
       async () => {
-        await openFile(page, "application.yml");
+        await openFile(page, "src/main/resources/application.yml");
         await chord(page, "Control", "g");
         await sleep(400);
         await page.keyboard.type("5:5");

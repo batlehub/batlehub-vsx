@@ -261,3 +261,75 @@ export function saveToProject(
   }
   return out;
 }
+
+const shown = (v: unknown) =>
+  Array.isArray(v)
+    ? v.join(", ")
+    : typeof v === "string"
+      ? v
+      : JSON.stringify(v);
+
+/**
+ * The panel's origin for a key (§6.4): `set by you`, `set by you
+ * (settings.json) — differs from project: dev`, `project.json`, or
+ * `project.json (untrusted, not applied)`. Undefined for a detected or
+ * default value: each tab keeps its own wording for those.
+ */
+export function originLabel(
+  r: Resolved | undefined,
+  trusted: boolean,
+): string | undefined {
+  if (!r) return undefined;
+  if (r.origin === "settings")
+    return r.differsFromProject
+      ? `set by you (settings.json) — differs from project: ${shown(r.project)}`
+      : "set by you";
+  if (r.origin === "project.json")
+    return trusted ? "project.json" : "project.json (untrusted, not applied)";
+  return undefined;
+}
+
+/** The panel tab each key lives on, for the per-tab banner (§6.4). */
+export const TAB_OF: Record<ProjectKey, "jdk" | "build" | "profiles"> = {
+  "jdk.requirement": "jdk",
+  "maven.configuration": "build",
+  "maven.configurations": "build",
+  "maven.activeProfiles": "profiles",
+  "gradle.activeProfiles": "profiles",
+  "registry.enabled": "build",
+};
+
+/**
+ * The replay of a `project` manifest entry (RFC 0006 red line 1): a key still
+ * as `Save to project` wrote it goes back to what it replaced, or away; a key
+ * a person edited since is kept and listed. `null` when the family created
+ * the file and it names nothing any more.
+ */
+export function unsaveFromProject(
+  text: string,
+  entries: Record<string, { written: unknown; previous: unknown }>,
+  created: boolean,
+): { text: string | null; kept: string[] } {
+  let out = text;
+  const kept: string[] = [];
+  const now = parseProjectFile(text).values as Record<string, unknown>;
+  for (const [key, { written, previous }] of Object.entries(entries)) {
+    if (JSON.stringify(now[key]) !== JSON.stringify(written)) {
+      if (now[key] !== undefined) kept.push(key);
+      continue;
+    }
+    out = saveToProject(out, {
+      [key]: previous === null ? undefined : previous,
+    } as ProjectValues);
+  }
+  const left = parseProjectFile(out);
+  return {
+    text:
+      created &&
+      !Object.keys(left.values).length &&
+      !Object.keys(left.satellites).length
+        ? null
+        : out,
+    kept,
+  };
+}

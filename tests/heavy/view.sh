@@ -635,6 +635,12 @@ print("".join(list(difflib.unified_diff((d.get("golden") or "").splitlines(True)
   assert_json "$J_" projectOverride "d['prefs']=='dev,ci' and d['effective']['value']==['dev','ci'] and d['effective']['origin']=='settings' and d['effective'].get('differsFromProject') and d['project']['value']==['ci'] and d['project']['origin']=='project.json' and d['fileUnchanged']" \
     "the developer's batlehub.java.maven.activeProfiles did not win over project.json, or Show effective configuration did not mark it: $(field "$J_" projectOverride | cut -c1-900)"
   log "PROJECT-OVERRIDE-OK (batlehub.java.maven.activeProfiles [dev, ci] in settings.json over the file's [ci]: the preference became dev,ci; Java: Show effective configuration gives effective = settings, differsFromProject, and project = [ci] from project.json; the file untouched — RFC 0006 use case 2)"
+  assert_json "$J_" projectPanel "'set by you (settings.json) — differs from project: ci' in d['profilesTab'].lower() and d['saved']==['dev','ci'] and d['manifest']" \
+    "the Profiles tab did not show the differs-from-project origin, or Save to project did not write the tab's profiles into project.json through the manifest: $(field "$J_" projectPanel | cut -c1-900)"
+  log "PROJECT-PANEL-OK (the Profiles tab: 'set by you (settings.json) — differs from project: ci'; Save to project wrote [dev, ci] into project.json, a project entry in the manifest — RFC 0006 §6.4)"
+  assert_json "$J_" projectSettingsFile "d['notification'] and 'settings-other.xml' in d['notification'] and d['kept']" \
+    "a committed configuration selecting another settings file was not announced, or Keep mine was not honoured: $(field "$J_" projectSettingsFile | cut -c1-600)"
+  log "SETTINGSFILE-WARN-OK (project.json selecting ~/.m2/settings-other.xml: one warning naming both files, 'Keep mine' remembered and the developer's own kept — RFC 0006 use case 8)"
   assert_json "$J_" projectInvalid "any('activeProfiles' in r and 'batlehub' in r for r in d['problems'])" \
     "a string maven.activeProfiles in project.json got no batlehub Problems row on the file: $(field "$J_" projectInvalid | cut -c1-600)"
   log "PROJECT-INVALID-OK (maven.activeProfiles as a string: a batlehub row on project.json, '$(field "$J_" projectInvalid | python3 -c 'import json,sys;print(next((r for r in json.load(sys.stdin)["problems"] if "batlehub" in r), "")[:90])')', the key treated as absent — RFC 0006 use case 3)"

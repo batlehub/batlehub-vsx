@@ -242,7 +242,7 @@ async function openFile(page, name) {
     await page.keyboard.type(name);
     await sleep(1200);
     const listed = await page
-      .$$eval(".quick-input-list .monaco-list-row", (els, n) => els.some((e) => e.innerText.includes(n)), name)
+      .$$eval(".quick-input-list .monaco-list-row", (els, n) => els.some((e) => e.innerText.includes(n)), name.split("/").pop())
       .catch(() => false);
     if (listed) break;
   }
@@ -354,7 +354,7 @@ try {
     // the server has the project's info (RFC 0011 §11, phase 2 finding 4).
     const before = readIfPresent(PROPS);
     writeFileSync(PROPS, `${before ?? ""}quarkus.http.nope=1\n`);
-    await openFile(page, "application.properties");
+    await openFile(page, "src/main/resources/application.properties");
     const diag = await settle(
       async () => {
         await runCommand(page, "View: Focus Problems");
@@ -366,7 +366,7 @@ try {
       5000,
     );
     await snap(page, "diagnostics");
-    await openFile(page, "application.properties");
+    await openFile(page, "src/main/resources/application.properties");
     await chord(page, "Control", "End");
     await page.keyboard.type("quarkus.http.");
     await chord(page, "Control", " ");

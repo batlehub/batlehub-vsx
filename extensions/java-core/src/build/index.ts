@@ -7,9 +7,12 @@ import { isOverridden, readSettings } from "../config";
 import { buildOf, requiredOf } from "../detect";
 import {
   appliedProject,
+  choiceKey,
   effectiveConfiguration,
   PROJECT_FILE,
   projectFile,
+  repoSettingsFile,
+  useMemento,
 } from "../project/config";
 import { blockRemovers, type Core } from "../extension";
 import { channelOf, log } from "../log";
@@ -189,6 +192,43 @@ wire((core: Core) => {
       );
   };
   publish();
+  useMemento(core.context.workspaceState);
+  // Use case 8: a committed configuration that selects another settings file
+  // — other credentials — is announced once per workspace and value, trusted
+  // only, and applies only on `Use it`.
+  const asked = new Set<string>();
+  const askSettingsFile = async () => {
+    if (!core.trusted()) return;
+    const p = projectFile();
+    const foreign = p && repoSettingsFile(p.values);
+    if (
+      !foreign ||
+      asked.has(foreign.repo) ||
+      core.context.workspaceState.get(choiceKey(foreign.repo)) !== undefined
+    )
+      return;
+    asked.add(foreign.repo);
+    const use = vscode.l10n.t("Use it");
+    const keep = vscode.l10n.t("Keep mine");
+    const a = await vscode.window.showWarningMessage(
+      vscode.l10n.t(
+        "Java: this repository selects {0} for Maven (yours: {1}): the credentials in that file will be used.",
+        foreign.repo,
+        foreign.own,
+      ),
+      use,
+      keep,
+    );
+    if (!a) return;
+    await core.context.workspaceState.update(
+      choiceKey(foreign.repo),
+      a === use ? "use" : "keep",
+    );
+    log.info(
+      `project.json selects ${foreign.repo} for Maven: ${a === use ? "used" : `kept ${foreign.own}`} (remembered for this workspace)`,
+    );
+    if (a === use) await core.redetect();
+  };
   const root = firstFolder();
   const watcher = root
     ? vscode.workspace.createFileSystemWatcher(
@@ -212,6 +252,7 @@ wire((core: Core) => {
     ...(watcher ? [watcher] : []),
     // The team's profiles reach the import without anyone running a command
     // (use case 1) — once trusted, and only when no setting overrides them.
+    core.onDidDetect(() => void askSettingsFile()),
     core.onDidDetect(async (snap) => {
       const f = firstFolder();
       if (

@@ -44,7 +44,17 @@ export type Entry =
     }
   // RFC 0006 §5.3: a file the v1 layout hid, moved under `local/` on the
   // developer's answer so narrowing the .gitignore line exposes nothing.
-  | { kind: "moved"; from: string; to: string; at: string };
+  | { kind: "moved"; from: string; to: string; at: string }
+  // RFC 0006 red line 1: the keys `Save to project` wrote into project.json —
+  // what each became and what it replaced (`null`: absent) — kept the way
+  // the profile's are.
+  | {
+      kind: "project";
+      path: string;
+      created: boolean;
+      entries: Record<string, { written: unknown; previous: unknown }>;
+      at: string;
+    };
 
 export interface ProfileWrite {
   written: ProfileRule;
@@ -83,7 +93,7 @@ export function parseManifest(text: string | undefined): Manifest {
  * write of the same key does not overwrite the original with the family's own.
  */
 export function record(m: Manifest, e: NewEntry): Manifest {
-  if (e.kind === "profile") return recordProfile(m, e);
+  if (e.kind === "profile" || e.kind === "project") return recordKeys(m, e);
   const same = m.entries.some((x) => targetOf(x) === targetOf(e as Entry));
   if (same) return m;
   return {
@@ -93,24 +103,27 @@ export function record(m: Manifest, e: NewEntry): Manifest {
 }
 
 /**
- * A profile write merges into the file's one entry: a key written again keeps
- * what it replaced the first time (the value before the family) and takes the
- * new `written`; `created` stays what the first write found.
+ * A profile or project.json write merges into the file's one entry: a key
+ * written again keeps what it replaced the first time (the value before the
+ * family) and takes the new `written`; `created` stays what the first write
+ * found.
  */
-function recordProfile(
+function recordKeys(
   m: Manifest,
-  e: Extract<NewEntry, { kind: "profile" }>,
+  e: Extract<NewEntry, { kind: "profile" | "project" }>,
 ): Manifest {
   const cur = m.entries.find(
-    (x): x is Extract<Entry, { kind: "profile" }> =>
-      x.kind === "profile" && x.path === e.path,
+    (x): x is Extract<Entry, { kind: "profile" | "project" }> =>
+      x.kind === e.kind && x.path === e.path,
   );
   if (!cur)
     return {
       version: 1,
-      entries: [...m.entries, { ...e, at: new Date().toISOString() }],
+      entries: [...m.entries, { ...e, at: new Date().toISOString() } as Entry],
     };
-  const entries = { ...cur.entries };
+  const entries: Record<string, { written: unknown; previous: unknown }> = {
+    ...cur.entries,
+  };
   // `previous: null` is a value (no entry before the family), so presence,
   // not `??`, decides whether the first write is already recorded.
   for (const [k, w] of Object.entries(e.entries))
@@ -120,7 +133,9 @@ function recordProfile(
     };
   return {
     version: 1,
-    entries: m.entries.map((x) => (x === cur ? { ...cur, entries } : x)),
+    entries: m.entries.map((x) =>
+      x === cur ? ({ ...cur, entries } as Entry) : x,
+    ),
   };
 }
 
@@ -158,6 +173,8 @@ export function targetOf(e: Entry): string {
       return `profile:${e.path}`;
     case "moved":
       return `moved:${e.from}`;
+    case "project":
+      return `project:${e.path}`;
   }
 }
 
@@ -188,6 +205,10 @@ export function describe(m: Manifest): string[] {
       }
       case "moved":
         return `move ${e.to} back to ${e.from}`;
+      case "project": {
+        const n = Object.keys(e.entries).length;
+        return `take back ${n} key${n > 1 ? "s" : ""} saved into ${e.path} (${Object.keys(e.entries).join(", ")}), keeping any edited since${e.created ? ", and delete it if it names nothing else" : ""}`;
+      }
     }
   });
 }
@@ -208,6 +229,11 @@ export interface Replayer {
     entries: Record<string, ProfileWrite>,
   ): Promise<void>;
   moved(from: string, to: string): Promise<void>;
+  project(
+    path: string,
+    created: boolean,
+    entries: Record<string, { written: unknown; previous: unknown }>,
+  ): Promise<void>;
 }
 
 /** Newest first, every entry, errors collected rather than stopping the replay. */
@@ -221,6 +247,8 @@ export async function replay(m: Manifest, r: Replayer): Promise<string[]> {
       else if (e.kind === "block") await r.block(e.path, e.marker, e.mode);
       else if (e.kind === "gitignore") await r.gitignore(e.path, e.line);
       else if (e.kind === "moved") await r.moved(e.from, e.to);
+      else if (e.kind === "project")
+        await r.project(e.path, e.created, e.entries);
       else await r.profile(e.path, e.created, e.entries);
     } catch (err) {
       errors.push(`${targetOf(e)}: ${(err as Error).message}`);

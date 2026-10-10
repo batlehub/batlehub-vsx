@@ -21,7 +21,40 @@ import type { Core } from "../extension";
 import { log } from "../log";
 import { javaConfigs, readLaunch } from "../run/configs";
 import { toSettingsRuntimes } from "@batlehub/java-rules/resolve";
-import { writeExtSetting, writeForeignSetting } from "../manifest";
+import {
+  writeExtSetting,
+  writeForeignSetting,
+  writeProjectEntries,
+} from "../manifest";
+import {
+  originLabel,
+  TAB_OF,
+  type ProjectKey,
+  type ProjectValues,
+} from "@batlehub/java-rules/project-config";
+import { buildOf, requiredOf } from "../detect";
+import {
+  effectiveConfiguration,
+  PROJECT_FILE,
+  projectFile,
+} from "../project/config";
+
+type ProjectTab = "jdk" | "build" | "profiles";
+/** The keys `Save to project` writes from each tab (RFC 0006 §6.4). */
+const SAVED_FROM: Record<ProjectTab, ProjectKey[]> = {
+  jdk: ["jdk.requirement"],
+  build: ["maven.configuration", "registry.enabled"],
+  profiles: ["maven.activeProfiles"],
+};
+
+/** The editor's merge and the file's own view, with the build file's requirement as what detection says. */
+function effective(): ReturnType<typeof effectiveConfiguration> {
+  const f = vscode.workspace.workspaceFolders?.[0];
+  const req = f ? requiredOf(buildOf(f.uri.fsPath)) : undefined;
+  return effectiveConfiguration(
+    req ? { "jdk.requirement": String(req.min) } : {},
+  );
+}
 
 export interface PanelState {
   trusted: boolean;
@@ -83,6 +116,11 @@ export interface PanelState {
    * array it obviously wants to be.
    */
   chainNotice: boolean;
+  /** RFC 0006 §6.4: who set each key, project.json's problems per tab. */
+  project: {
+    origins: Partial<Record<ProjectKey, string>>;
+    problems: Record<ProjectTab, number>;
+  };
   tabs: { id: string; title: string; html: string }[];
 }
 
@@ -147,6 +185,18 @@ export class JavaPanel
     const rw = res ? resourceWarning(res, s.warnBelow) : undefined;
     const originOf = (key: string, detected: string) =>
       isOverridden(key) ? "set by you" : `detected: ${detected}`;
+    const eff = effective();
+    const origins: PanelState["project"]["origins"] = {};
+    for (const [k, r] of Object.entries(eff.effective)) {
+      const o = originLabel(r, eff.trusted);
+      if (o) origins[k as ProjectKey] = o;
+    }
+    const problems = { jdk: 0, build: 0, profiles: 0 };
+    for (const p of projectFile()?.problems ?? [])
+      problems[
+        TAB_OF[p.path as ProjectKey] ??
+          (p.path.startsWith("jdk") ? "jdk" : "build")
+      ]++;
     const folder = vscode.workspace.workspaceFolders?.[0];
     let configs: PanelState["run"]["configs"] = [];
     if (folder) {
@@ -247,10 +297,15 @@ export class JavaPanel
       },
       profiles: {
         declared: first?.mavenProfiles ?? [],
-        active: s.mavenActiveProfiles ?? [],
+        // The effective value even before trust, so the tab can show the
+        // team's profiles marked "untrusted, not applied" (use case 1).
+        active:
+          (eff.effective["maven.activeProfiles"]?.value as
+            string[] | undefined) ?? [],
       },
       experimental: s.experimental,
       chainNotice: chainNotice(this.core.context),
+      project: { origins, problems },
       tabs,
     };
   }
@@ -332,6 +387,23 @@ export class JavaPanel
             true,
           );
           return;
+        case "saveProject": {
+          // The tab's current values into the team's file, recorded (RFC 0006 red line 1).
+          const root = vscode.workspace.workspaceFolders?.[0];
+          if (!root || !this.core.trusted()) return;
+          const eff = effective().effective;
+          const patch: ProjectValues = {};
+          for (const k of SAVED_FROM[m.tab as ProjectTab] ?? []) {
+            const v = eff[k]?.value;
+            if (v !== undefined) patch[k] = v;
+          }
+          if (!Object.keys(patch).length) return;
+          writeProjectEntries(path.join(root.uri.fsPath, PROJECT_FILE), patch);
+          log.info(
+            `project.json: saved ${Object.keys(patch).join(", ")} from the ${String(m.tab)} tab`,
+          );
+          return this.push();
+        }
         case "command":
           await vscode.commands.executeCommand(
             String(m.command),

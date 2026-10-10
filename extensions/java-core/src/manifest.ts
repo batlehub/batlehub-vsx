@@ -13,6 +13,12 @@ import {
   unwriteRules,
   writeRules,
 } from "@batlehub/java-rules/profile";
+import {
+  parseProjectFile,
+  saveToProject,
+  unsaveFromProject,
+  type ProjectValues,
+} from "@batlehub/java-rules/project-config";
 import { withLock } from "./lock";
 import { log } from "./log";
 import {
@@ -386,6 +392,39 @@ export function writeProfileEntries(
   fs.writeFileSync(file, out.text);
 }
 
+/**
+ * `Save to project` (RFC 0006 §4.2, red line 1): each key of `patch` written
+ * into project.json, comments and unknown keys kept, and the manifest records
+ * what each key replaced. The file is the team's, committed: its mode is left
+ * alone.
+ */
+export function writeProjectEntries(file: string, patch: ProjectValues): void {
+  let text: string | undefined;
+  try {
+    text = fs.readFileSync(file, "utf8");
+  } catch {
+    text = undefined;
+  }
+  const before = (
+    text === undefined ? {} : parseProjectFile(text).values
+  ) as Record<string, unknown>;
+  save(
+    record(readManifest(), {
+      kind: "project",
+      path: file,
+      created: text === undefined,
+      entries: Object.fromEntries(
+        Object.entries(patch).map(([k, written]) => [
+          k,
+          { written, previous: before[k] ?? null },
+        ]),
+      ),
+    }),
+  );
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.writeFileSync(file, saveToProject(text, patch));
+}
+
 /** A fenced block inside a shared file (`settings.xml`); the caller has already rewritten the file, and read its mode before doing so. */
 export function recordBlock(
   p: string,
@@ -491,6 +530,21 @@ export async function removeBatleHubSettings(
       } catch {
         /* already gone */
       }
+    },
+    project: async (p, created, entries) => {
+      let text: string;
+      try {
+        text = fs.readFileSync(p, "utf8");
+      } catch {
+        return; /* deleted by someone: nothing to take back */
+      }
+      const u = unsaveFromProject(text, entries, created);
+      if (u.text === null) fs.rmSync(p, { force: true });
+      else if (u.text !== text) fs.writeFileSync(p, u.text);
+      if (u.kept.length)
+        log.info(
+          `remove: kept in ${p}, edited since Save to project wrote them: ${u.kept.join(", ")}`,
+        );
     },
     moved: async (from, to) => {
       if (!fs.existsSync(to) || fs.existsSync(from)) return;

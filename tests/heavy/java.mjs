@@ -1318,8 +1318,47 @@ try {
       effective = JSON.parse(log.slice(log.indexOf("{", at), log.indexOf("\n}", at) + 2));
     } catch {}
     emit({ phase: "projectOverride", prefs: overridden.value, effective: effective?.effective?.["maven.activeProfiles"] ?? null, project: effective?.project?.["maven.activeProfiles"] ?? null, fileUnchanged: !readIfPresent(PROJECT)?.includes("dev") });
+
+    // §6.4: the Profiles tab says who set the profiles and that the team
+    // differs; Save to project writes the tab's values, recorded.
+    await clickActivity(page, "Java");
+    await sleep(1500);
+    const pf = await panelFrame(page);
+    let profilesTab = "";
+    if (pf) {
+      await pf.click('[data-tab="profiles"]').catch(() => {});
+      await sleep(800);
+      profilesTab = await pf.$eval("#panel-profiles", (e) => e.innerText.replace(/\s+/g, " ")).catch(() => "");
+      await pf.click('[data-save-project="profiles"]').catch(() => {});
+    }
+    const savedProject = await settle(async () => readIfPresent(PROJECT), (t) => /"dev"/.test(t ?? ""), 15000, 1000);
+    await snap(page, "project-panel");
+    emit({
+      phase: "projectPanel",
+      profilesTab,
+      saved: (() => {
+        try {
+          return JSON.parse(savedProject.value ?? "").maven?.activeProfiles ?? null;
+        } catch {
+          return null;
+        }
+      })(),
+      manifest: /"kind": ?"project"/.test(readIfPresent(path.join(WS, ".batlehub", "java", "local", "written.json")) ?? ""),
+    });
     if (settingsBefore === null) rmSync(SETTINGS, { force: true });
     else writeFileSync(SETTINGS, settingsBefore);
+
+    // Use case 8: a committed configuration selecting another settings file
+    // is announced, once, and applies only on "Use it"; here "Keep mine".
+    writeFileSync(PROJECT, JSON.stringify({ version: 1, maven: { configuration: "corp", configurations: [{ name: "corp", settingsFile: "~/.m2/settings-other.xml" }] } }, null, 2));
+    const warned = await settle(() => notifications(page), (n) => n.some((x) => /this repository selects/.test(x)), 30000, 1500);
+    await clickNotificationAction(page, /Keep mine/);
+    await sleep(1500);
+    emit({
+      phase: "projectSettingsFile",
+      notification: (warned.value ?? []).find((x) => /this repository selects/.test(x)) ?? null,
+      kept: channelLog("BatleHub Java").some((l) => /project\.json selects .*settings-other\.xml for Maven: kept/.test(l)),
+    });
 
     writeFileSync(PROJECT, JSON.stringify({ version: 1, maven: { activeProfiles: "dev" } }, null, 2));
     await openFile(page, "project.json");

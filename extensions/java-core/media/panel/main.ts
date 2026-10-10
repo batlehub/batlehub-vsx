@@ -62,6 +62,10 @@ type State = {
   profiles: { declared: string[]; active: string[] };
   experimental: Record<string, boolean>;
   chainNotice: boolean;
+  project: {
+    origins: Record<string, string>;
+    problems: { jdk: number; build: number; profiles: number };
+  };
   tabs: { id: string; title: string; html: string }[];
 };
 
@@ -81,6 +85,15 @@ const esc = (s: unknown) =>
 const post = (m: Record<string, unknown>) => vscode.postMessage(m);
 const origin = (o: string) =>
   `<span class="origin" title="${esc(o)}">${esc(o)}</span>`;
+/** RFC 0006 §6.4: who set a project.json key, when it is not detection. */
+const teamOrigin = (s: State, key: string) =>
+  s.project.origins[key] ? ` ${origin(s.project.origins[key])}` : "";
+/** A tab's project.json banner and its Save to project button. */
+const projectRow = (s: State, tab: "jdk" | "build" | "profiles") => {
+  const n = s.project.problems[tab];
+  return `${n ? `<p class="warn" role="alert">project.json has ${n} error${n > 1 ? "s" : ""} on this tab's keys — see the Problems panel; those keys are treated as absent.</p>` : ""}
+<div class="row"><button data-save-project="${tab}" ${s.trusted ? "" : 'disabled title="untrusted workspace"'}>Save to project</button><span class="muted">writes this tab's values into .batlehub/java/project.json, for the team</span></div>`;
+};
 
 function tabJdk(s: State): string {
   const j = s.jdk;
@@ -98,7 +111,7 @@ function tabJdk(s: State): string {
   const res = j.resources;
   return `
 <section aria-labelledby="h-jdk"><h2 id="h-jdk">Runtimes</h2>
-<p>${req}</p>
+<p>${req}${teamOrigin(s, "jdk.requirement")}</p>
 <table aria-label="Installed JDKs"><thead><tr><th scope="col">Use</th><th scope="col">Name</th><th scope="col">Version</th><th scope="col">Origin</th><th scope="col">Path</th></tr></thead><tbody>${rows}</tbody></table>
 <div class="row">
   <button data-msg="detect" ${s.trusted ? "" : 'disabled title="untrusted workspace: nothing runs"'}>Detect</button>
@@ -108,6 +121,7 @@ function tabJdk(s: State): string {
 <div class="field"><label for="installVia">Install through</label>
   <select id="installVia" data-set="jdk.installVia"><option value="auto" ${j.installVia.value === "auto" ? "selected" : ""}>auto (${esc(j.managers.join(", ") || "none found")})</option><option value="mise" ${j.installVia.value === "mise" ? "selected" : ""}>mise</option><option value="sdkman" ${j.installVia.value === "sdkman" ? "selected" : ""}>sdkman</option><option value="none" ${j.installVia.value === "none" ? "selected" : ""}>none</option></select>
   ${origin(j.installVia.origin)} ${j.installVia.origin === "set by you" ? `<button class="link" data-clear="jdk.installVia">Clear override</button>` : ""}</div>
+${projectRow(s, "jdk")}
 <div class="field"><label for="sources">Sources, in order</label><input id="sources" data-set-list="jdk.sources" value="${esc(j.sources.value.join(", "))}" aria-describedby="sources-help"> ${origin(j.sources.origin)} ${j.sources.origin === "set by you" ? `<button class="link" data-clear="jdk.sources">Clear override</button>` : ""}<span id="sources-help" class="muted">mise, sdkman, env, wellKnown</span></div>
 </section>
 <section aria-labelledby="h-res"><h2 id="h-res">The container's resources</h2>
@@ -128,12 +142,13 @@ function tabBuild(s: State): string {
 <p>${b.tool ? `<b>${esc(b.tool)}</b> · ${esc(b.buildFile)}${b.wrapper ? ` · wrapper ${esc(b.wrapper)}` : " · no wrapper (PATH tool)"}` : "No Maven or Gradle build in the first folder."}</p>
 <div class="row"><button data-cmd="batlehub.java.runGoal" ${s.trusted ? "" : "disabled"}>Run a goal or task…</button><button data-cmd="batlehub.java.reimport">Reload the Java projects</button></div>
 </section>
-<section aria-labelledby="h-mvn"><h2 id="h-mvn">Maven configurations ${origin(b.mavenOrigin)}</h2>
+${projectRow(s, "build")}
+<section aria-labelledby="h-mvn"><h2 id="h-mvn">Maven configurations ${origin(b.mavenOrigin)}${teamOrigin(s, "maven.configuration")}</h2>
 ${b.mavenConfigurations.length ? `<table aria-label="Maven configurations"><thead><tr><th scope="col">Active</th><th scope="col">Name</th><th scope="col">Settings file</th></tr></thead><tbody>${b.mavenConfigurations.map((c) => `<tr><td><input type="radio" name="mvncfg" aria-label="Activate ${esc(c.name)}" data-set-value="maven.activeConfiguration" value="${esc(c.name)}" ${c.active ? "checked" : ""}></td><td>${esc(c.name)}</td><td class="path">${esc(c.settingsFile ?? "")}</td></tr>`).join("")}</tbody></table>` : `<p class="muted">None: no ~/.m2/settings*.xml, and batlehub.java.maven.configurations is unset.</p>`}
 <p class="muted">Switching writes java.configuration.maven.userSettings (workspace) and re-imports.</p>
 </section>
 <section aria-labelledby="h-reg"><h2 id="h-reg">BatleHub registry link ${origin(b.registry.origin)}</h2>
-<div class="field"><label for="reg">Route the build through BatleHub</label><select id="reg" data-set="registry.enabled"><option value="ask" ${b.registry.enabled === "ask" ? "selected" : ""}>ask</option><option value="true" ${b.registry.enabled === "true" ? "selected" : ""}>yes</option><option value="false" ${b.registry.enabled === "false" ? "selected" : ""}>no</option></select></div>
+<div class="field"><label for="reg">Route the build through BatleHub</label><select id="reg" data-set="registry.enabled"><option value="ask" ${b.registry.enabled === "ask" ? "selected" : ""}>ask</option><option value="true" ${b.registry.enabled === "true" ? "selected" : ""}>yes</option><option value="false" ${b.registry.enabled === "false" ? "selected" : ""}>no</option></select>${teamOrigin(s, "registry.enabled")}</div>
 <div class="field"><label for="regurl">Registry URL</label><input id="regurl" data-set-text="registry.url" value="${esc(b.registry.url)}" placeholder="empty: the one batlehub-vsx is signed into"></div>
 </section>
 <section aria-labelledby="h-stock"><h2 id="h-stock">Stock Java extensions</h2>
@@ -160,7 +175,8 @@ ${r.configs.length ? `<table aria-label="Run configurations"><thead><tr><th scop
 function tabProfiles(s: State): string {
   const p = s.profiles;
   return `
-<section aria-labelledby="h-prof"><h2 id="h-prof">Maven profiles</h2>
+<section aria-labelledby="h-prof"><h2 id="h-prof">Maven profiles${teamOrigin(s, "maven.activeProfiles")}</h2>
+${projectRow(s, "profiles")}
 <p class="muted">Passed as -P to every goal and written where m2e reads them for the language server's import.</p>
 ${p.declared.length ? `<ul class="checks">${p.declared.map((id) => `<li><label><input type="checkbox" data-profile="${esc(id)}" ${p.active.includes(id) ? "checked" : ""}> ${esc(id)}</label></li>`).join("")}</ul>` : `<p class="muted">The POM declares no profiles.</p>`}
 ${
@@ -213,6 +229,13 @@ function wire(): void {
       tabEls[n]!.focus();
     });
   });
+  app
+    .querySelectorAll<HTMLElement>("[data-save-project]")
+    .forEach((el) =>
+      el.addEventListener("click", () =>
+        post({ type: "saveProject", tab: el.dataset.saveProject }),
+      ),
+    );
   app
     .querySelectorAll<HTMLElement>("[data-msg]")
     .forEach((el) =>
