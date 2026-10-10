@@ -26,7 +26,7 @@ jobs:
         vscode: ["1.136.1", "1.96.4"]
         redhat: ["1.56.0", "1.55.0", "pre-release"]
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v5
         with:
@@ -90,7 +90,7 @@ jobs:
         ports: ["5432:5432"]
         options: --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 20
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v5
         with:
@@ -133,7 +133,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       # RFC 0014 §9: themes/tokens.json is a copy of DESIGN.md's token block,
       # and a copy can fall behind silently. This compares the commit it
       # records with upstream's newest commit touching DESIGN.md. It never
