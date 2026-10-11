@@ -1,5 +1,9 @@
+import { fileURLToPath } from "node:url";
 import { defineConfig } from "vitepress";
 import { withMermaid } from "vitepress-plugin-mermaid";
+
+// GitHub Pages serves the site under /<repo>/; the pages workflow sets it, local dev stays at the root.
+const base = process.env.DOCS_BASE ?? "/";
 
 export default withMermaid(
   defineConfig({
@@ -9,13 +13,43 @@ export default withMermaid(
     lang: "en-US",
     lastUpdated: true,
     cleanUrls: true,
-    // GitHub Pages serves the site under /<repo>/; the pages workflow sets it, local dev stays at the root.
-    base: process.env.DOCS_BASE ?? "/",
-    // GitHub Pages serves the site under /<repo>/; the pages workflow sets it, local dev stays at the root.
-    base: process.env.DOCS_BASE ?? "/",
+    base,
     // The RFC template is a form with <placeholders> Vue would parse; it is copied by task rfc:new, not published.
     srcExclude: ["internal/**"],
+    // The BatleHub theme (theme/): no sans, so the default theme's Inter is
+    // swapped for an empty stylesheet rather than shipped unused.
+    vite: {
+      plugins: [
+        {
+          name: "batlehub:no-inter",
+          enforce: "pre" as const,
+          resolveId(source: string, importer?: string) {
+            if (source.endsWith("styles/fonts.css") && importer?.includes("theme-default")) {
+              return fileURLToPath(new URL("./theme/no-inter.css", import.meta.url));
+            }
+            return null;
+          },
+        },
+      ],
+    },
+    head: [
+      ["link", { rel: "icon", type: "image/svg+xml", href: base + "logo.svg" }],
+      ["link", { rel: "preload", as: "font", type: "font/woff2", crossorigin: "", href: base + "fonts/silkscreen-700.woff2" }],
+      ["link", { rel: "preload", as: "font", type: "font/woff2", crossorigin: "", href: base + "fonts/jetbrainsmono-latin.woff2" }],
+      // tokens.css authors light under :root[data-theme="light"]; mirror VitePress's `.dark` class onto it.
+      [
+        "script",
+        {},
+        `(()=>{const e=document.documentElement,s=()=>e.setAttribute("data-theme",e.classList.contains("dark")?"dark":"light");s();new MutationObserver(s).observe(e,{attributes:true,attributeFilter:["class"]})})()`,
+      ],
+      ["meta", { name: "theme-color", content: "#dc2626" }],
+    ],
+    // The default highlighter palettes miss AA on the theme's grounds; the high-contrast pair clears both.
+    markdown: {
+      theme: { light: "github-light-high-contrast", dark: "github-dark-high-contrast" },
+    },
     themeConfig: {
+      logo: { light: "/logo-ink.svg", dark: "/logo-cream.svg" },
       nav: [
         { text: "Guide", link: "/guide/install" },
         { text: "Contributing", link: "/contributing/testing" },
