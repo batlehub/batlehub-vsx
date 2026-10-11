@@ -2,6 +2,12 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## java-pack-v0.1.0 - 2026-10-11
+#### Features
+- mise en place ovsx - (d463cb4) - Max Batleforc
+
+- - -
+
 ## java-pack-v0.0.1 - 2026-10-11
 #### Features
 - v1 published doc - (ce0b30b) - Max Batleforc

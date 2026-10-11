@@ -2,7 +2,7 @@
   "name": "che-notify",
   "displayName": "Che Notify",
   "description": "Show notifications written by processes in an Eclipse Che workspace, with optional browser OS notifications.",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "publisher": "batlehub",
   "license": "Apache-2.0",
   "icon": "media/icon.png",

@@ -6,6 +6,12 @@ First cut (RFC 0014): three variants derived from `DESIGN.md`
 registry.
 
 - - -
+## batlehub-theme-v0.2.0 - 2026-10-11
+#### Features
+- mise en place ovsx - (d463cb4) - Max Batleforc
+
+- - -
+
 ## batlehub-theme-v0.1.2 - 2026-10-11
 #### Features
 - v1 published doc - (ce0b30b) - Max Batleforc
