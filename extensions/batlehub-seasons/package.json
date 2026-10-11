@@ -2,7 +2,7 @@
   "name": "batlehub-seasons",
   "displayName": "BatleHub Seasons",
   "description": "The editor notices what day it is: on Halloween, Christmas, New Year and three more, the title bar, activity bar and status bar take the season's colours and the window title gains a glyph. Every write is saved first and replayed back at the next start.",
-  "version": "0.1.0",
+  "version": "0.0.1",
   "publisher": "batlehub",
   "license": "Apache-2.0",
   "icon": "media/icon.png",
