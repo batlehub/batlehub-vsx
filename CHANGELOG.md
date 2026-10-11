@@ -2,6 +2,15 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## [v0.2.1](https://github.com/batleforc/batlehub-vsx/compare/ba1a5cbd73afdd65f29fc5fb1f74d501a17b89ea..v0.2.1) - 2026-10-11
+### Package updates
+- [java-core-v0.1.1](extensions/java-core) bumped to [java-core-v0.1.1](https://github.com/batleforc/batlehub-vsx/compare/java-core-v0.1.0..java-core-v0.1.1)
+### Global changes
+#### Bug Fixes
+- (**ci**) build the JDT bundle and the Groovy jar in the release - ([ba1a5cb](https://github.com/batleforc/batlehub-vsx/commit/ba1a5cbd73afdd65f29fc5fb1f74d501a17b89ea)) - Max Batleforc, Claude Opus 5.5
+
+- - -
+
 ## [v0.2.0](https://github.com/batleforc/batlehub-vsx/compare/42f3f0b818d2f1808918e072d0d5c0ecdb7a5eed..v0.2.0) - 2026-10-11
 ### Package updates
 - [java-pack-frameworks-v0.1.0](extensions/java-pack-frameworks) bumped to [java-pack-frameworks-v0.1.0](https://github.com/batleforc/batlehub-vsx/compare/java-pack-frameworks-v0.0.1..java-pack-frameworks-v0.1.0)

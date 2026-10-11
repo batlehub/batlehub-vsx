@@ -2,7 +2,7 @@
   "name": "java-core",
   "displayName": "BatleHub Java",
   "description": "One core for Java in VS Code: the JDK that runs, the container's memory, run configurations, the Maven and Gradle integration and an IDEA-style menu — over the Red Hat language stack (RFC 0001).",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "publisher": "batlehub",
   "license": "Apache-2.0",
   "repository": {

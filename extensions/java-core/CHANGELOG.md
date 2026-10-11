@@ -1,6 +1,12 @@
 # Changelog
 
 - - -
+## java-core-v0.1.1 - 2026-10-11
+#### Bug Fixes
+- (**ci**) build the JDT bundle and the Groovy jar in the release - (ba1a5cb) - Max Batleforc, *Claude Opus 5.5*
+
+- - -
+
 ## java-core-v0.1.0 - 2026-10-11
 #### Features
 - mise en place ovsx - (d463cb4) - Max Batleforc
