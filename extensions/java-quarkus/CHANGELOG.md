@@ -1,5 +1,7 @@
 # Changelog
 
+- - -
+
 ## 0.2.0
 
 - RFC 0011 phase 3: `Debug dev mode` through the core's attach, the offline extension catalogue with add / remove, Gradle dev mode.

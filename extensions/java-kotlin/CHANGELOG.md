@@ -1,5 +1,7 @@
 # Changelog
 
+- - -
+
 ## 0.1.0
 
 - JetBrains' Kotlin language server for `.kt` and `.kts`, downloaded on
