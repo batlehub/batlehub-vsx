@@ -2,7 +2,7 @@
   "name": "java-pack",
   "displayName": "BatleHub Java Pack",
   "description": "Java for VS Code the BatleHub way: the core, the Groovy satellite, the Red Hat and Microsoft stack, and the IntelliJ keymap (RFC 0001).",
-  "version": "0.1.0",
+  "version": "0.0.1",
   "publisher": "batlehub",
   "license": "Apache-2.0",
   "repository": {
