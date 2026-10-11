@@ -2,7 +2,7 @@
   "name": "batlehub-vsx",
   "displayName": "BatleHub",
   "description": "Sign in to a BatleHub extension registry from the editor, keep its credential fresh, and browse and install its extensions where the editor's own gallery cannot be repointed.",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "publisher": "batlehub",
   "license": "Apache-2.0",
   "repository": {

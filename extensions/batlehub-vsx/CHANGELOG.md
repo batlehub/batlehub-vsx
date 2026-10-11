@@ -2,6 +2,15 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## batlehub-vsx-v0.1.1 - 2026-10-11
+#### Features
+- v1 published doc - (ce0b30b) - Max Batleforc
+- CI/CD - (096aa9c) - Max Batleforc
+- start work on the new java extension and init batlehub theme - (d7b0484) - Maxime
+- start work on the new java extension - (17c541a) - Max Batleforc
+
+- - -
+
 ## batlehub-vsx-v0.1.0 - 2026-09-07
 #### Features
 - wip - (a526bd4) - Max Batleforc
