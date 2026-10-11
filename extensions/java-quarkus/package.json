@@ -7,7 +7,7 @@
   "license": "Apache-2.0",
   "repository": { "type": "git", "url": "https://github.com/batleforc/batlehub-vsx" },
   "homepage": "https://github.com/batleforc/batlehub-vsx/tree/main/extensions/java-quarkus",
-  "icon": "media/java.png",
+  "icon": "media/icon.png",
   "engines": { "vscode": "^1.96.0" },
   "categories": ["Programming Languages", "Debuggers"],
   "keywords": ["quarkus", "microprofile", "java", "batlehub"],

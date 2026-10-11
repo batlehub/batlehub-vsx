@@ -9,6 +9,10 @@ export default withMermaid(
     lang: "en-US",
     lastUpdated: true,
     cleanUrls: true,
+    // GitHub Pages serves the site under /<repo>/; the pages workflow sets it, local dev stays at the root.
+    base: process.env.DOCS_BASE ?? "/",
+    // GitHub Pages serves the site under /<repo>/; the pages workflow sets it, local dev stays at the root.
+    base: process.env.DOCS_BASE ?? "/",
     // The RFC template is a form with <placeholders> Vue would parse; it is copied by task rfc:new, not published.
     srcExclude: ["internal/**"],
     themeConfig: {
@@ -30,6 +34,15 @@ export default withMermaid(
             { text: "Settings and commands", link: "/guide/settings" },
             { text: "The BatleHub theme", link: "/guide/theme" },
             { text: "BatleHub Seasons", link: "/guide/seasons" },
+          ],
+        },
+        {
+          text: "Eclipse Che",
+          items: [
+            { text: "Overview, the Che pack", link: "/guide/che/" },
+            { text: "Clipboard", link: "/guide/che/clipboard" },
+            { text: "Notifications", link: "/guide/che/notify" },
+            { text: "Remote SSH", link: "/guide/che/remote-ssh" },
           ],
         },
         {

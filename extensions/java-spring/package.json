@@ -10,7 +10,7 @@
     "url": "https://github.com/batleforc/batlehub-vsx"
   },
   "homepage": "https://github.com/batleforc/batlehub-vsx/tree/main/extensions/java-spring",
-  "icon": "media/java.png",
+  "icon": "media/icon.png",
   "engines": {
     "vscode": "^1.96.0"
   },

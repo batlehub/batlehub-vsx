@@ -193,6 +193,15 @@ importers:
         specifier: ^5.0.3
         version: 5.0.3(@types/node@24.13.3)(vite@7.3.6(@types/node@24.13.3))
 
+  extensions/che-pack:
+    devDependencies:
+      '@vscode/vsce':
+        specifier: ^3.6.0
+        version: 3.9.2(supports-color@9.4.0)
+      prettier:
+        specifier: ^3.6.0
+        version: 3.9.6
+
   extensions/che-remote-ssh:
     devDependencies:
       '@types/node':

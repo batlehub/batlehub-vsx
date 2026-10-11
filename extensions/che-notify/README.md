@@ -11,6 +11,7 @@ echo '{"hook_event_name":"Notification","message":"Claude needs input"}' | ide-n
 The bundled `ide-notify` command is installed in `~/.local/bin` at activation (disable with `cheNotify.installCli`). Lines may be plain text, `info|message`, `warn|message`, `error|message`, or JSON with `level`, `message` and supported actions (`url`, `file`, `command`, `shell`, `copy`).
 
 Run **Che Notify: Send a test notification** to verify the complete path. **Che Notify: Open the browser notification bridge** optionally forwards notifications to the browser/OS once permission is granted.
+
 ## External relays
 
 Set `cheNotify.forwarders` to fan every accepted notification out to other services. Each relay receives `{ version, emittedAt, notification }`.

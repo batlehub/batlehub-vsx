@@ -35,9 +35,10 @@ tasks:
       - pnpm install --frozen-lockfile
 
   recu:
-    desc: "Recurring job: build every extension so dist/ is what the tests and the package see"
+    desc: "Recurring job: build every extension so dist/ is what the tests and the package see, and sync the README-mirrored doc pages"
     cmds:
       - task ext:build
+      - task docs:sync
 
   lint:
     desc: "Type-check, lint and format-check every extension; the settings-doc and l10n checks of RFC 0001"

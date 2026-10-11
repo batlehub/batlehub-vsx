@@ -52,6 +52,11 @@ path = "extensions/che-notify"
 public_api = true
 pre_bump_hooks = ["pnpm pkg set version={{version}}"]
 
+[monorepo.packages.che-pack]
+path = "extensions/che-pack"
+public_api = true
+pre_bump_hooks = ["pnpm pkg set version={{version}}"]
+
 # RFC 0001: the Java family. Each is its own release (§12: "each phase is a
 # release of the extensions it names").
 [monorepo.packages.java-core]

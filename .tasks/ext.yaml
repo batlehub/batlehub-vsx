@@ -62,6 +62,11 @@ tasks:
     cmds:
       - node scripts/check-l10n.mjs
 
+  icons:
+    desc: "Redraw every extension's media/icon.png from the BatleHub mark and its topic glyph (scripts/icons.mjs)"
+    cmds:
+      - node scripts/icons.mjs
+
   licenses:
     desc: "Write THIRD-PARTY.md per extension: every bundled dependency and its licence (decision 22)"
     cmds:

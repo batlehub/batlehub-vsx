@@ -1,0 +1,45 @@
+{
+  "name": "che-pack",
+  "displayName": "BatleHub Che Pack",
+  "description": "BatleHub's Eclipse Che essentials in one install: the editor's clipboard in the terminal, workspace notifications, and the BatleHub theme.",
+  "version": "0.1.0",
+  "publisher": "batlehub",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/batleforc/batlehub-vsx"
+  },
+  "homepage": "https://github.com/batleforc/batlehub-vsx/tree/main/extensions/che-pack",
+  "icon": "media/icon.png",
+  "engines": {
+    "vscode": "^1.96.0"
+  },
+  "categories": [
+    "Extension Packs"
+  ],
+  "keywords": [
+    "che",
+    "eclipse che",
+    "batlehub",
+    "clipboard",
+    "notifications",
+    "theme"
+  ],
+  "extensionPack": [
+    "batlehub.che-clipboard",
+    "batlehub.che-notify",
+    "batlehub.batlehub-theme"
+  ],
+  "scripts": {
+    "build": "echo 'che-pack: nothing to build'",
+    "typecheck": "echo 'che-pack: nothing to type-check'",
+    "lint": "prettier --check package.json README.md",
+    "format": "prettier --write package.json README.md",
+    "test": "echo 'che-pack: nothing to test'",
+    "package": "vsce package --no-dependencies --skip-license -o che-pack.vsix"
+  },
+  "devDependencies": {
+    "@vscode/vsce": "^3.6.0",
+    "prettier": "^3.6.0"
+  }
+}

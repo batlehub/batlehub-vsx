@@ -10,7 +10,7 @@
     "url": "https://github.com/batleforc/batlehub-vsx"
   },
   "homepage": "https://github.com/batleforc/batlehub-vsx",
-  "icon": "media/batlehub.png",
+  "icon": "media/icon.png",
   "engines": {
     "vscode": "^1.96.0"
   },

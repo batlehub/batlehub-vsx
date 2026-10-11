@@ -21,3 +21,8 @@ tasks:
     dir: docs
     cmds:
       - pnpm run preview
+
+  sync:
+    desc: "Write the guide pages that mirror an extension's README (docs/guide/che/*) from that README"
+    cmds:
+      - node scripts/sync-docs.mjs
