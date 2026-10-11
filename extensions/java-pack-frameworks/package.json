@@ -2,7 +2,7 @@
   "name": "java-pack-frameworks",
   "displayName": "BatleHub Java Pack: Frameworks",
   "description": "The framework satellites of BatleHub Java, opt-in: Quarkus dev mode as a managed process with its tab and catalogue (RFC 0011), Spring Boot's profiles, dashboard and run step (RFC 0010).",
-  "version": "0.2.0",
+  "version": "0.0.1",
   "publisher": "batlehub",
   "license": "Apache-2.0",
   "repository": {
