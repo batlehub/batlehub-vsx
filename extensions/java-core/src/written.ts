@@ -56,6 +56,18 @@ export type Entry =
       created: boolean;
       entries: Record<string, { written: unknown; previous: unknown }>;
       at: string;
+    }
+  // RFC 0007 §6.6: a binding the IntelliJ import wrote into the user's
+  // keybindings, under its marker comment. Not the file's previous content:
+  // in the web build the file is browser state, and restoring a copy would
+  // undo whatever the developer bound since; removal takes the marked
+  // entries out instead.
+  | {
+      kind: "keybinding";
+      key: string;
+      command: string;
+      keymap: string;
+      at: string;
     };
 
 export interface ProfileWrite {
@@ -177,6 +189,8 @@ export function targetOf(e: Entry): string {
       return `moved:${e.from}`;
     case "project":
       return `project:${e.path}`;
+    case "keybinding":
+      return `keybinding:${e.key}:${e.command}`;
   }
 }
 
@@ -211,6 +225,8 @@ export function describe(m: Manifest): string[] {
         const n = Object.keys(e.entries).length;
         return `take back ${n} key${n > 1 ? "s" : ""} saved into ${e.path} (${Object.keys(e.entries).join(", ")}), keeping any edited since${e.created ? ", and delete it if it names nothing else" : ""}`;
       }
+      case "keybinding":
+        return `remove the user key binding ${e.key} → ${e.command} (IntelliJ keymap "${e.keymap}") — asked again, it is outside this workspace`;
     }
   });
 }
@@ -228,6 +244,7 @@ export interface Replayer {
     mode?: number | null,
   ): Promise<void>;
   block(path: string, marker: string, mode?: number | null): Promise<void>;
+  keybinding(key: string, command: string): Promise<void>;
   gitignore(path: string, line: string): Promise<void>;
   profile(
     path: string,
@@ -256,6 +273,7 @@ export async function replay(m: Manifest, r: Replayer): Promise<string[]> {
       else if (e.kind === "moved") await r.moved(e.from, e.to);
       else if (e.kind === "project")
         await r.project(e.path, e.created, e.entries);
+      else if (e.kind === "keybinding") await r.keybinding(e.key, e.command);
       else await r.profile(e.path, e.created, e.entries);
     } catch (err) {
       errors.push(`${targetOf(e)}: ${(err as Error).message}`);

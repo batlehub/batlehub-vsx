@@ -75,6 +75,7 @@ describe("the manifest of §4.2 (decision 24)", () => {
       profile: async () => {},
       moved: async () => {},
       project: async () => {},
+      keybinding: async () => {},
     });
     expect(calls).toEqual([
       "block /home/u/.m2/settings.xml 644",
@@ -115,6 +116,7 @@ describe("the manifest of §4.2 (decision 24)", () => {
       profile: async () => {},
       moved: async () => {},
       project: async () => {},
+      keybinding: async () => {},
     });
     expect(calls).toEqual([
       "user sonarlint.rules",
@@ -234,6 +236,7 @@ describe("the local/ layout (RFC 0006 §5.2, §5.3)", () => {
       profile: async () => {},
       moved: async (from, to) => void calls.push(`moved ${to} -> ${from}`),
       project: async () => {},
+      keybinding: async () => {},
     });
     expect(calls).toEqual([
       "moved /w/.batlehub/java/local/notes.txt -> /w/.batlehub/java/notes.txt",

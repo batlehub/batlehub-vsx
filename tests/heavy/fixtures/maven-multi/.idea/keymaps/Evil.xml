@@ -1,0 +1,5 @@
+<keymap version="1" name="Evil" parent="$default">
+  <action id="SaveAll">
+    <keyboard-shortcut first-keystroke="control S" />
+  </action>
+</keymap>

@@ -9,7 +9,7 @@
 | Author      | Max Batleforc <maxleriche.60@gmail.com>                       |
 | Co-author   | —                                                             |
 | Created     | 2026-09-18                                                    |
-| Revised     | 2026-09-29 — revision 4, the recommendations of §11 promoted to decisions 14 and 15: the code-style golden asserts byte equality on a fixture that avoids the unmappable options, with the unmapped list as the published boundary, and file templates lose `${PACKAGE_NAME}` rather than guess it. 2026-09-29, revision 5, phase 2 built and proven in the real editor (`IMPORT-SNIPPET-OK`): the IDEA configuration directory read through `XDG_CONFIG_HOME` as IDEA itself reads it, the package line of a file template dropped and listed as decision 15 says, `java.templates.typeComment` left alone because IDEA has nothing to fill it from, and §10's heavy list corrected — one step covers use cases 2 and 3 because they share one snippets file |
+| Revised     | 2026-10-11 — revision 7, phase 3 built on option (a) of §11: the user keymap through the editor's own keybindings document (`keymap.ts`, `userkeys.ts`, `GENERATE-KEY-OK`). 2026-10-11 — revision 6, phase 4 built: the IntelliJ inspection profile into RFC 0005's `inspections.json` (`src/idea/profile.ts`, `IMPORT-PROFILE-OK`). 2026-09-29 — revision 4, the recommendations of §11 promoted to decisions 14 and 15: the code-style golden asserts byte equality on a fixture that avoids the unmappable options, with the unmapped list as the published boundary, and file templates lose `${PACKAGE_NAME}` rather than guess it. 2026-09-29, revision 5, phase 2 built and proven in the real editor (`IMPORT-SNIPPET-OK`): the IDEA configuration directory read through `XDG_CONFIG_HOME` as IDEA itself reads it, the package line of a file template dropped and listed as decision 15 says, `java.templates.typeComment` left alone because IDEA has nothing to fill it from, and §10's heavy list corrected — one step covers use cases 2 and 3 because they share one snippets file |
 | Supersedes  | —                                                             |
 | Depends on  | RFC 0001 (`src/idea/import.ts`, the `written.json` manifest, the `experimental.intellijImport` flag, the JDT bundle's rule ids); RFC 0005 (the shared inspection profile the imported profile is written as, and — revision 2 — the manifest entry kind of a profile written by a program); `redhat.java` ≥ 1.56.0 (`java.format.settings.url`, `java.templates.fileHeader`, `java.completion.importOrder`) |
 | Touches     | `extensions/java-core/src/idea/` (`import.ts` grows a scope picker; new `codestyle.ts`, `templates.ts`, `keymap.ts`, `profile.ts`), `src/manifest.ts` (one new entry kind, `keybinding`; the `profile` kind is RFC 0005's), `package.json` (the command's title, no new setting), `tests/heavy/fixtures/` (an `.idea/` with all five kinds, IDEA golden output), `docs/guide/java/intellij.md` |
@@ -652,7 +652,41 @@ graph LR
 
 ### Still open
 
-None at this revision.
+1. **Phase 3 cannot write the user `keybindings.json` where this runs**
+   (found 2026-10-11, revision 6). In VS Code's web build — the heavy
+   suite's editor, and Che's — the user's settings and keybindings live in
+   the browser's storage, not in a file: the editor's `server/data/User/`
+   holds neither `settings.json` nor `keybindings.json`, and the extension
+   API has no call that writes a keybinding. §4.2's "written to the user
+   `keybindings.json`" holds on desktop only. Options to decide between:
+   (a) open the user file through `workbench.action.openGlobalKeybindingsFile`
+   and apply the entries as an unsaved edit of that document, which the
+   developer saves — to be spiked in the web build first; (b) contribute the
+   handful of actions BatleHub owns (`Generate` → `batlehub.java.generateMenu`)
+   as `contributes.keybindings` behind a setting, and list the rest for the
+   developer to bind; (c) desktop only, with the web build told why.
+
+   **Measured by the maintainer, 2026-10-11, CheCode 1.128.1 (Firefox):**
+   `Preferences: Open Keyboard Shortcuts (JSON)` opens `/User/keybindings.json`
+   with no path on disk; a binding written there works and survives a reload;
+   `find /` finds no new `keybindings.json`; the same workspace in a private
+   window does not have it. The file is in that browser's storage: per
+   browser, not per workspace. Another Che setup the maintainer used kept it
+   on disk, where §4.2's direct write did work. So phase 3 has two cases, and
+   (a) is the one that covers both: the editor's own file service reaches the
+   file wherever it lives. The plan must also say, in the browser case, that
+   the bindings land in this browser only.
+
+   **Spiked, 2026-10-11, VS Code 1.136.1 web build — (a) works.** A
+   throwaway extension ran `workbench.action.openGlobalKeybindingsFile`,
+   took the active document (`vscode-userdata:/User/keybindings.json`),
+   inserted `{ "key": "ctrl+alt+j", … }` with `workspace.applyEdit` (true)
+   and `document.save()` (true); the key fired at once and after a reload,
+   and a second fresh browser profile did not have it — the maintainer's
+   measurement, reproduced by an extension. `workspace.fs.readFile` reads that
+   URI too. Phase 3 is therefore built on (a): the file is reached through
+   the editor's own command on every build, desktop included, and never by a
+   path the core guesses. **Built in revision 7.**
 
 ---
 
@@ -662,6 +696,6 @@ None at this revision.
 | --- | --- |
 | 1 | ~~The trust gate and the diff plan (`planDiffs`, host case 7); `codestyle.ts` with the mapping table, `eclipse-defaults.json` extracted from the pinned JDT, the settings; the fixture's `Project.xml` and IDEA golden file; heavy case 1.~~ **Done** (revision 3). 402 JDT defaults from the pinned redhat.java 1.56.0 (`task jdt:formatter-defaults`); 29 of 30 fixture options mapped, `WRAP_LONG_LINES` listed; `Format Document` byte-for-byte equal to IDEA 2026.1.3's own headless formatter. Host case 7 is covered by the heavy half instead: the diff editors and the untrusted gate are both driven there. |
 | 2 | ~~`templates.ts`: live templates and file templates; the snippets file, `fileHeader`; heavy cases 2, 3.~~ **Done** (revision 5). `src/idea/templates.ts` pure beside `codestyle.ts`, two scopes on the pick (`livetemplates`, `filetemplates`), both kinds in one `.vscode/intellij.code-snippets` and one `settings.json` diff. Four things the build settled: the configuration directory is read through `XDG_CONFIG_HOME` (§4.2), a skipped `Skip live templates` is an answer and not a missing directory, `java.templates.typeComment` is left alone (§4.1), and the escaping is done in one pass with the snippet syntax held aside — escaping after substitution ate the `$` of every mapped variable, which is the bug the `Emitter` exists to make impossible. Heavy: `IMPORT-SNIPPET-OK` (cases 2 and 3), with the `sout` it wrote offered by the editor's own completion. |
-| 3 | `keymap.ts` with the `ACTIONS` table and the extension-default check, the directory pick outside the workspace, the `keybinding` manifest kind (previous content) and its confirmed removal; heavy case 4. |
-| 4 | With RFC 0005 phase 1 (revision 2: the imported mark and the entry kind): `profile.ts` writing `inspections.json`, the `RULES` table build check; heavy case 5. |
-| 5 | Flag graduation: the command in the Java panel; the guide page `docs/guide/java/intellij.md`. |
+| 3 | **Built** (revision 7, 2026-10-11), on §11's option (a). `src/idea/keymap.ts` pure: `parseKeymap`, IDEA's keystroke grammar (`toKey`, chords, `meta` → `cmd` on a Mac), `ACTIONS` (73 rows; a BatleHub row checked against `package.json`), `planKeymap` (the user's own binding of the same key wins and is listed; an extension default it overrides is named), `addEntries` / `removeEntries` over the marker comment. `src/idea/userkeys.ts`: the user file opened through `workbench.action.openGlobalKeybindingsFile`, edited and saved as that document — browser storage in the web build, a file on desktop. The active keymap from `options/keymap.xml`, keymaps only from the configuration directory, never `.idea/keymaps/`. Two departures from §6: the `keybinding` manifest entry records the binding, not the file's previous content (restoring a copy of browser state would undo whatever the developer bound since; removal takes the marked entries out), and `batlehub.java.generateMenu` was added — the `Generate` row's target, which did not exist. The plan says when the bindings land in this browser only. Heavy: `GENERATE-KEY-OK` (Alt+Insert opens the Generate pick) and `REMOVE-OK`'s second question. |
+| 4 | **Built** (revision 6, 2026-10-11). `src/idea/profile.ts` pure: `parseIdeaProfile`, `activeProfile` (`profiles_settings.xml`; `USE_PROJECT_PROFILE=false` refused, as the code style's switched-off scheme is), `toProfilePlan` through `RULES`; every entry marked `imported: "intellij"` with a generated `why` (`(disabled there)` or `(ERROR there)`), so none trips RFC 0005's why-rule; an unknown level skipped and listed. The "Inspections" scope, its plan section with the unmapped count (the ids in the log after Write), one diff for `.batlehub/java/inspections.json`, the write through RFC 0005's `writeProfileEntries`. `RULES` checked against the schema generated from the bundle (`idea-profile.test.ts`). Heavy: `IMPORT-PROFILE-OK` (case 5) — the fixture's `.idea/inspectionProfiles/`. Not built: the pick among several profiles; the active one (named, else `Project Default`) is read. |
+| 5 | Half built (2026-10-11): the guide page `docs/guide/java/intellij.md`. **The flag's graduation waits on its own condition** (§9): the heavy cases green for one release, and no java-core release carries the import yet. Then the flag goes and the command moves to the Java panel's JDK tab ("Import from IntelliJ…"). |

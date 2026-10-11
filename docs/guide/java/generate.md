@@ -1,6 +1,9 @@
 # Generate: builders, with methods, and the rest
 
-The editor's context menu has a **Generate** submenu (`Java: Generate…`).
+The editor's context menu has a **Generate** submenu, and `Java: Generate…`
+(`batlehub.java.generateMenu`) opens the same list as one pick — IDEA's
+Alt+Insert popup, which [an imported IntelliJ keymap](./intellij.md) binds
+to it.
 Every entry asks its options through the quick input, pre-selected from your
 settings, and writes **one unsaved edit**: one `Ctrl+Z` takes it all back.
 Design: [RFC 0015](../../rfc/0015-generate-shortcuts.md); the list of what is

@@ -2,6 +2,7 @@
 // §6.2): what the bundle's rows become client-side — severity overrides
 // applied before display, grouping for the view, and the ping/restart
 // decision of "The bundle is loaded at server start only". No `vscode`.
+import { mergeSeverities, type Level } from "./profile.ts";
 
 export interface Row {
   ruleId: string;
@@ -34,23 +35,27 @@ export function applyOverrides(
 }
 
 /**
- * What an agent or CI is told (RFC 0002 §4.1): the rows at the project's
- * severities, never the developer's overrides — a row those overrides change
- * or hide is marked, not changed. Until RFC 0005's committed profile lands,
- * the project's severities are the bundle's defaults.
+ * What an agent or CI is told (RFC 0002 §4.1, RFC 0005 §4.2): the rows at the
+ * project's levels — the committed profile's, `project`, over the bundle's
+ * defaults; a rule the team turned off is not reported. The developer's
+ * overrides are never applied: a row they change or hide is marked.
  */
 export function projectRows(
   raw: Row[],
   editor: { enabled: boolean; severityOverrides: Record<string, string> },
+  project: Record<string, Level> = {},
 ): (Row & { differsFromEditor?: true })[] {
-  return raw.map((r) => {
-    const [shown] = editor.enabled
-      ? applyOverrides([r], editor.severityOverrides)
-      : [];
-    return shown?.severity === r.severity
-      ? r
-      : { ...r, differsFromEditor: true };
-  });
+  const seen = mergeSeverities(project, editor.severityOverrides);
+  const out: (Row & { differsFromEditor?: true })[] = [];
+  for (const r of raw) {
+    const [p] = applyOverrides([r], project);
+    if (!p) continue;
+    const [shown] = editor.enabled ? applyOverrides([r], seen) : [];
+    out.push(
+      shown?.severity === p.severity ? p : { ...p, differsFromEditor: true },
+    );
+  }
+  return out;
 }
 
 export interface Grouped {

@@ -17,7 +17,7 @@ import { projectRows, type Row } from "@batlehub/java-rules/rules";
 import { log } from "../log";
 import { wire } from "../wire";
 import { McpSession } from "@batlehub/java-rules/protocol";
-import { parseSymbol } from "@batlehub/java-rules/verbs";
+import { generateCall, parseSymbol } from "@batlehub/java-rules/verbs";
 
 type LspEdit = { changes: Record<string, LspTextEdit[]> };
 type LspTextEdit = {
@@ -164,7 +164,7 @@ class Tools {
         "batlehub.inspections.list",
         u.toString(),
       );
-      for (const r of projectRows(raw ?? [], editor))
+      for (const r of projectRows(raw ?? [], editor, this.c.projectLevels?.()))
         findings.push({ path: this.rel(u.toString()), ...r });
     }
     return { files: files.length, findings };
@@ -186,27 +186,27 @@ class Tools {
   }
 
   async java_generate(a: {
-    what: "accessors" | "getters" | "setters";
+    what: string;
     file: string;
     line: number;
+    endLine?: number;
+    options?: Record<string, unknown>;
     getterPrefix?: string;
     booleanPrefix?: string;
     fluentSetters?: boolean;
     dryRun: boolean;
   }) {
     this.gate(true);
-    const uri = this.uri(a.file).toString();
-    const at = { line: a.line - 1, character: 0 };
-    const g = readSettings().generate;
-    const edit = await this.exec<Partial<LspEdit> | undefined>(
-      "batlehub.generate.accessors",
-      {
-        textDocument: { uri },
-        range: { start: at, end: at },
-        context: { diagnostics: [] },
-      },
-      JSON.stringify({
-        ...g,
+    // RFC 0015 phase 4: one call shape for both surfaces; the accessors keep
+    // the developer's generate settings, as the menu does.
+    const call = generateCall({
+      what: a.what,
+      uri: this.uri(a.file).toString(),
+      line: a.line,
+      endLine: a.endLine,
+      options: a.options,
+      accessorOptions: {
+        ...readSettings().generate,
         ...(a.getterPrefix === undefined
           ? {}
           : { getterPrefix: a.getterPrefix }),
@@ -216,10 +216,14 @@ class Tools {
         ...(a.fluentSetters === undefined
           ? {}
           : { fluentSetters: a.fluentSetters }),
-        kind: { accessors: 0, getters: 1, setters: 2 }[a.what],
-      }),
-    );
-    return this.finish({ changes: edit?.changes ?? {} }, a.dryRun);
+      },
+    });
+    const edit = await this.exec<
+      (Partial<LspEdit> & { refused?: string; note?: string }) | undefined
+    >(call.command, ...call.args);
+    if (edit?.refused) throw new Error(edit.refused);
+    const out = await this.finish({ changes: edit?.changes ?? {} }, a.dryRun);
+    return edit?.note ? { ...out, note: edit.note } : out;
   }
 
   async java_rename(a: { symbol: string; newName: string; dryRun: boolean }) {

@@ -11,3 +11,10 @@ and the import must refuse a directory that is.
 `iter` (`iterableVariable()`, which has no snippet equivalent and must be
 *listed* while the template still ships), and `div` (an HTML context, which
 must be skipped). Four snippets out, one skipped, one note.
+
+RFC 0007 use case 4 reads the user's keymap from the same place:
+`keymaps/Max.xml` is the developer's diff from `$default` — `Generate` on
+Alt+Insert, `RenameElement` on Shift+F6, and `CompareTwoFiles`, which has no
+command and must be listed — and `options/keymap.xml` marks it active, as IDEA
+does. The workspace fixture commits `.idea/keymaps/Evil.xml`: the import must
+never read it, keymaps being user-level.

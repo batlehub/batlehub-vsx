@@ -1,0 +1,11 @@
+{
+  "Kotlin: JetBrains' language server": "Kotlin: JetBrains' language server",
+  "Kotlin: JetBrains' language server could not be downloaded ({0}). Kotlin files open without it; set batlehub.java.kotlin.server.home to an unpacked server to work offline.": "Kotlin: JetBrains' language server could not be downloaded ({0}). Kotlin files open without it; set batlehub.java.kotlin.server.home to an unpacked server to work offline.",
+  "Kotlin: this release of JetBrains' language server has expired. Restart the server to fetch the current one.": "Kotlin: this release of JetBrains' language server has expired. Restart the server to fetch the current one.",
+  "Kotlin: the language server failed to start. See the Kotlin log.": "Kotlin: the language server failed to start. See the Kotlin log.",
+  "Turn off the other server": "Turn off the other server",
+  "Turn off BatleHub's": "Turn off BatleHub's",
+  "Kotlin: {0} is installed too, and two Kotlin servers would both answer. Which one stays?": "Kotlin: {0} is installed too, and two Kotlin servers would both answer. Which one stays?",
+  "Kotlin: BatleHub Java (batlehub.java-core) is not installed.": "Kotlin: BatleHub Java (batlehub.java-core) is not installed.",
+  "Kotlin: the server has not been started yet (no Kotlin file opened).": "Kotlin: the server has not been started yet (no Kotlin file opened)."
+}

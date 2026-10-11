@@ -17,6 +17,7 @@ log() { printf '[contract] %s\n' "$*" >&2; }
 # (a)
 (cd extensions/java-core && pnpm run api >/dev/null)
 (cd extensions/java-groovy && pnpm exec tsc --noEmit -p tsconfig.json) && log "TYPES-OK (java-groovy against the current api.d.ts, contract $(python3 -c 'import re;print(re.search(r"major: (\d+), minor: (\d+)", open("extensions/java-core/src/api.ts").read()).group(0))'))"
+(cd extensions/java-kotlin && pnpm exec tsc --noEmit -p tsconfig.json) && log "TYPES-OK (java-kotlin against the current api.d.ts — RFC 0008 §6.2 kotlin:contract (a))"
 
 # (a') a fixture satellite that registers a run step kind and starts a managed
 # process (RFC 0003 §10): contract 1.1's surface, held without a real satellite.

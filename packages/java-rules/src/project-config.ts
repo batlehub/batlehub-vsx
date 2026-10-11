@@ -14,6 +14,9 @@ import {
 } from "jsonc-parser";
 import { PROJECT_KEYS, PROJECT_SECTIONS } from "./project-keys.ts";
 
+/** The committed configuration, relative to the workspace root. */
+export const PROJECT_FILE = ".batlehub/java/project.json";
+
 export type ProjectKey = keyof typeof PROJECT_KEYS;
 /** The file's values by dotted key (`maven.activeProfiles`); a key it does not name is absent. */
 export type ProjectValues = Partial<Record<ProjectKey, unknown>>;

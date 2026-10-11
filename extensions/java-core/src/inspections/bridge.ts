@@ -21,10 +21,12 @@ import {
   type Row,
 } from "@batlehub/java-rules/rules";
 import {
+  BRIDGED_DEFAULTS,
   bulkFixSkip,
   differing,
   mergeSeverities,
   parseProfile,
+  PROFILE,
   profileFromOverrides,
   profileSummary,
   validate,
@@ -34,17 +36,11 @@ import {
   type Validated,
 } from "@batlehub/java-rules/profile";
 
-export const PROFILE = ".batlehub/java/inspections.json";
-
 /** The running bridge, for the Java panel's inspections line (RFC 0005 §6.2), and when its profile state changes. */
 export let current: Bridge | undefined;
 export const profileChanged = new vscode.EventEmitter<void>();
 
 const SOURCE = "batlehub";
-/** A bridged rule's level is its analyser's: cspell's `info` (RFC 0013 decision 10), so only `off` needs a why. */
-const BRIDGED_DEFAULTS: Record<string, Severity> = {
-  "spelling/unknownWord": "info",
-};
 
 export class Bridge implements vscode.Disposable {
   readonly diagnostics = vscode.languages.createDiagnosticCollection(SOURCE);
@@ -337,6 +333,7 @@ const SEVERITY: Record<
 wire((c: Core) => {
   const bridge = new Bridge(c);
   current = bridge;
+  c.projectLevels = () => bridge.profile?.project?.merged ?? {};
   const view = new InspectionsView(bridge);
   const tree = vscode.window.createTreeView("batlehub.java.inspections", {
     treeDataProvider: view,

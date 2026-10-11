@@ -457,9 +457,11 @@ describe("one table, two renderers (RFC 0002 §6.5)", () => {
     java_inspect: { paths: "inspect [paths…]" },
     java_fix: { paths: "fix [paths…]", rule: "--rule", dryRun: "--write" },
     java_generate: {
-      what: "accessors|getters|setters",
+      what: "accessors|getters|setters|builder|withers|surroundWith",
       file: "<file>:<line>",
       line: "<file>:<line>",
+      endLine: "--end-line",
+      options: "--options",
       getterPrefix: "--getter-prefix",
       booleanPrefix: "--boolean-prefix",
       fluentSetters: "--fluent",

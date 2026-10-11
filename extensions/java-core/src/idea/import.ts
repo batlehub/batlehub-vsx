@@ -23,7 +23,29 @@ import * as path from "node:path";
 import { applyEdits, modify } from "jsonc-parser";
 import * as vscode from "vscode";
 import { log } from "../log";
-import { splitKey, writeForeignSetting, writeOwnedFile } from "../manifest";
+import {
+  splitKey,
+  writeForeignSetting,
+  writeOwnedFile,
+  writeKeybindingEntries,
+  writeProfileEntries,
+} from "../manifest";
+import {
+  editUserKeybindings,
+  extensionDefaults,
+  openUserKeybindings,
+} from "./userkeys";
+import {
+  PROFILE as INSPECTIONS_PATH,
+  writeRules,
+} from "@batlehub/java-rules/profile";
+import { addEntries, parseKeymap, planKeymap, type KeymapPlan } from "./keymap";
+import {
+  activeProfile,
+  parseIdeaProfile,
+  toProfilePlan,
+  type ProfilePlan,
+} from "./profile";
 import type { JavaLaunch } from "../run/configs";
 import { upsertConfig } from "../run/configs";
 import { writeAll } from "../run/editor";
@@ -207,7 +229,13 @@ export function readIdea(root: string): { path: string; xml: string }[] {
 
 // --- the plan --------------------------------------------------------------
 
-export type ScopeId = "runs" | "codestyle" | "livetemplates" | "filetemplates";
+export type ScopeId =
+  | "runs"
+  | "codestyle"
+  | "livetemplates"
+  | "filetemplates"
+  | "inspections"
+  | "keymap";
 
 export interface CodeStylePlan {
   /** The IDEA scheme's name, for the report; the profile is always PROFILE_NAME. */
@@ -233,6 +261,8 @@ export interface FullPlan {
   codestyle?: CodeStylePlan;
   livetemplates?: TemplatesPlan;
   filetemplates?: TemplatesPlan;
+  inspections?: ProfilePlan;
+  keymap?: KeymapPlan & { user: UserKeysText };
   /** A kind that could not be read at all: it is skipped, the others proceed (§4.3). */
   errors: { scope: ScopeId; reason: string }[];
 }
@@ -243,7 +273,18 @@ export interface Diff {
   target: string;
   before: string;
   after: string;
+  /** The left-hand side when it is not a workspace file: the user keybindings' own URI. */
+  left?: string;
 }
+
+/** The user keybindings as the editor opened them (`userkeys.ts`), for a pure plan. */
+export interface UserKeysText {
+  text: string;
+  uri: string;
+  /** In the browser's storage (the web build, Che): the bindings apply in that browser only. */
+  browser: boolean;
+}
+const KEYBINDINGS_TARGET = "keybindings.json (user)";
 
 /**
  * `.idea/codeStyles/` → the profile and the settings. Pure over the two files'
@@ -394,6 +435,23 @@ export function planDiffs(
     });
   if (plan.filetemplates)
     settings.push(...Object.entries(plan.filetemplates.settings));
+  if (plan.keymap?.entries.length)
+    out.push({
+      target: KEYBINDINGS_TARGET,
+      before: plan.keymap.user.text,
+      after: addEntries(
+        plan.keymap.user.text,
+        plan.keymap.entries,
+        plan.keymap.name,
+      ),
+      left: plan.keymap.user.uri,
+    });
+  if (plan.inspections)
+    out.push({
+      target: INSPECTIONS_PATH,
+      before: current[INSPECTIONS_PATH] ?? "",
+      after: writeRules(current[INSPECTIONS_PATH], plan.inspections.rules).text,
+    });
   if (settings.length) {
     let text = current[SETTINGS_PATH]?.trim()
       ? current[SETTINGS_PATH]!
@@ -450,6 +508,38 @@ export function summary(plan: FullPlan): string[] {
   }
   if (plan.livetemplates || plan.filetemplates)
     lines.push(`  → ${SNIPPETS_PATH}`);
+  const km = plan.keymap;
+  if (km) {
+    lines.push(
+      `keymap               ${km.entries.length} customisations of "${km.name}"`,
+    );
+    lines.push(
+      km.user.browser
+        ? `  → ${KEYBINDINGS_TARGET}, in this browser only (the web build keeps it in the browser)`
+        : `  → ${KEYBINDINGS_TARGET}`,
+    );
+    lines.push(
+      "    removed by Java: Remove BatleHub settings only on its second question",
+    );
+    for (const e of km.entries) lines.push(`  + ${e.key} → ${e.command}`);
+    for (const s of km.skipped) lines.push(`  - ${s.option}: ${s.reason}`);
+    for (const s of km.shadows) lines.push(`  ! ${s}`);
+  }
+  const ip = plan.inspections;
+  if (ip) {
+    const rules = Object.entries(ip.rules);
+    const off = rules.filter(([, r]) => r.severity === "off").length;
+    lines.push(
+      `inspection profile   ${rules.length} rules mapped from "${ip.name}", ${off} disabled with an imported reason`,
+    );
+    lines.push(`  → ${INSPECTIONS_PATH}`);
+    for (const [code, r] of rules) lines.push(`  + ${code}: ${r.severity}`);
+    for (const s of ip.skipped) lines.push(`  - ${s.option}: ${s.reason}`);
+    if (ip.unmapped.length)
+      lines.push(
+        `  - ${ip.unmapped.length} IDEA inspections have no bundle rule (listed in the log)`,
+      );
+  }
   for (const e of plan.errors) lines.push(`! ${e.scope}: ${e.reason}`);
   return lines;
 }
@@ -501,7 +591,11 @@ export function readIdeaConfigDir(
       const dir = path.join(r, name);
       // A product directory without `templates/` or `keymaps/` holds nothing
       // this reads, so it is not a candidate to be "the newest".
-      if (!fs.existsSync(path.join(dir, "templates"))) continue;
+      if (
+        !fs.existsSync(path.join(dir, "templates")) &&
+        !fs.existsSync(path.join(dir, "keymaps"))
+      )
+        continue;
       try {
         found.push({ dir, at: fs.statSync(dir).mtimeMs });
       } catch {
@@ -569,6 +663,11 @@ export function readPlan(
   root: string,
   scopes: Set<ScopeId>,
   configDir?: string,
+  keys?: {
+    user: UserKeysText;
+    defaults: { key: string; command: string; extension: string }[];
+    platform: NodeJS.Platform;
+  },
 ): FullPlan {
   const out: FullPlan = { errors: [] };
   if (scopes.has("runs")) out.runs = plan(readIdea(root));
@@ -624,15 +723,90 @@ export function readPlan(
       });
     else out.filetemplates = planFileTemplates(header, templates);
   }
+  if (scopes.has("keymap")) {
+    // Never from the workspace (§4.3): only the user's configuration directory.
+    const dir = configDir && path.join(configDir, "keymaps");
+    const files = dir ? readDirFiles(dir, ".xml") : [];
+    const active = configDir
+      ? /<active_keymap\s+name="([^"]*)"/.exec(
+          readIfPresent(path.join(configDir, "options", "keymap.xml")) ?? "",
+        )?.[1]
+      : undefined;
+    const file =
+      files.find((f) => parseName(f.text) === active) ??
+      (files.length === 1 ? files[0] : undefined);
+    if (!configDir || !keys)
+      out.errors.push({
+        scope: "keymap",
+        reason: "no IntelliJ configuration directory on this machine",
+      });
+    else if (!file)
+      out.errors.push({
+        scope: "keymap",
+        reason: files.length
+          ? `${files.length} keymaps under ${dir} and none marked active in options/keymap.xml`
+          : `no keymaps/*.xml under ${configDir}: the keymap is IDEA's own, nothing customised`,
+      });
+    else
+      try {
+        out.keymap = {
+          ...planKeymap(
+            parseKeymap(file.text),
+            keys.user.text,
+            keys.defaults,
+            keys.platform,
+          ),
+          user: keys.user,
+        };
+      } catch (e) {
+        out.errors.push({
+          scope: "keymap",
+          reason: `keymaps/${file.name}.xml: ${(e as Error).message}`,
+        });
+      }
+  }
+  if (scopes.has("inspections")) {
+    const dir = path.join(root, ".idea", "inspectionProfiles");
+    const active = activeProfile(
+      readIfPresent(path.join(dir, "profiles_settings.xml")),
+    );
+    if ("error" in active)
+      out.errors.push({ scope: "inspections", reason: active.error });
+    else {
+      // The file is named after the profile, spaces as underscores
+      // (`Project Default` → `Project_Default.xml`).
+      const file = `${active.name.replace(/ /g, "_")}.xml`;
+      const xml = readIfPresent(path.join(dir, file));
+      if (xml === undefined)
+        out.errors.push({
+          scope: "inspections",
+          reason: `no .idea/inspectionProfiles/${file} (the active profile)`,
+        });
+      else
+        try {
+          out.inspections = toProfilePlan(parseIdeaProfile(xml));
+        } catch (e) {
+          out.errors.push({
+            scope: "inspections",
+            reason: `.idea/inspectionProfiles/${file}: ${(e as Error).message}`,
+          });
+        }
+    }
+  }
   return out;
 }
+
+const parseName = (xml: string): string | undefined =>
+  /<keymap\b[^>]*\bname="([^"]*)"/.exec(xml)?.[1];
 
 const empty = (p: FullPlan) =>
   !p.runs?.configs.length &&
   !p.runs?.skipped.length &&
   !p.codestyle &&
   !p.livetemplates &&
-  !p.filetemplates;
+  !p.filetemplates &&
+  !p.inspections &&
+  !p.keymap;
 
 /** The right-hand side of every diff, served from memory: nothing is on disk before `Write`. */
 const SCHEME = "batlehub-java-idea-import";
@@ -667,7 +841,9 @@ async function showDiffs(
   for (const d of diffs)
     await vscode.commands.executeCommand(
       "vscode.diff",
-      vscode.Uri.file(path.join(folder.uri.fsPath, d.target)),
+      d.left
+        ? vscode.Uri.parse(d.left)
+        : vscode.Uri.file(path.join(folder.uri.fsPath, d.target)),
       proposed.uri(d.target),
       `${d.target} ← IntelliJ import`,
       { preview: false },
@@ -692,6 +868,22 @@ async function writePlan(
       path.join(folder.uri.fsPath, ...SNIPPETS_PATH.split("/")),
       snippetsFile(snippets),
     );
+  if (plan.keymap?.entries.length) {
+    const km = plan.keymap;
+    if (!(await editUserKeybindings((t) => addEntries(t, km.entries, km.name))))
+      throw new Error("the editor refused to edit the user keybindings");
+    writeKeybindingEntries(km.entries, km.name);
+  }
+  if (plan.inspections) {
+    writeProfileEntries(
+      path.join(folder.uri.fsPath, ...INSPECTIONS_PATH.split("/")),
+      plan.inspections.rules,
+    );
+    if (plan.inspections.unmapped.length)
+      log.info(
+        `IntelliJ import: no bundle rule for ${plan.inspections.unmapped.join(", ")}`,
+      );
+  }
   for (const settings of [
     plan.codestyle?.settings,
     plan.filetemplates?.settings,
@@ -740,10 +932,10 @@ async function resolveConfigDir(): Promise<string | undefined> {
   const pick = vscode.l10n.t("Pick a directory");
   const r = await vscode.window.showInformationMessage(
     vscode.l10n.t(
-      "Java: no IntelliJ configuration directory on this machine, so there are no user-level live templates to read. Point at one — a copy from your laptop — or skip that kind.",
+      "Java: no IntelliJ configuration directory on this machine, so there are no user-level live templates or keymap to read. Point at one — a copy from your laptop — or skip those kinds.",
     ),
     pick,
-    vscode.l10n.t("Skip live templates"),
+    vscode.l10n.t("Skip them"),
   );
   if (r !== pick) return undefined;
   const picked = await vscode.window.showOpenDialog({
@@ -751,7 +943,7 @@ async function resolveConfigDir(): Promise<string | undefined> {
     canSelectFolders: true,
     canSelectMany: false,
     title: vscode.l10n.t(
-      "The IntelliJ configuration directory (it holds templates/)",
+      "The IntelliJ configuration directory (it holds templates/ or keymaps/)",
     ),
   });
   const dir = picked?.[0]?.fsPath;
@@ -786,6 +978,20 @@ export async function importIdea(): Promise<void> {
       ),
     },
     { id: "filetemplates", label: vscode.l10n.t("File templates") },
+    {
+      id: "keymap",
+      label: vscode.l10n.t("Keymap"),
+      detail: vscode.l10n.t(
+        "Your customisations, from your IntelliJ configuration directory, into your user keybindings",
+      ),
+    },
+    {
+      id: "inspections",
+      label: vscode.l10n.t("Inspections"),
+      detail: vscode.l10n.t(
+        "The active profile, into .batlehub/java/inspections.json",
+      ),
+    },
   ];
   const picked = await vscode.window.showQuickPick(
     KINDS.map((k) => ({ ...k, picked: true })),
@@ -796,16 +1002,35 @@ export async function importIdea(): Promise<void> {
   );
   if (!picked?.length) return;
   const scopes = new Set(picked.map((p) => p.id));
-  const configDir = scopes.has("livetemplates")
-    ? await resolveConfigDir()
-    : undefined;
+  const configDir =
+    scopes.has("livetemplates") || scopes.has("keymap")
+      ? await resolveConfigDir()
+      : undefined;
   if (configDir === CANCELLED) return;
-  // "Skip live templates" is an answer, not a failure: the kind leaves the
+  // "Skip them" is an answer, not a failure: the user-level kinds leave the
   // scope so the plan does not report a missing directory the user just
   // declined to supply.
-  if (scopes.has("livetemplates") && !configDir) scopes.delete("livetemplates");
+  if (!configDir) {
+    scopes.delete("livetemplates");
+    scopes.delete("keymap");
+  }
   if (!scopes.size) return;
-  const plan = readPlan(folder.uri.fsPath, scopes, configDir);
+  // The user keybindings, opened through the editor (RFC 0007 §11): their
+  // text for the plan and the diff; they are only edited on Write.
+  let keys: Parameters<typeof readPlan>[3];
+  if (scopes.has("keymap")) {
+    const uk = await openUserKeybindings();
+    keys = {
+      user: {
+        text: uk.doc.getText(),
+        uri: uk.doc.uri.toString(),
+        browser: uk.browser,
+      },
+      defaults: extensionDefaults(),
+      platform: process.platform,
+    };
+  }
+  const plan = readPlan(folder.uri.fsPath, scopes, configDir, keys);
   if (empty(plan) && !plan.errors.length) {
     void vscode.window.showInformationMessage(
       vscode.l10n.t(
@@ -815,7 +1040,13 @@ export async function importIdea(): Promise<void> {
     return;
   }
   const current: Record<string, string | undefined> = {};
-  for (const t of [LAUNCH_PATH, SETTINGS_PATH, PROFILE_PATH, SNIPPETS_PATH])
+  for (const t of [
+    LAUNCH_PATH,
+    SETTINGS_PATH,
+    PROFILE_PATH,
+    SNIPPETS_PATH,
+    INSPECTIONS_PATH,
+  ])
     current[t] = readIfPresent(path.join(folder.uri.fsPath, ...t.split("/")));
   const diffs = planDiffs(plan, current);
   const lines = summary(plan);

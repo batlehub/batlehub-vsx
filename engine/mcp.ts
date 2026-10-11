@@ -4,19 +4,22 @@
 // true on this surface (decision 6). One server for the session, started by
 // the first tool that needs it. No listener: the spawning process is the
 // trust boundary (§7).
-import { readFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { McpSession } from "@batlehub/java-rules/protocol";
+import pkg from "./package.json" with { type: "json" };
 import { plan, Refused, write, type WorkspaceEdit } from "./apply.ts";
 import { fileUri } from "./launch.ts";
+import { teamProfile } from "./config.ts";
 import {
+  bundleRules,
   type Common,
   findings,
   fixEdit,
   generateEdit,
   inside,
   mtimesOf,
+  readOrUndefined,
   renameEdit,
   sources,
   start,
@@ -26,11 +29,9 @@ import {
   workspaceRoot,
 } from "./ops.ts";
 
-const VERSION = String(
-  JSON.parse(
-    readFileSync(path.join(import.meta.dirname, "package.json"), "utf8"),
-  ).version,
-);
+// Imported, not read beside the module: the bundle batlehub-cli embeds has
+// no package.json next to it (RFC 0002 phase 6).
+const VERSION = pkg.version;
 
 type Args = Record<string, unknown>;
 
@@ -46,6 +47,9 @@ export function tools(
     return f;
   };
   const rel = (f: string) => path.relative(root, f);
+  /** The committed profile's levels, read at each call: an agent may edit it mid-session (RFC 0005 phase 4). */
+  const levels = async (s: Started) =>
+    teamProfile(root, await bundleRules(s.server), readOrUndefined).levels;
 
   /** Dry run: the edit. Otherwise written under the guards, and the server told. */
   const finish = async (
@@ -100,7 +104,7 @@ export function tools(
       );
       return {
         files: files.length,
-        findings: await findings(s.server, files, root),
+        findings: await findings(s.server, files, root, await levels(s)),
       };
     },
     java_fix: async (a) => {
@@ -110,7 +114,12 @@ export function tools(
         ((a.paths as string[] | undefined) ?? ["."]).map(abs),
       );
       const mtimes = mtimesOf(files);
-      const edit = await fixEdit(s.server, files, a.rule as string | undefined);
+      const edit = await fixEdit(
+        s.server,
+        files,
+        a.rule as string | undefined,
+        await levels(s),
+      );
       return finish(s, edit, a.dryRun as boolean, mtimes);
     },
     java_generate: async (a) => {
@@ -119,11 +128,20 @@ export function tools(
       const mtimes = mtimesOf([file]);
       const edit = await generateEdit(s.server, file, a.line as number, {
         what: a.what as string,
+        endLine: a.endLine as number | undefined,
+        options: a.options as Record<string, unknown> | undefined,
         getterPrefix: a.getterPrefix as string | undefined,
         booleanPrefix: a.booleanPrefix as string | undefined,
         fluentSetters: a.fluentSetters as boolean | undefined,
       });
-      return finish(s, edit, a.dryRun as boolean, mtimes);
+      if (edit.refused) throw new Error(edit.refused);
+      const out = await finish(
+        s,
+        { changes: edit.changes ?? {} },
+        a.dryRun as boolean,
+        mtimes,
+      );
+      return edit.note ? { ...out, note: edit.note } : out;
     },
     java_rename: async (a) => {
       const s = await server();

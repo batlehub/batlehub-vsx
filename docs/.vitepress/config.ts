@@ -48,7 +48,10 @@ export default withMermaid(
             { text: "The team's inspection profile", link: "/guide/java/inspections" },
             { text: "Spell checking", link: "/guide/java/spelling" },
             { text: "Agents (MCP)", link: "/guide/java/agents" },
+            { text: "The command line", link: "/guide/java/engine" },
+            { text: "Coming from IntelliJ", link: "/guide/java/intellij" },
             { text: "Groovy, Gradle DSL, Jenkinsfile", link: "/guide/java/groovy" },
+            { text: "Kotlin", link: "/guide/java/kotlin" },
             { text: "Quarkus", link: "/guide/java/quarkus" },
             { text: "Spring Boot", link: "/guide/java/spring" },
           ],
@@ -67,20 +70,8 @@ export default withMermaid(
           text: "In the works",
           items: [
             {
-              text: "0002 — Headless engine",
-              link: "/rfc/0002-headless-engine-mcp",
-            },
-            {
               text: "0004 — Run-config sources",
               link: "/rfc/0004-run-config-sources",
-            },
-            {
-              text: "0005 — Inspection profiles",
-              link: "/rfc/0005-shared-inspection-profiles",
-            },
-            {
-              text: "0006 — Project config",
-              link: "/rfc/0006-shared-project-config",
             },
             {
               text: "0007 — IntelliJ import",
@@ -101,10 +92,6 @@ export default withMermaid(
             {
               text: "0013 — Spell checking",
               link: "/rfc/0013-spell-checking",
-            },
-            {
-              text: "0015 — Generate shortcuts",
-              link: "/rfc/0015-generate-shortcuts",
             },
             {
               text: "0016 — Inspections growth",
@@ -133,8 +120,20 @@ export default withMermaid(
               link: "/rfc/0001-java-env",
             },
             {
+              text: "0002 — Headless engine",
+              link: "/rfc/0002-headless-engine-mcp",
+            },
+            {
               text: "0003 — Orchestrated runs",
               link: "/rfc/0003-server-run-step-kinds",
+            },
+            {
+              text: "0005 — Inspection profiles",
+              link: "/rfc/0005-shared-inspection-profiles",
+            },
+            {
+              text: "0006 — Project config",
+              link: "/rfc/0006-shared-project-config",
             },
             {
               text: "0010 — Spring Boot",
@@ -147,6 +146,10 @@ export default withMermaid(
             {
               text: "0014 — BatleHub theme",
               link: "/rfc/0014-batlehub-theme",
+            },
+            {
+              text: "0015 — Generate shortcuts",
+              link: "/rfc/0015-generate-shortcuts",
             },
             {
               text: "0019 — Seasons",

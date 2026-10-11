@@ -1,6 +1,7 @@
 // Activation (RFC 0001 §6.1): validate `redhat.java`, read the trust state,
 // detect, the status bar, the commands, the satellite host, and export the
 // JavaCoreApi.
+import { mkdirSync, watch } from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import * as vscode from "vscode";
@@ -33,6 +34,14 @@ import { sweep } from "./process/sweep";
 import { ServerTracker } from "./server/track";
 import { JavaStatusBar } from "./statusbar";
 import { runWired } from "./wire";
+import type { Level } from "@batlehub/java-rules/profile";
+import {
+  cacheHome,
+  ledgerFile,
+  putLine,
+  readLedger,
+  removeLine,
+} from "@batlehub/java-rules/ledger";
 
 export interface Core {
   context: vscode.ExtensionContext;
@@ -54,6 +63,8 @@ export interface Core {
   resources: () => ResourceSnapshot | undefined;
   /** Phase 6: whether the JDT bundle answered `batlehub.ping` this session. */
   bundle?: { available: boolean; commands?: string[] };
+  /** RFC 0005 phase 4: the committed profile's levels, as the inspections bridge last validated them. */
+  projectLevels?: () => Record<string, Level>;
 }
 
 export let core: Core | undefined;
@@ -89,9 +100,23 @@ export async function activate(
     (e: Error) => log.warn(`sweep: ${e.message}`),
   );
   const processesChanged = new vscode.EventEmitter<void>();
+  // RFC 0002 use case 6, RFC 0003 decision 16: the command line's servers on
+  // this repository, counted beside the editor's; the editor's own planned
+  // sum written for the command line to count.
+  const folder = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+  const ledger = folder ? ledgerFile(folder, cacheHome()) : undefined;
+  const engineLines = () =>
+    (ledger ? readLedger(ledger) : [])
+      .filter((l) => l.owner === "engine")
+      .map((l) => ({
+        id: `engine:${l.pid}`,
+        label: l.label,
+        mib: Math.round(l.bytes / 2 ** 20),
+      }));
   const processes = new Manager({
     trusted,
     declaredElsewhere: () => [
+      ...engineLines(),
       {
         id: "jdtls",
         label: "JDT.LS",
@@ -136,10 +161,49 @@ export async function activate(
       });
       if (snapshot) paint(snapshot);
       processesChanged.fire();
+      writeLedger();
     },
   });
-  const resources = () =>
+  const own = () =>
     snapshot && withDeclared(snapshot.resources, processes.declared());
+  const resources = () => {
+    const r = own();
+    return r && withDeclared(r, engineLines());
+  };
+  const writeLedger = () => {
+    const r = own();
+    if (!ledger || !r) return;
+    try {
+      putLine(ledger, {
+        pid: process.pid,
+        owner: "editor",
+        label: "the editor (planned)",
+        bytes: r.planned,
+      });
+    } catch (e) {
+      log.warn(`ledger: ${(e as Error).message}`);
+    }
+  };
+  if (ledger) {
+    mkdirSync(path.dirname(ledger), { recursive: true, mode: 0o700 });
+    const watcher = watch(path.dirname(ledger), (_, name) => {
+      if (name !== path.basename(ledger)) return;
+      if (snapshot) paint(snapshot);
+      processesChanged.fire();
+    });
+    context.subscriptions.push(
+      { dispose: () => watcher.close() },
+      {
+        dispose: () => {
+          try {
+            removeLine(ledger, process.pid, "editor");
+          } catch {
+            // The cache is gone: nothing to remove.
+          }
+        },
+      },
+    );
+  }
 
   const redetect = async () => {
     const t0 = Date.now();
@@ -150,6 +214,7 @@ export async function activate(
     );
     await jdk.apply(snap);
     paint(snap);
+    writeLedger();
     detected.fire(snap);
   };
   const jdk = new Jdk(

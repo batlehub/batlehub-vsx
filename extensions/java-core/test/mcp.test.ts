@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { projectRows, type Row } from "@batlehub/java-rules/rules";
+import { generateCall } from "@batlehub/java-rules/verbs";
 import { McpSession } from "@batlehub/java-rules/protocol";
 import { socketPath } from "../src/mcp/server";
 import {
@@ -112,6 +113,90 @@ describe("the report rule (RFC 0002 §4.1, use case 8)", () => {
         (r) => r.differsFromEditor,
       ),
     ).toBe(true);
+  });
+  it("reports at the committed profile's levels, and drops what the team turned off (RFC 0005 phase 4)", () => {
+    const raw = [
+      row("unused/privateField"),
+      row("style/redundantThis", "info"),
+      row("collections/sizeIsZero"),
+    ];
+    const team = {
+      "style/redundantThis": "off",
+      "unused/privateField": "error",
+    } as const;
+    const out = projectRows(
+      raw,
+      { enabled: true, severityOverrides: { sizeIsZero: "hint" } },
+      team,
+    );
+    expect(out.map((r) => [r.code, r.severity, r.differsFromEditor])).toEqual([
+      ["unused/privateField", "error", undefined],
+      ["collections/sizeIsZero", "warning", true],
+    ]);
+    // The developer's bare-id override of a team rule is what they see: marked.
+    expect(
+      projectRows(
+        raw,
+        { enabled: true, severityOverrides: { privateField: "info" } },
+        team,
+      )[0]!.differsFromEditor,
+    ).toBe(true);
+  });
+});
+
+describe("java_generate's bundle call (RFC 0015 phase 4)", () => {
+  const uri = "file:///w/Person.java";
+  it("sends accessors with the surface's options and the kind", () => {
+    const c = generateCall({
+      what: "getters",
+      uri,
+      line: 3,
+      accessorOptions: { getterPrefix: "get" },
+    });
+    expect(c.command).toBe("batlehub.generate.accessors");
+    expect(c.args[0]).toMatchObject({
+      textDocument: { uri },
+      range: { start: { line: 2, character: 0 } },
+    });
+    expect(JSON.parse(c.args[1] as string)).toEqual({
+      getterPrefix: "get",
+      kind: 1,
+    });
+  });
+  it("sends builder and withers their options, and surroundWith whole lines", () => {
+    const b = generateCall({
+      what: "withers",
+      uri,
+      line: 3,
+      options: { style: "mutate" },
+    });
+    expect(b.command).toBe("batlehub.generate.withers");
+    expect(JSON.parse(b.args[1] as string)).toEqual({ style: "mutate" });
+    const s = generateCall({ what: "surroundWith", uri, line: 5, endLine: 7 });
+    expect(s).toEqual({
+      command: "batlehub.generate.surroundWith",
+      args: [
+        uri,
+        { start: { line: 4, character: 0 }, end: { line: 7, character: 0 } },
+        "{}",
+      ],
+    });
+  });
+  it("refuses a new file, a backwards range and an unknown kind", () => {
+    expect(() =>
+      generateCall({
+        what: "builder",
+        uri,
+        line: 3,
+        options: { placement: "file" },
+      }),
+    ).toThrow(/never does/);
+    expect(() =>
+      generateCall({ what: "surroundWith", uri, line: 5, endLine: 4 }),
+    ).toThrow(/before line 5/);
+    expect(() => generateCall({ what: "lombok", uri, line: 1 })).toThrow(
+      /expected accessors/,
+    );
   });
 });
 

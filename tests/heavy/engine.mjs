@@ -11,7 +11,7 @@
 //
 //   node tests/heavy/engine.mjs        (`task heavy:engine`)
 import { spawn, spawnSync } from "node:child_process";
-import { cpSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { cpSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -69,6 +69,76 @@ try {
     err.code === 0 && err.out === warn.out,
     "ENGINE-FAIL-ON-OK (the same lines and exit 0 at --fail-on error)",
     `exit ${err.code}\n${err.out}\n${err.err}`,
+  );
+
+  // RFC 0005 phase 4: the committed profile, read at the repository's root
+  // although the server is started on the `core` module; the team's `off`
+  // is neither reported nor fixed, its `error` trips --fail-on error.
+  const PROFILE = path.join(ws, ".batlehub", "java", "inspections.json");
+  mkdirSync(path.dirname(PROFILE), { recursive: true });
+  writeFileSync(
+    PROFILE,
+    JSON.stringify({
+      version: 1,
+      rules: {
+        "unused/privateField": { severity: "off", why: "read by reflection" },
+        "collections/sizeIsZero": { severity: "error" },
+      },
+    }),
+  );
+  const prof = run("inspect", "--fail-on", "error", "core");
+  const profFix = run("fix", "core");
+  const printed = run("inspect", "--print-profile", "--format", "json", "core");
+  rmSync(path.join(ws, ".batlehub"), { recursive: true, force: true });
+  let pr;
+  try {
+    pr = JSON.parse(printed.out).rules;
+  } catch {
+    pr = {};
+  }
+  check(
+    prof.code === 1 && !/privateField/.test(prof.out) && /collections\/sizeIsZero/.test(prof.out) &&
+      profFix.code === 0 && !/^-\s+private (int unused|final boolean active)/m.test(profFix.out) && /isEmpty\(\)/.test(profFix.out) &&
+      pr["unused/privateField"]?.level === "off" && pr["unused/privateField"]?.why === "read by reflection" && pr["style/redundantThis"]?.origin === "default",
+    "ENGINE-PROFILE-OK (inspect core under the root's .batlehub/java/inspections.json: privateField off — not reported, not fixed —, sizeIsZero at error, exit 1 at --fail-on error; --print-profile with origins and the why — RFC 0005 phase 4)",
+    `inspect exit ${prof.code}\n${prof.out}\n${prof.err}\nfix exit ${profFix.code}\n${profFix.out}\n${profFix.err}\nprinted ${printed.out.slice(0, 400)} ${printed.err}`,
+  );
+
+  // RFC 0006 use case 6: config --print, no server.
+  mkdirSync(path.join(ws, ".batlehub", "java"), { recursive: true });
+  writeFileSync(
+    path.join(ws, ".batlehub", "java", "project.json"),
+    JSON.stringify({ version: 1, maven: { activeProfiles: ["dev"] } }),
+  );
+  const cfg = run("config", "--print");
+  rmSync(path.join(ws, ".batlehub"), { recursive: true, force: true });
+  let c;
+  try {
+    c = JSON.parse(cfg.out);
+  } catch {
+    c = {};
+  }
+  check(
+    cfg.code === 0 && cfg.ms < 5000 &&
+      JSON.stringify(c["maven.activeProfiles"]) === JSON.stringify({ value: ["dev"], origin: "project.json", project: ["dev"] }) &&
+      c["jdk.requirement"]?.origin === "detected",
+    `ENGINE-CONFIG-OK (config --print in ${cfg.ms} ms, no server: maven.activeProfiles ["dev"] from project.json, jdk.requirement ${c["jdk.requirement"]?.value} detected — RFC 0006 use case 6)`,
+    `exit ${cfg.code} ${cfg.ms} ms\n${cfg.out}\n${cfg.err}`,
+  );
+
+  // RFC 0002 phase 6: the single-file engine batlehub-cli embeds, run on
+  // its own from a directory holding nothing else, as the CLI's cache does.
+  const bundled = path.join(work, "bundled");
+  const built = spawnSync(process.execPath, [path.join(REPO, "engine", "bundle.mjs")], { encoding: "utf8" });
+  cpSync(path.join(REPO, "engine", "dist"), bundled, { recursive: true });
+  const b = (...args) => spawnSync(process.execPath, [path.join(bundled, "batlehub-java.mjs"), ...args], { cwd: ws, encoding: "utf8" });
+  const bStatus = b("status");
+  const bConfig = b("config", "--print");
+  check(
+    built.status === 0 && bStatus.status === 0 && bStatus.stdout.includes(`bundle: ${path.join(bundled, "batlehub-jdt-core.jar")}`) &&
+      bConfig.status === 0 && JSON.parse(bConfig.stdout)["jdk.requirement"]?.value === "21",
+    "ENGINE-BUNDLE-OK (engine/bundle.mjs: batlehub-java.mjs alone in a directory with its JDT jar, as batlehub-cli java writes them: status finds the jar beside it, config --print answers — RFC 0002 phase 6)",
+    `bundle exit ${built.status} ${built.stderr}; status ${bStatus.status} ${bStatus.stdout} ${bStatus.stderr}; config ${bConfig.status} ${bConfig.stderr}`,
   );
 
   const js = run("inspect", "--format", "json", ".");
@@ -221,6 +291,24 @@ try {
         typeRefused?.isError === true && /moves its file/.test(typeRefused.content[0].text),
       `ENGINE-MCP-OK (batlehub java mcp over stdio, one server for ${Math.round((Date.now() - t0) / 1000)} s: tools/list the five tools, required matching the CLI; java_rename dryRun by default — one WorkspaceEdit over Greeter.java, Main.java and MainTest.java, nothing written — then dryRun false wrote ${renamedFiles.length} files; the server saw its own writes — Greeter#everyone resolved, and java_fix then java_inspect saw redundantThis gone; a type rename refused — RFC 0002 case 3)`,
       `tools ${JSON.stringify(listed.map((x) => x.name))} required ${JSON.stringify(required)}; dry ${JSON.stringify(sc).slice(0, 300)} untouched ${dryUntouched}; applied ${JSON.stringify(applied).slice(0, 200)} files ${renamedFiles}; back ${JSON.stringify(back).slice(0, 300)}; fixed ${JSON.stringify(fixed).slice(0, 200)}; after ${codes}; type ${JSON.stringify(typeRefused).slice(0, 200)}\n${mcpErr.slice(-800)}`,
+    );
+    // RFC 0015 use case 7, the engine's half: the three kinds as dry runs
+    // over the same session, and a new file refused.
+    const PERSON = "core/src/main/java/com/acme/core/Person.java";
+    const edits = (r) => Object.values(r?.structuredContent?.edit?.changes ?? {}).flat();
+    const builder = await call("java_generate", { what: "builder", file: PERSON, line: 5 });
+    const withers = await call("java_generate", { what: "withers", file: PERSON, line: 5, options: { fields: ["name"] } });
+    const surround = await call("java_generate", { what: "surroundWith", file: GREETER, line: 16, endLine: 18, options: { construct: "tryCatch" } });
+    const newFile = await call("java_generate", { what: "builder", file: PERSON, line: 5, options: { placement: "file" } });
+    const text = (r) => edits(r).map((e) => e.newText).join("");
+    check(
+      builder?.structuredContent?.applied === false && /class Builder/.test(text(builder)) &&
+        /withName\(/.test(text(withers)) && !/withAge\(/.test(text(withers)) &&
+        /try \{/.test(text(surround)) && /catch \(/.test(text(surround)) &&
+        newFile?.isError === true && /never does/.test(newFile.content[0].text) &&
+        git("diff", "--stat", "--", PERSON) === "",
+      "ENGINE-KINDS-OK (java_generate builder, withers {fields: [name]} and surroundWith 16..18 {construct: tryCatch} as dry runs over one session; placement file refused — RFC 0015 use case 7, engine half)",
+      `builder ${JSON.stringify(builder).slice(0, 300)}; withers ${text(withers).slice(0, 200)}; surround ${JSON.stringify(surround).slice(0, 300)}; file ${JSON.stringify(newFile).slice(0, 200)}`,
     );
   } catch (e) {
     check(false, "ENGINE-MCP-OK", `${e.message}\n${mcpErr.slice(-800)}`);

@@ -19,6 +19,8 @@ import {
   unsaveFromProject,
   type ProjectValues,
 } from "@batlehub/java-rules/project-config";
+import { removeEntries, type Keybinding } from "./idea/keymap";
+import { editUserKeybindings } from "./idea/userkeys";
 import { withLock } from "./lock";
 import { log } from "./log";
 import {
@@ -450,6 +452,22 @@ export function writeProfileEntries(
   fs.writeFileSync(file, out.text);
 }
 
+/** RFC 0007 §6.6: the bindings the IntelliJ import wrote, one entry each, recorded after the write. */
+export function writeKeybindingEntries(
+  entries: Keybinding[],
+  keymap: string,
+): void {
+  let m = readManifest();
+  for (const e of entries)
+    m = record(m, {
+      kind: "keybinding",
+      key: e.key,
+      command: e.command,
+      keymap,
+    });
+  save(m);
+}
+
 /**
  * `Save to project` (RFC 0006 §4.2, red line 1): each key of `patch` written
  * into project.json, comments and unknown keys kept, and the manifest records
@@ -553,7 +571,38 @@ export async function removeBatleHubSettings(
     go,
   );
   if (pick !== go) return;
+  // RFC 0007 §6.6: the user's keybindings are outside this workspace, so
+  // taking the imported ones out is asked on its own. Declined, they stay
+  // under their marker comment, removable by hand.
+  const keys = m.entries.filter((e) => e.kind === "keybinding").length;
+  let removeKeys = false;
+  if (keys) {
+    const yes = vscode.l10n.t("Remove them");
+    removeKeys =
+      (await vscode.window.showWarningMessage(
+        vscode.l10n.t(
+          "Also remove the {0} key binding(s) imported from IntelliJ from your user keybindings? They apply outside this workspace.",
+          keys,
+        ),
+        { modal: true },
+        yes,
+      )) === yes;
+  }
+  let keysDone = false;
   const errors = await replay(m, {
+    // One edit takes out every marked entry; the other entries find it done.
+    keybinding: async () => {
+      if (!removeKeys) {
+        log.info(
+          "remove: the key bindings imported from IntelliJ were kept (declined); their marker comment names them",
+        );
+        return;
+      }
+      if (keysDone) return;
+      keysDone = true;
+      if (!(await editUserKeybindings((t) => removeEntries(t).text)))
+        throw new Error("the editor refused to edit the user keybindings");
+    },
     setting: async (key, before, scope) => {
       const { section, leaf } = splitKey(key);
       await vscode.workspace

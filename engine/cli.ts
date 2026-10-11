@@ -1,15 +1,16 @@
 #!/usr/bin/env node
 // `batlehub java <verb>` (RFC 0002 §4.2): `status`, `inspect`, `fix`,
 // `generate`, `rename`, and `mcp` (the same tools over stdio, one server for
-// the session). Until `batlehub-cli` grows its `java` group (phase 6) it
-// runs as `node engine/cli.ts <verb>`. Argument parsing and output only: the
-// verbs' work is `ops.ts`. Nothing here reads a settings.json (§4.1).
+// the session), and `config --print`. `batlehub-cli java …` runs it (phase 6:
+// the CLI embeds `task engine:bundle`'s build); in this repository,
+// `node engine/cli.ts <verb>`. Argument parsing and output only: the verbs'
+// work is `ops.ts` and `config.ts`. Nothing here reads a settings.json (§4.1).
 import { statSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { parseArgs } from "node:util";
 import { pathToFileURL } from "node:url";
-import { VERBS } from "@batlehub/java-rules/verbs";
+import { GENERATE_KINDS, VERBS } from "@batlehub/java-rules/verbs";
 import { PIN } from "./server.ts";
 import {
   plan,
@@ -18,8 +19,15 @@ import {
   type Planned,
   type WorkspaceEdit,
 } from "./apply.ts";
+import {
+  printedProfile,
+  projectConfig,
+  teamProfile,
+  type TeamProfile,
+} from "./config.ts";
 import { serve } from "./mcp.ts";
 import {
+  bundleRules,
   type Common,
   EXIT,
   Exit,
@@ -27,6 +35,7 @@ import {
   fixEdit,
   generateEdit,
   mtimesOf,
+  readOrUndefined,
   renameEdit,
   sources,
   start,
@@ -76,6 +85,25 @@ function existing(paths: string[]): string[] {
   return out;
 }
 
+/** The team profile against the running bundle (RFC 0005 phase 4); its problems on stderr, as `file:line:`. */
+async function team(
+  s: Started,
+  file: string | undefined,
+  warn: (l: string) => void,
+): Promise<TeamProfile> {
+  let p: TeamProfile;
+  try {
+    p = teamProfile(s.root, await bundleRules(s.server), readOrUndefined, file);
+  } catch (e) {
+    throw new Exit(EXIT.unusable, (e as Error).message);
+  }
+  for (const x of p.problems)
+    warn(
+      `${path.relative(process.cwd(), p.file!)}:${x.line + 1}: ${x.severity}: ${x.message}`,
+    );
+  return p;
+}
+
 async function status(say: (l: string) => void): Promise<number> {
   const s = await statusOf();
   say(`JDK: ${s.jdk}`);
@@ -90,14 +118,28 @@ async function inspect(
     paths: string[];
     format: "text" | "json" | "sarif";
     failOn: Severity;
+    profile?: string;
+    printProfile: boolean;
   },
   say: (l: string) => void,
   warn: (l: string) => void,
 ): Promise<number> {
   const paths = existing(o.paths);
-  return session(paths[0]!, o, warn, async ({ server }) => {
+  return session(paths[0]!, o, warn, async (s) => {
+    const { server } = s;
+    const p = await team(s, o.profile, warn);
+    if (o.printProfile) {
+      const printed = printedProfile(p);
+      if (o.format === "text")
+        for (const [code, r] of Object.entries(printed.rules))
+          say(
+            `${code} ${r.level}${r.origin === "profile" ? ` (profile; default ${r.default})` : ""}${r.why ? ` — ${r.why}` : ""}`,
+          );
+      else say(JSON.stringify(printed, null, 2));
+      return EXIT.ok;
+    }
     const files = await sources(server, paths);
-    const found = await findings(server, files, process.cwd());
+    const found = await findings(server, files, process.cwd(), p.levels);
     const exit = failed(found, o.failOn) ? EXIT.findings : EXIT.ok;
     if (o.format === "json") say(json(found, exit));
     else if (o.format === "sarif") say(sarif(found, PIN.version));
@@ -164,15 +206,17 @@ function finishEdit(
 type EditOpts = Common & { write: boolean; format: "text" | "json" };
 
 async function fix(
-  o: EditOpts & { paths: string[]; rule?: string },
+  o: EditOpts & { paths: string[]; rule?: string; profile?: string },
   say: (l: string) => void,
   warn: (l: string) => void,
 ): Promise<number> {
   const paths = existing(o.paths);
-  return session(paths[0]!, o, warn, async ({ server, root }) => {
+  return session(paths[0]!, o, warn, async (s) => {
+    const { server, root } = s;
+    const p = await team(s, o.profile, warn);
     const files = await sources(server, paths);
     const mtimes = mtimesOf(files);
-    const edit = await fixEdit(server, files, o.rule);
+    const edit = await fixEdit(server, files, o.rule, p.levels);
     return finishEdit(edit, o, root, mtimes, EXIT.ok, say, warn);
   });
 }
@@ -189,6 +233,8 @@ async function generate(
   o: EditOpts & {
     what: string;
     target: string;
+    endLine?: string;
+    options?: string;
     getterPrefix?: string;
     booleanPrefix?: string;
     fluent: boolean;
@@ -196,17 +242,52 @@ async function generate(
   say: (l: string) => void,
   warn: (l: string) => void,
 ): Promise<number> {
+  if (!(GENERATE_KINDS as readonly string[]).includes(o.what))
+    throw new Exit(
+      EXIT.unusable,
+      `generate ${o.what}: expected ${GENERATE_KINDS.join(", ")}`,
+    );
   const t = parseTarget(o.target);
+  const endLine = o.endLine === undefined ? undefined : Number(o.endLine);
+  if (endLine !== undefined && !(Number.isInteger(endLine) && endLine >= 1))
+    throw new Exit(EXIT.unusable, "--end-line must be a 1-based line");
+  let options: Record<string, unknown> | undefined;
+  try {
+    options = o.options === undefined ? undefined : JSON.parse(o.options);
+  } catch {
+    throw new Exit(EXIT.unusable, "--options must be a JSON object");
+  }
+  if (
+    options !== undefined &&
+    (typeof options !== "object" || Array.isArray(options) || !options)
+  )
+    throw new Exit(EXIT.unusable, "--options must be a JSON object");
   const [file] = existing([t.file]);
   return session(file!, o, warn, async ({ server, root }) => {
     const mtimes = mtimesOf([file!]);
     const edit = await generateEdit(server, file!, t.line, {
       what: o.what,
+      endLine,
+      options,
       getterPrefix: o.getterPrefix,
       booleanPrefix: o.booleanPrefix,
       fluentSetters: o.fluent,
     });
-    return finishEdit(edit, o, root, mtimes, EXIT.findings, say, warn);
+    // The bundle's refusal is its answer (RFC 0015 §6.1): said, and exit 1.
+    if (edit.refused) {
+      warn(edit.refused);
+      return EXIT.findings;
+    }
+    if (edit.note) warn(edit.note);
+    return finishEdit(
+      { changes: edit.changes ?? {} },
+      o,
+      root,
+      mtimes,
+      EXIT.findings,
+      say,
+      warn,
+    );
   });
 }
 
@@ -231,6 +312,29 @@ async function rename(
   });
 }
 
+/** `config --print` (RFC 0006 use case 6): no server, only the committed file and the build file. */
+function config(
+  rest: string[],
+  print: boolean,
+  o: Common,
+  say: (l: string) => void,
+  warn: (l: string) => void,
+): number {
+  if (!print) throw new Exit(EXIT.unusable, "config takes --print");
+  const [from] = existing(rest);
+  const root = workspaceRoot(
+    statSync(from!).isDirectory() ? from! : path.dirname(from!),
+    { cwd: process.cwd(), home: os.homedir(), explicit: o.workspace },
+  );
+  const c = projectConfig(root, readOrUndefined);
+  for (const x of c.problems)
+    warn(
+      `${path.relative(process.cwd(), c.file)}:${x.line + 1}: ${x.severity}: ${x.message}`,
+    );
+  say(JSON.stringify(c.config, null, 2));
+  return EXIT.ok;
+}
+
 const SEVERITIES = ["error", "warning", "info", "hint"] as const;
 const FORMATS = ["text", "json", "sarif"] as const;
 
@@ -243,15 +347,20 @@ export function usage(): string {
     `  status                             ${doc("status")}`,
     `  inspect [paths…]                   ${doc("inspect")}`,
     `  fix [paths…]                       ${doc("fix")}`,
-    `  generate accessors|getters|setters <file>:<line>   ${doc("generate")}`,
+    `  generate accessors|getters|setters|builder|withers|surroundWith <file>:<line>   ${doc("generate")}`,
     `  rename <Type#member|file:line:col> <newName>   ${doc("rename")}`,
     "  mcp                                the tools above over stdio (Model Context Protocol), one server for the session",
+    "  config --print                     the committed .batlehub/java/project.json resolved, as JSON — the editor's `project` view; no server",
     "",
     "  --format text|json|sarif   output form (sarif: inspect only); default text",
     "  --fail-on error|warning|info|hint   (inspect) exit 1 at or above; default hint (any finding)",
     "  --rule <code>       (fix) one rule's fixes, e.g. collections/sizeIsZero",
+    "  --profile <file>    (inspect, fix) this inspection profile instead of the committed .batlehub/java/inspections.json",
+    "  --print-profile     (inspect) print every rule at its effective level instead of inspecting",
     "  --write             (fix, generate, rename) apply the edit; without it, a dry run that prints the diff",
-    "  --getter-prefix <p>, --boolean-prefix <p>, --fluent   (generate) default get, is, off",
+    "  --getter-prefix <p>, --boolean-prefix <p>, --fluent   (generate accessors) default get, is, off",
+    "  --end-line <n>      (generate surroundWith) the last line to surround; default <line>",
+    '  --options <json>    (generate builder|withers|surroundWith) e.g. \'{"fields":["name"],"methodPrefix":"with"}\', \'{"construct":"tryCatch"}\'',
     "  --workspace <dir>   the workspace root; default the nearest build file or .git",
     "  --timeout <s>       wait for the server's import; default 300",
     "  --heap <size>       the server's declared cap (-Xmx); default 1G",
@@ -274,10 +383,15 @@ export async function main(
         format: { type: "string", default: "text" },
         "fail-on": { type: "string", default: "hint" },
         rule: { type: "string" },
+        profile: { type: "string" },
+        "print-profile": { type: "boolean", default: false },
+        print: { type: "boolean", default: false },
         write: { type: "boolean", default: false },
         "getter-prefix": { type: "string" },
         "boolean-prefix": { type: "string" },
         fluent: { type: "boolean", default: false },
+        "end-line": { type: "string" },
+        options: { type: "string" },
         workspace: { type: "string" },
         timeout: { type: "string", default: "300" },
         heap: { type: "string", default: "1G" },
@@ -314,6 +428,8 @@ export async function main(
     const format = values.format as "text" | "json";
     if (verb === "status") return await status(say);
     if (verb === "mcp") return await serve(common, warn);
+    if (verb === "config")
+      return config(rest, values.print!, common, say, warn);
     if (verb === "inspect")
       return await inspect(
         {
@@ -321,6 +437,8 @@ export async function main(
           paths: rest,
           format: values.format as "text" | "json" | "sarif",
           failOn: values["fail-on"] as Severity,
+          profile: values.profile,
+          printProfile: values["print-profile"]!,
         },
         say,
         warn,
@@ -331,6 +449,7 @@ export async function main(
           ...common,
           paths: rest,
           rule: values.rule,
+          profile: values.profile,
           write: values.write!,
           format,
         },
@@ -341,13 +460,15 @@ export async function main(
       if (rest.length !== 2)
         throw new Exit(
           EXIT.unusable,
-          "generate takes two arguments: accessors|getters|setters <file>:<line>",
+          `generate takes two arguments: ${GENERATE_KINDS.join("|")} <file>:<line>`,
         );
       return await generate(
         {
           ...common,
           what: rest[0]!,
           target: rest[1]!,
+          endLine: values["end-line"],
+          options: values.options,
           getterPrefix: values["getter-prefix"],
           booleanPrefix: values["boolean-prefix"],
           fluent: values.fluent!,
@@ -378,7 +499,7 @@ export async function main(
     }
     throw new Exit(
       EXIT.unusable,
-      `unknown verb ${verb} (status, inspect, fix, generate, rename, mcp)\n${usage()}`,
+      `unknown verb ${verb} (status, inspect, fix, generate, rename, mcp, config)\n${usage()}`,
     );
   } catch (e) {
     warn(`batlehub java: ${(e as Error).message}`);

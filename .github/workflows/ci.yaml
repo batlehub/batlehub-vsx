@@ -279,6 +279,56 @@ jobs:
           path: tests/heavy/work/last/
           if-no-files-found: ignore
 
+  heavy-kotlin:
+    name: Heavy (kotlin half)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: pnpm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+      - uses: jdx/mise-action@v2
+        with:
+          install: false
+      - run: pnpm install --frozen-lockfile
+      - name: The ISO week, the Kotlin server cache's key
+        # A kotlin-server build expires about four weeks after its release
+        # (RFC 0008 revision 5): `task kotlin:fetch` resolves the latest each
+        # run, and a week's cache spares the 350 MB download in between.
+        id: week
+        run: echo "week=$(date -u +%G-%V)" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/batlehub-heavy/kotlin-server-*
+          key: kotlin-server-${{ steps.week.outputs.week }}
+      - name: A Chrome with its DevTools port, standing in for the sidecar
+        run: |
+          google-chrome --headless=new --no-sandbox --disable-gpu --remote-debugging-port=9222 --user-data-dir=/tmp/chrome about:blank >/tmp/chrome.log 2>&1 &
+          for _ in $(seq 1 30); do curl -sf http://127.0.0.1:9222/json/version >/dev/null && break; sleep 1; done
+      - run: mise use -g "java@temurin-21" || true
+      - name: task, for kotlin:fetch and the java-core package view.sh builds
+        run: curl -fsSL https://raw.githubusercontent.com/go-task/task/main/install-task.sh | sh -s -- -d -b /usr/local/bin >/dev/null
+      - name: Run
+        # RFC 0008: JetBrains' Kotlin server through java-kotlin — untrusted,
+        # start, hover, a diagnostic, the Kotlin DSL, the panel tab.
+        env:
+          HEAVY_ONLY: kotlin
+          CDP_URL: http://127.0.0.1:9222
+        run: bash tests/heavy/view.sh
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: heavy-kotlin
+          path: tests/heavy/work/last/
+          if-no-files-found: ignore
+
   heavy-spring:
     name: Heavy (spring half)
     runs-on: ubuntu-latest

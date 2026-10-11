@@ -703,6 +703,9 @@ try {
     // directory and the project's file templates, both in one snippets file.
     snippets: readIfPresent(path.join(WS, ".vscode", "intellij.code-snippets")),
     ideaTemplates: readIfPresent(path.join(WS, ".idea", "fileTemplates", "Class.java")),
+    // Use case 5: the active IDEA profile into the team's profile.
+    inspections: readIfPresent(path.join(WS, ".batlehub", "java", "inspections.json")),
+    ideaProfile: readIfPresent(path.join(WS, ".idea", "inspectionProfiles", "Project_Default.xml")),
   };
   await snap(page, "idea-written");
   // Format Document with the imported profile, against IDEA's own output.
@@ -743,6 +746,67 @@ try {
     formatTimedOut: !!saved.timedOut,
     golden: readIfPresent(path.join(WS, ".idea", "golden", "Greeter.formatted.java")),
   });
+  // RFC 0007 use case 5: the imported profile applies to Greeter.java —
+  // sizeIsZero gone, stringConcatInLoop an error — then the file goes, so the
+  // later steps see the bundle's defaults again ("nothing to take back" for
+  // Remove BatleHub settings).
+  {
+    const IMPORTED = path.join(WS, ".batlehub", "java", "inspections.json");
+    const severityRows = () =>
+      page.$$eval(".markers-panel .monaco-list-row", (els) =>
+        els.map((e) => `${e.querySelector(".codicon-error") ? "E" : e.querySelector(".codicon-warning") ? "W" : "I"} ${e.innerText.replace(/\s+/g, " ").trim()}`).filter((t) => t.length > 2),
+      ).catch(() => []);
+    await openFile(page, "Greeter.java");
+    const applied = await settle(async () => (await problems(page), await severityRows()), (r) => r.some((x) => /^E .*stringConcatInLoop/.test(x)) && !r.some((x) => /sizeIsZero/.test(x)), 60000, 2000);
+    await snap(page, "idea-profile");
+    rmSync(IMPORTED, { force: true });
+    const restored = await settle(async () => (await problems(page), await severityRows()), (r) => r.some((x) => /sizeIsZero/.test(x)), 60000, 2000);
+    // The plan's diff editors stay open otherwise, and the one over the
+    // deleted inspections.json keeps its own Problems rows: the later steps
+    // read a panel that only renders what fits (the spelling step's rows
+    // were pushed out of it). Every editor closed, focus back in an editor.
+    await runCommand(page, "View: Close All Editors");
+    await dismissDialogs(page, /^(Don't Save|Do not save)/);
+    await sleep(1000);
+    emit({
+      phase: "idea-profile",
+      written: wrote.inspections,
+      ideaUnchanged: wrote.ideaProfile === readIfPresent(path.join(here, "fixtures", "maven-multi", ".idea", "inspectionProfiles", "Project_Default.xml")),
+      problems: (applied.value ?? []).filter((r) => /batlehub/.test(r)),
+      timedOut: !!applied.timedOut,
+      restored: !restored.timedOut,
+    });
+  }
+  // RFC 0007 use case 4: the user keymap of the IDEA configuration directory
+  // landed in the user keybindings — browser storage in this web build,
+  // reached through the editor's own document — and Alt+Insert in a Java
+  // file opens the Generate pick (GENERATE-KEY-OK).
+  {
+    const userKeys = async () => {
+      await runCommand(page, "Preferences: Open Keyboard Shortcuts (JSON)");
+      await sleep(1500);
+      const text = await editorText(page);
+      await runCommand(page, "View: Close All Editors");
+      await sleep(500);
+      return text;
+    };
+    const keysText = await userKeys();
+    await openFile(page, "Person.java");
+    await sleep(1500);
+    await chord(page, "Alt", "Insert");
+    const picked = await settle(() => quickPickRows(page), (q) => q.rows.some((r) => /Getters and setters/.test(r)), 15000, 1000);
+    await snap(page, "idea-keymap");
+    await page.keyboard.press("Escape");
+    await runCommand(page, "View: Close All Editors");
+    emit({
+      phase: "idea-keymap",
+      marker: /batlehub: imported from IntelliJ keymap "Max"/.test(keysText),
+      altInsert: /"key":\s*"alt\+insert"/.test(keysText) && /batlehub\.java\.generateMenu/.test(keysText),
+      evil: /control s|ctrl\+s/.test(keysText),
+      pick: picked.value ?? null,
+      opened: !picked.timedOut,
+    });
+  }
   // Use case 2's real proof: the snippet the import wrote is offered by the
   // editor's own completion in a Java file. A snippets file nothing reads is
   // not an imported live template.
@@ -1277,6 +1341,15 @@ try {
         const afterUndo = await editorText(page);
         mcp.greeterAfterUndo = { everyone: /everyone/.test(afterUndo), unsavedCallerKept: /all\(\);/.test(afterUndo) };
         mcp.jdtls = { before: jdtlsBefore, after: jdtls() };
+        // RFC 0015 use case 7, the live editor's half: a builder as a dry run.
+        const gen = await tool("java_generate", { what: "builder", file: "core/src/main/java/com/acme/core/Person.java", line: 5, dryRun: true });
+        const genEdits = Object.values(gen?.structuredContent?.edit?.changes ?? {}).flat();
+        mcp.generate = {
+          isError: !!gen?.isError,
+          text: gen?.isError ? gen?.content?.[0]?.text : undefined,
+          applied: gen?.structuredContent?.applied,
+          builder: genEdits.some((e) => /class Builder/.test(e.newText)),
+        };
       } catch (e) {
         mcp.error = e.message;
       }
@@ -1292,6 +1365,46 @@ try {
       else writeFileSync(SETTINGS, settingsBefore);
     }
     emit({ phase: "mcp", ...mcp });
+  }
+
+  // 10b'. RFC 0002 use case 6: the command line on the editor's own
+  // workspace. Its server is its own (a fresh -data); while it runs, its
+  // declared cap is in the editor's resource sum through the ledger, and the
+  // editor picks its --write up from disk.
+  {
+    const { spawn } = await import("node:child_process");
+    const { cacheHome, ledgerFile, readLedger } = await import("../../packages/java-rules/src/ledger.ts");
+    const side = {};
+    const fixtureGreeter = readFileSync(path.join(here, "fixtures", "maven-multi", "core", "src", "main", "java", "com", "acme", "core", "Greeter.java"), "utf8");
+    await runCommand(page, "View: Close All Editors");
+    await dismissDialogs(page, /^(Don't Save|Do not save)/);
+    writeFileSync(GREETER, fixtureGreeter);
+    await sleep(2000);
+    await openFile(page, "Greeter.java");
+    side.before = (await settle(() => problems(page), (rows) => rows.some((r) => /sizeIsZero/.test(r)), 60000, 2000)).value?.filter((r) => /batlehub/.test(r));
+    side.editorLine = readLedger(ledgerFile(WS, cacheHome())).some((l) => l.owner === "editor" && l.bytes > 0);
+    const engine = spawn(process.execPath, [path.join(here, "..", "..", "engine", "cli.ts"), "fix", "--write", "--rule", "collections/sizeIsZero", "core"], { cwd: WS, stdio: ["ignore", "pipe", "pipe"] });
+    let out = "";
+    engine.stdout.on("data", (d) => (out += d));
+    engine.stderr.on("data", (d) => (out += d));
+    const exited = new Promise((r) => engine.once("exit", r));
+    side.inSum = false;
+    for (let done = false; !done && !side.inSum; ) {
+      done = await Promise.race([exited.then(() => true), sleep(3000).then(() => false)]);
+      await runCommand(page, "Java: Show the container's resources");
+      await sleep(1000);
+      side.inSum = /batlehub java \(pid \d+\) \(declared\): 1 GiB/.test(channelLog("BatleHub Java").join(" "));
+    }
+    side.exit = await exited;
+    side.out = out.trim().slice(-400);
+    side.after = (await settle(() => problems(page), (rows) => !rows.some((r) => /sizeIsZero/.test(r)), 60000, 2000)).value?.filter((r) => /batlehub/.test(r));
+    side.ledgerAfter = readLedger(ledgerFile(WS, cacheHome())).map((l) => l.owner);
+    side.disk = /isEmpty\(\)/.test(readIfPresent(GREETER));
+    await snap(page, "engine-beside-editor");
+    await runCommand(page, "View: Close All Editors");
+    writeFileSync(GREETER, fixtureGreeter);
+    await sleep(2000);
+    emit({ phase: "engineSide", ...side });
   }
 
   // 10c. RFC 0005 phase 1: the profile's schema, contributed by java-core and
@@ -1923,19 +2036,68 @@ PY`,
   emit({ phase: "chainDelegate", ...delegate, chainDelegateMs: perf.chainDelegateMs });
 
   // 13. Clean removal: the modal lists what it restores; settings.json after.
+  // RFC 0003 §9: the process history goes too; processes.json only when no
+  // managed process still runs (it is what sweeps one if the host dies).
+  const editorData = path.join(path.dirname(WS), `editor-java${path.basename(WS).replace("java-ws", "")}`, "server", "data", "User");
+  const coreFiles = (name) => {
+    const found = [];
+    const walk = (d) => {
+      for (const e of readdirSync(d, { withFileTypes: true })) {
+        const p = path.join(d, e.name);
+        if (e.isDirectory()) walk(p);
+        else if (e.name === name && p.includes("batlehub.java-core")) found.push(p);
+      }
+    };
+    try {
+      walk(editorData);
+    } catch {
+      // No data directory: nothing found.
+    }
+    return found;
+  };
+  const historyBefore = coreFiles("processes-history.json").length;
   await runCommand(page, "Java: Remove BatleHub settings");
   await sleep(1500);
   const dialog = norm(await page.$eval(".monaco-dialog-box .dialog-message-text, .monaco-dialog-box .dialog-message-detail", (e) => e.innerText).catch(() => ""));
   await snap(page, "remove-dialog");
   const clicked = await dismissDialogs(page, /^Restore/);
+  await sleep(1500);
+  // RFC 0007 §6.6: the user keybindings are outside the workspace, so their
+  // removal is a second question.
+  const second = norm(
+    (await settle(
+      () => page.$$eval(".monaco-dialog-box .dialog-message-text, .monaco-dialog-box .dialog-message-detail", (els) => els.map((e) => e.innerText).join(" ")).catch(() => ""),
+      (t) => /key binding/.test(t),
+      10000,
+      500,
+    )).value ?? "",
+  );
+  const removedKeys = await dismissDialogs(page, /^Remove them/);
   await sleep(2500);
+  await runCommand(page, "Preferences: Open Keyboard Shortcuts (JSON)");
+  await sleep(1500);
+  const keysAfter = await editorText(page);
+  await runCommand(page, "View: Close All Editors");
   let settings = null;
   try {
     settings = readFileSync(path.join(WS, ".vscode", "settings.json"), "utf8");
   } catch {
     settings = null;
   }
-  emit({ phase: "remove", dialog, clicked, settings, notifications: await notifications(page) });
+  const pidFiles = coreFiles("processes.json").map((f) => readIfPresent(f));
+  emit({
+    phase: "remove",
+    dialog,
+    clicked,
+    settings,
+    notifications: await notifications(page),
+    historyBefore,
+    historyAfter: coreFiles("processes-history.json").length,
+    secondQuestion: second,
+    removedKeys,
+    keysAfter: keysAfter.slice(0, 400),
+    pidFiles: pidFiles.map((t) => (t ?? "").slice(0, 200)),
+  });
 
   emit({ phase: "perf", ...perf });
   emit({ phase: "console", errors: consoleErrors.length, sample: consoleErrors.slice(0, 3) });

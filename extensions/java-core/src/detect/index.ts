@@ -6,8 +6,14 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import * as vscode from "vscode";
 import type { JavaVersionRange, Resolution, Runtime } from "../api-types";
-import { requiredJavaOf as gradleRequired } from "../build/gradle/script";
-import { requiredJavaOf as mavenRequired, parsePom } from "../build/maven/pom";
+import {
+  GRADLE_BUILD_FILES,
+  requiredJavaOf as gradleRequired,
+} from "@batlehub/java-rules/gradle-script";
+import {
+  requiredJavaOf as mavenRequired,
+  parsePom,
+} from "@batlehub/java-rules/pom";
 import { isOverridden, readSettings, type MavenConfiguration } from "../config";
 import { appliedProject } from "../project/config";
 import { homeIo } from "@batlehub/java-rules/io";
@@ -89,12 +95,7 @@ export function buildOf(
         ? path.join(root, "mvnw")
         : undefined,
     };
-  for (const f of [
-    "build.gradle.kts",
-    "build.gradle",
-    "settings.gradle.kts",
-    "settings.gradle",
-  ]) {
+  for (const f of GRADLE_BUILD_FILES) {
     if (exists(path.join(root, f)))
       return {
         tool: "gradle",

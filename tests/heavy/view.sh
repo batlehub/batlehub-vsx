@@ -67,7 +67,7 @@
 # when one exists) or BATLEHUB_BIN + BATLEHUB_CLI (release binaries,
 # `task hub:install`); HEAVY_PORT, HEAVY_EDITOR_PORT, VSCODE_VERSION
 # (1.136.1), WEEBO_VERSION (0.5.0), CDP_URL (http://127.0.0.1:9222),
-# HEAVY_ONLY=marketplace|broker|java|registry|seasons|quarkus|spring|sonar, REDHAT_JAVA_VERSION (1.56.0,
+# HEAVY_ONLY=marketplace|broker|java|registry|seasons|quarkus|spring|sonar|kotlin, REDHAT_JAVA_VERSION (1.56.0,
 # decision 8).
 set -euo pipefail
 
@@ -156,7 +156,7 @@ cleanup() {
 trap cleanup EXIT
 
 REDHAT_JAVA_VERSION="${REDHAT_JAVA_VERSION:-1.56.0}"
-NEED_HUB=1; [[ "$ONLY" == "java" || "$ONLY" == "seasons" || "$ONLY" == "quarkus" || "$ONLY" == "spring" || "$ONLY" == "sonar" ]] && NEED_HUB=0
+NEED_HUB=1; [[ "$ONLY" == "java" || "$ONLY" == "seasons" || "$ONLY" == "quarkus" || "$ONLY" == "spring" || "$ONLY" == "sonar" || "$ONLY" == "kotlin" ]] && NEED_HUB=0
 [[ "$NEED_HUB" == 0 || -n "${DATABASE_URL:-}" ]] || fail "DATABASE_URL is required (the Postgres sidecar: postgresql://batlehub:changeme@127.0.0.1:5432/batlehub)"
 command -v node >/dev/null || fail "node is required"
 command -v python3 >/dev/null || fail "python3 is required"
@@ -637,6 +637,12 @@ print("".join(list(difflib.unified_diff((d.get("golden") or "").splitlines(True)
   assert_json "$J_" mcp "d['dry']['applied'] is False and not d['rename']['isError'] and d['rename']['applied'] and set(d['rename']['files'])>={'core/src/main/java/com/acme/core/Greeter.java','app/src/main/java/com/acme/app/Main.java','app/src/test/java/com/acme/app/MainTest.java'} and d['mainBuffer'] and d['greeterBuffer']==2 and d['disk']['greeter'] and d['disk']['main'] and d['mainAfterUndo'] and not d['greeterAfterUndo']['everyone'] and d['greeterAfterUndo']['unsavedCallerKept'] and d['jdtls']['after']==d['jdtls']['before'] and d['typeRename']['isError'] and 'is a type' in d['typeRename']['text']" \
     "case 7: java_rename through the live editor did not rename the unsaved caller across modules, reached disk, needed more than one undo, or started a server: $(field "$J_" mcp | cut -c1-1200)"
   log "MCP-LIVE-OK (node mcp-relay.js <socket> as the agent: java_rename com.acme.core.Greeter#all → everyone renamed the declaration, the unsaved caller typed above isEmpty()'s return, Main.java and MainTest.java across modules in $(field "$J_" mcp | python3 -c 'import json,sys;print(json.load(sys.stdin)["renameMs"])') ms; buffers dirty, disk unchanged, one undo took it all back, a type rename refused (it would move a file), JDT.LS processes $(field "$J_" mcp | python3 -c 'import json,sys;j=json.load(sys.stdin)["jdtls"];print(j["before"],"→",j["after"])') — RFC 0002 case 7)"
+  assert_json "$J_" mcp "d['generate']['builder'] and d['generate']['applied'] is False and not d['generate']['isError']" \
+    "RFC 0015 case 7: java_generate builder through the live editor did not return the builder as a dry run: $(field "$J_" mcp | python3 -c 'import json,sys;print(json.load(sys.stdin).get("generate"))')"
+  log "MCP-GENERATE-OK (java_generate {what: builder} on Person.java through the live editor: the inner Builder as a WorkspaceEdit, nothing applied — RFC 0015 case 7, live half)"
+  assert_json "$J_" engineSide "d['editorLine'] and d['inSum'] and d['exit'] == 0 and d['disk'] and any('sizeIsZero' in r for r in d['before']) and not any('sizeIsZero' in r for r in d['after']) and 'engine' not in d['ledgerAfter']" \
+    "case 6: the command line beside the editor was not counted in its resource sum, did not write the fix, the Problems panel did not drop it, or its ledger line outlived it: $(field "$J_" engineSide | cut -c1-900)"
+  log "ENGINE-BESIDE-OK (node engine/cli.ts fix --write core beside the open editor: the editor's planned sum in the ledger, the engine's 1 GiB in the editor's resource sum while it ran, exit 0, the Problems panel lost sizeIsZero from disk, the engine's line gone after — RFC 0002 case 6)"
   assert_json "$J_" shortcuts "'public static Builder builder()' in d['generated'] and 'private Customer(Builder b)' in d['generated'] and 'this.id = b.id;' in d['generated'] and 'public static final class Builder' in d['generated'] and 'public Builder withName(String name)' in d['generated'] and 'public Customer build()' in d['generated'] and not d['errors'] and d['undone'] and d['rerun']['withName']==1 and d['rerun']['withEmail']==1 and d['rerun']['emailAssigned']" \
     "Generate ▸ Builder… did not write the inner builder of RFC 0015 use case 1 (or left an error, needed more than one undo), or the re-run of use case 2 duplicated a member: $(field "$J_" shortcuts | cut -c1-1500)"
   assert_json "$J_" shortcuts "'int b;\n        try {\n            int a = 1; // first\n            System.out.println(a);\n            b = a + 1;\n        } catch (' in d['surround']['wrapped'] and d['surround']['refusal'] and d['surround']['laterUnchanged']" \
@@ -714,6 +720,16 @@ print("".join(list(difflib.unified_diff((d.get("golden") or "").splitlines(True)
   assert_json "$J_" idea "any('formatter.xml' in t for t in d['diffTabs']) and any('settings.json' in t for t in d['diffTabs'])" \
     "Show diff did not open a diff editor per target: $(field "$J_" idea | python3 -c 'import json,sys;print(json.load(sys.stdin)["diffTabs"])')"
   log "IMPORT-PLAN-OK (scope pick → a plan with its counts and its gaps → a diff editor per target, nothing on disk)"
+  assert_json "$J_" idea "'inspection profile 2 rules mapped from \"Project Default\", 1 disabled with an imported reason' in d['plan'] and '2 IDEA inspections have no bundle rule' in d['plan']" \
+    "RFC 0007 case 5: the plan did not report the inspection profile's counts: $(field "$J_" idea | python3 -c 'import json,sys;print(json.load(sys.stdin)["plan"][-500:])')"
+  assert_json "$J_" idea-profile "(lambda r: r['collections/sizeIsZero'] == {'severity': 'off', 'why': 'imported from IntelliJ profile \"Project Default\" (disabled there)', 'imported': 'intellij'} and r['performance/stringConcatInLoop']['severity'] == 'error')(json.loads(d['written'])['rules']) and d['ideaUnchanged'] and not d['timedOut'] and d['restored']" \
+    "RFC 0007 case 5: the IDEA profile did not land in .batlehub/java/inspections.json as imported entries, the Problems panel did not follow it, or .idea/ changed: $(field "$J_" idea-profile | cut -c1-900)"
+  log "IMPORT-PROFILE-OK (Project_Default.xml → .batlehub/java/inspections.json: sizeIsZero off with the generated why, marked imported; stringConcatInLoop error; Greeter.java's Problems followed — the error icon, no sizeIsZero —; 2 IDEA ids with no bundle rule counted; .idea/ untouched — RFC 0007 case 5)"
+  assert_json "$J_" idea "'keymap 2 customisations of \"Max\"' in d['plan'] and 'in this browser only' in d['plan'] and 'CompareTwoFiles: no command' in d['plan'] and 'Evil' not in d['plan']" \
+    "RFC 0007 case 4: the plan did not list the user keymap's customisations, where they go, or it read the workspace's keymap: $(field "$J_" idea | python3 -c 'import json,sys;print(json.load(sys.stdin)["plan"][-700:])')"
+  assert_json "$J_" idea-keymap "d['marker'] and d['altInsert'] and not d['evil'] and d['opened']" \
+    "RFC 0007 case 4: the imported keymap is not in the user keybindings, a workspace keymap leaked in, or Alt+Insert did not open the Generate pick: $(field "$J_" idea-keymap | cut -c1-700)"
+  log "GENERATE-KEY-OK (keymaps/Max.xml of the IDEA configuration directory → the user keybindings, through the editor's own document — the browser's, in this web build —, under the import's marker; .idea/keymaps/Evil.xml never read; Alt+Insert in Person.java opened the Generate pick — RFC 0007 case 4)"
   assert_json "$J_" idea "d['wroteProfile'] and 'java.format.settings.url' in (d.get('wroteSettings') or '') and 'java.completion.importOrder' in (d.get('wroteSettings') or '') and '[java]' in (d.get('wroteSettings') or '')" \
     "Write did not leave the profile and the settings: $(field "$J_" idea | cut -c1-400)"
   assert_json "$J_" idea "'formatter.xml' in (d.get('manifest') or '') and 'java.format.settings.url' in (d.get('manifest') or '')" \
@@ -762,7 +778,11 @@ print("".join(list(difflib.unified_diff((d.get("golden") or "").splitlines(True)
   log "CHAIN-RANK $(field "$J_" chain | python3 -c 'import json,sys;d=json.load(sys.stdin);print("rank", d["chainRank"], "of", d.get("rankedCount"), "after typing con; the server sorts every chain last (sortText 999999979) —", d["rankedItems"][:4])')"
   assert_json "$J_" remove "any(c.startswith('Restore') for c in d['clicked']) and (d['settings'] is None or 'java.configuration.runtimes' not in d['settings'])" \
     "Remove BatleHub settings did not restore java.configuration.runtimes"
-  log "REMOVE-OK (the manifest replayed: java.configuration.runtimes and java.jdt.ls.java.home restored, the dialog listed what it would do)"
+  assert_json "$J_" remove "'key binding' in d['secondQuestion'] and any(c.startswith('Remove them') for c in d['removedKeys']) and 'imported from IntelliJ keymap' not in d['keysAfter']" \
+    "RFC 0007 §6.6: Remove BatleHub settings did not ask separately about the user keybindings, or left the imported ones: $(field "$J_" remove | python3 -c 'import json,sys;d=json.load(sys.stdin);print({k:d.get(k) for k in ("secondQuestion","removedKeys","keysAfter")})')"
+  assert_json "$J_" remove "d['historyBefore'] > 0 and d['historyAfter'] == 0 and all(t.strip() not in ('', '[]') for t in d['pidFiles'])" \
+    "RFC 0003 §9: Remove BatleHub settings left the process history, or kept an empty processes.json: $(field "$J_" remove | python3 -c 'import json,sys;d=json.load(sys.stdin);print({k:d.get(k) for k in ("historyBefore","historyAfter","pidFiles")})')"
+  log "REMOVE-OK (the manifest replayed: java.configuration.runtimes and java.jdt.ls.java.home restored, the dialog listed what it would do; the process history removed, processes.json $(field "$J_" remove | python3 -c 'import json,sys;p=json.load(sys.stdin)["pidFiles"];print("kept for the managed process still running" if p else "removed")') — RFC 0003 §9)"
   MIGRATED="$(grep -rh "migrated .batlehub/java to the local/ layout" "$J/server/data/logs" 2>/dev/null | head -1)"
   [[ -n "$MIGRATED" ]] || fail "RFC 0006 use case 5: the v1 layout was not migrated at activation (no 'migrated' line in the BatleHub Java channel)"
   ! grep -q "batlehub-java" "$JWS/.gitignore" || fail "RFC 0006 use case 5: after migration and removal, .gitignore still carries a batlehub-java line: $(cat "$JWS/.gitignore")"
@@ -1189,6 +1209,45 @@ PY
   assert_json "$OA_" resources "'SonarLint language server' not in d['tail']" "without SonarLint its server was still counted: $(field "$OA_" resources | cut -c1-600)"
   log "SONAR-ABSENT-OK (no SonarLint: one row, SonarLint is not installed — breadth comes from it, with Install; nothing counted — RFC 0016 case 3)"
   log "SONAR-HALF-OK"
+fi
+
+if [[ "$ONLY" == "all" || "$ONLY" == "kotlin" ]]; then
+  log "Kotlin half: java-kotlin with JetBrains' current server (task kotlin:fetch), the kotlin-project fixture (RFC 0008 phase 3)"
+  (cd "$REPO" && task kotlin:fetch >>"$HEAVY_WORK/package.log" 2>&1) || { tail -20 "$HEAVY_WORK/package.log" >&2; fail "task kotlin:fetch failed"; }
+  KOTLIN_HOME="$(readlink -f "$HOME/.cache/batlehub-heavy/kotlin-server-current")"
+  jdt_bundle
+  (cd "$REPO/extensions/java-core" && pnpm run package >>"$HEAVY_WORK/package.log" 2>&1) || { tail -20 "$HEAVY_WORK/package.log" >&2; fail "packaging java-core failed"; }
+  (cd "$REPO/extensions/java-kotlin" && pnpm run package >>"$HEAVY_WORK/package.log" 2>&1) || { tail -20 "$HEAVY_WORK/package.log" >&2; fail "packaging java-kotlin failed"; }
+  REDHAT_VSIX="$HEAVY_CACHE/redhat.java-$REDHAT_JAVA_VERSION.vsix"
+  [[ -s "$REDHAT_VSIX" ]] || fetch -o "$REDHAT_VSIX" "https://open-vsx.org/api/redhat/java/$REDHAT_JAVA_VERSION/file/redhat.java-$REDHAT_JAVA_VERSION.vsix"
+  log "PACKAGE-OK (java-kotlin $(stat -c %s "$REPO/extensions/java-kotlin/java-kotlin.vsix") bytes, no server inside; kotlin-server $(basename "$KOTLIN_HOME") from the cache)"
+  KWS="$HEAVY_WORK/kotlin-ws" KE="$HEAVY_WORK/editor-kotlin"
+  rm -rf "$KWS" && cp -r "$REPO/tests/heavy/fixtures/kotlin-project" "$KWS"
+  KSETTINGS="{ \"workbench.startupEditor\": \"none\", \"java.server.launchMode\": \"Standard\", \"java.jdt.ls.vmargs\": \"-XX:+UseParallelGC -Xmx1G -Xms100m -Xlog:disable\", \"extensions.ignoreRecommendations\": true, \"redhat.telemetry.enabled\": false, \"batlehub.java.kotlin.server.home\": \"$KOTLIN_HOME\" }"
+  INSTALL_VSIX=("$REDHAT_VSIX" "$REPO/extensions/java-core/java-core.vsix" "$REPO/extensions/java-kotlin/java-kotlin.vsix")
+  EDITOR_FOLDER="$KWS"
+  start_editor "$KE" "$KSETTINGS" JAVA_TOOL_OPTIONS="-XX:MaxRAMPercentage=6"
+  log "Editor (kotlin) at http://127.0.0.1:$EDITOR_PORT, folder $KWS"
+  K_="$HEAVY_WORK/kotlin.jsonl"
+  DUMP_ON_FAIL="$KE"; DUMP_JSONL="$K_"
+  node tests/heavy/kotlin.mjs --url "http://127.0.0.1:$EDITOR_PORT/?folder=$KWS" --shots "$HEAVY_WORK/shots" --cdp "$CDP_URL" --workspace "$KWS" \
+    --server-log "$KE/server/data/User/globalStorage/batlehub.java-kotlin/kotlin-server/system/system/log/intellij-server.log" \
+    >"$K_" 2>"$K_.err" || { cat "$K_.err" >&2; cat "$K_" >&2; fail "the kotlin driver failed"; }
+  stop_editor
+  cat "$K_" >>"$LOG"
+  assert_json "$K_" untrusted "not d['started']" "case 5: the Kotlin server started before the workspace was trusted: $(field "$K_" untrusted | cut -c1-600)"
+  log "KOTLIN-UNTRUSTED-OK (Greeter.kt opened in Restricted Mode: nothing downloaded, nothing started — RFC 0008 case 5)"
+  assert_json "$K_" server "not d['timedOut'] and 'initialize succeeded' in d['log'] and 'fun greet(name: String): String' in d['hover']" \
+    "case 1: the Kotlin server did not start through the core, or hover on greet did not answer: $(field "$K_" server | cut -c1-1500)"
+  log "KOTLIN-SERVER-OK (JetBrains' server $(basename "$KOTLIN_HOME") started through the core's managed process on its own Java 25, the project's JDK as JAVA_HOME; hover on greet: fun greet(name: String): String — RFC 0008 case 1)"
+  assert_json "$K_" diagnostic "not d['timedOut']" "case 2: the type mismatch typed into Greeter.kt was not reported: $(field "$K_" diagnostic | cut -c1-900)"
+  log "KOTLIN-DIAG-OK (val broken: Int = \"no\" reported in $(field "$K_" diagnostic | python3 -c 'import json,sys;print(round(json.load(sys.stdin)["ms"]/1000))') s — the first diagnostic of a session is the slow one — RFC 0008 case 2)"
+  assert_json "$K_" kts "d['mode'] in ('Gradle Kotlin DSL', 'Kotlin') and d['starts'] == 1 and d['imported']" "case 3: build.gradle.kts did not open with Kotlin colouring, the server's Gradle import did not read it, or a second server started: $(field "$K_" kts | cut -c1-600)"
+  log "KOTLIN-KTS-OK (app/build.gradle.kts opens as $(field "$K_" kts | python3 -c 'import json,sys;print(json.load(sys.stdin)["mode"])') with a Kotlin grammar, the one server's Gradle import applied it; no hover there — kotlin-server answers none in Gradle scripts, measured — RFC 0008 case 3)"
+  assert_json "$K_" tab "'Kotlin language server' in d['tab'] and 'running' in d['tab'] and d['inSum']" \
+    "case 7: the Java panel has no running Kotlin tab, or the server's cap is not in the container's sum: $(field "$K_" tab | cut -c1-900)"
+  log "KOTLIN-TAB-OK (the Java panel's Kotlin tab: running, the server's version and home, the project's JDK; kotlin-ls declared in the container's sum — RFC 0008 case 7)"
+  log "KOTLIN-OK"
 fi
 
 log "ALL-OK — screenshots in $HEAVY_WORK/shots, logs in $HEAVY_WORK"

@@ -12,14 +12,16 @@
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "lint": "oxlint . && prettier --check \"*.ts\" \"test/**/*.ts\"",
     "format": "prettier --write \"*.ts\" \"test/**/*.ts\"",
-    "test": "vitest run"
+    "test": "vitest run",
+    "bundle": "node bundle.mjs"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",
     "oxlint": "^1.0.0",
     "prettier": "^3.6.0",
     "typescript": "^5.9.0",
-    "vitest": "^5.0.3"
+    "vitest": "^5.0.3",
+    "esbuild": "^0.25.0"
   },
   "dependencies": {
     "@batlehub/java-rules": "workspace:*"

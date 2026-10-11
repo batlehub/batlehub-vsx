@@ -59,3 +59,8 @@ tasks:
     desc: "List the screenshots of the last heavy run"
     cmds:
       - ls -1 tests/heavy/work/last/shots 2>/dev/null || echo "no run yet"
+
+  view:kotlin:
+    desc: "Only the kotlin half (RFC 0008): java-kotlin with JetBrains' current server (task kotlin:fetch), the kotlin-project fixture — untrusted, start, hover, a diagnostic, the Kotlin DSL, the panel tab (no BatleHub, no Postgres)"
+    cmds:
+      - HEAVY_ONLY=kotlin bash tests/heavy/view.sh

@@ -79,7 +79,9 @@ Experimental section): `Java: Import from IntelliJ` reads
 `.idea/runConfigurations/*.xml` and `workspace.xml`'s RunManager and writes
 `launch.json` entries for Application, Remote and class-scoped JUnit
 configurations. The plan is shown before anything is written; skipped
-entries say why; nothing in `.idea/` is modified.
+entries say why; nothing in `.idea/` is modified. The same command imports the
+code style, templates, keymap and inspection profile:
+[Coming from IntelliJ](./intellij.md).
 
 ## The IDEA-style context menu
 

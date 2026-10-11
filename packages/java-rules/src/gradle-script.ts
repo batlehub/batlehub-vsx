@@ -2,6 +2,14 @@
 // requirement, the subprojects of `settings.gradle[.kts]`, the plugins that
 // mark a Java module. Pure scanning; Gradle itself answers the rest (phase 7).
 
+/** The files that make a folder a Gradle build, in the order detection reads them. */
+export const GRADLE_BUILD_FILES = [
+  "build.gradle.kts",
+  "build.gradle",
+  "settings.gradle.kts",
+  "settings.gradle",
+] as const;
+
 const clean = (s: string) =>
   s.replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|\s)\/\/.*$/gm, "$1");
 
@@ -12,6 +20,9 @@ export function requiredJavaOf(
   const s = clean(text);
   const tc = /JavaLanguageVersion\.of\(\s*(\d+)\s*\)/.exec(s);
   if (tc) return { min: Number(tc[1]), origin: "toolchain languageVersion" };
+  // Kotlin's shorthand for the same toolchain (RFC 0008 phase 2).
+  const kt = /\bjvmToolchain\(\s*(\d+)\s*\)/.exec(s);
+  if (kt) return { min: Number(kt[1]), origin: "kotlin jvmToolchain" };
   const compat =
     /(?:sourceCompatibility|targetCompatibility)\s*=?\s*(?:JavaVersion\.VERSION_(\d+)(?:_(\d+))?|['"]?(?:1\.)?(\d+)['"]?)/.exec(
       s,
@@ -38,7 +49,7 @@ export function includedProjects(settings: string): string[] {
 }
 
 export function isJavaBuild(script: string): boolean {
-  return /(?:id\s*\(?\s*['"](?:java|java-library|application|groovy)['"]|apply\s+plugin:\s*['"](?:java|java-library|groovy)['"]|\bjava\b\s*\{|`java-library`|\bjava-library\b)/.test(
+  return /(?:\bkotlin\s*\(\s*["']jvm["']\s*\)|id\s*\(?\s*['"]org\.jetbrains\.kotlin\.jvm['"]|id\s*\(?\s*['"](?:java|java-library|application|groovy)['"]|apply\s+plugin:\s*['"](?:java|java-library|groovy)['"]|\bjava\b\s*\{|`java-library`|\bjava-library\b)/.test(
     clean(script),
   );
 }

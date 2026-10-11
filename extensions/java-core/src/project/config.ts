@@ -15,7 +15,8 @@ import {
   type ProjectValues,
 } from "@batlehub/java-rules/project-config";
 
-export const PROJECT_FILE = ".batlehub/java/project.json";
+export { PROJECT_FILE } from "@batlehub/java-rules/project-config";
+import { PROJECT_FILE } from "@batlehub/java-rules/project-config";
 
 /** project.json key → the `batlehub.java.*` setting that overrides it. */
 export const SETTING_OF: Partial<Record<ProjectKey, string>> = {

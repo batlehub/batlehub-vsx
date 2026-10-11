@@ -548,6 +548,11 @@
         "category": "Java"
       },
       {
+        "command": "batlehub.java.generateMenu",
+        "title": "%gen.menu%",
+        "category": "Java"
+      },
+      {
         "command": "batlehub.java.refactor.rename",
         "title": "%ref.rename%",
         "category": "Java"
@@ -777,6 +782,10 @@
         },
         {
           "command": "batlehub.java.generate.override",
+          "when": "editorLangId == java"
+        },
+        {
+          "command": "batlehub.java.generateMenu",
           "when": "editorLangId == java"
         },
         {

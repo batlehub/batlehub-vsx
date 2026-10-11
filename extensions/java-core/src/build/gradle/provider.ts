@@ -18,7 +18,11 @@ import type {
   BuildToolProvider,
   DependencyNode,
 } from "../types";
-import { includedProjects, isJavaBuild, requiredJavaOf } from "./script";
+import {
+  includedProjects,
+  isJavaBuild,
+  requiredJavaOf,
+} from "@batlehub/java-rules/gradle-script";
 import { initScript, parseDependencies, parseTasks } from "./tasks";
 
 const exists = (p: string) => {

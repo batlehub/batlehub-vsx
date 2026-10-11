@@ -2,7 +2,7 @@
 
 | Field       | Value                                                        |
 | ----------- | ------------------------------------------------------------ |
-| Status      | Draft                                                         |
+| Status      | Implemented — phases 1–4 landed; phase 4 with RFC 0002 phase 6 (2026-10-11, `ENGINE-PROFILE-OK`) |
 | Short       | Inspection profiles                                           |
 | Settles     | Team inspection profiles as committed files, every disabled rule carrying its rationale, precedence with user overrides |
 | Closes      | A.9, A.13 — a team inspection profile, every disabled rule with its reason |
@@ -569,4 +569,4 @@ None at this revision.
 | 1 | **Built** (revision 4, 2026-10-09). `profile.ts` pure with its tests; the schema and its `jsonValidation` contribution; `ping` returns `defaults`; the `imported` field and the `profile` manifest entry kind with `writeProfileEntries()` — RFC 0007 phase 4 waits on this phase for both. Useful alone: completion and validation of a file nothing reads yet. |
 | 2 | **Built** (revision 5, 2026-10-10). Bridge and view: merged severities, Problems rows on the file, the watcher, origins and reasons in the view, the banner. The pure halves (`ruleLabel`, `profileSummary`, `profileBanner`, `bulkFixSkip`) in `profile.ts`. The Java panel's inspections line (Build tab) with the profile's errors and the differing count, revision 6. |
 | 3 | **Built** (revision 5, 2026-10-10). `Save as project profile` (`profileFromOverrides()`, written through `writeProfileEntries()`); the heavy steps of §6.5 for use cases 1–6 (`PROFILE-OK`, `PROFILE-FIXALL-OK`, `PROFILE-OVERRIDE-OK`, `PROFILE-SAVE-OK`); `docs/guide/java/inspections.md`. Use cases 7 and 8 wait on RFC 0007 phase 4 and on the sonar half. |
-| 4 | With RFC 0002: `profile.ts` moved into `packages/java-rules`, `inspect --profile` on the command line and the project-valued report of the live-editor tools, the CI job of the docs example. With RFC 0016: `sonar/*` keys checked against the bridge. |
+| 4 | **Built with RFC 0002 phase 6** (its revision 10, 2026-10-11): the committed profile is the command line's default input, found at the repository's root above a module; `inspect --profile <file>` and `--print-profile`; a bulk `fix` skips what the team turned off; the live editor's `java_inspect` reports at the profile's levels and drops its `off` rows (`projectRows`); `ENGINE-PROFILE-OK`; the CI snippet in `docs/guide/java/engine.md`. `sonar/*` keys are checked for shape only on the command line, which bridges no SonarLint. |

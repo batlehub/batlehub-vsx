@@ -122,5 +122,6 @@
   "config.generate.builder.lombok": "Where Lombok is on the module's classpath: `offer` asks between `@Builder`/`@With` and generated code, `always` adds the annotation, `never` generates code. Lombok is never added to a project that does not use it.",
   "config.generate.withers.style": "With methods: `copy` returns a new instance (the only form a record allows), `mutate` assigns and returns `this` (final fields skipped).",
   "gen.surroundWith": "Surround with…",
-  "config.generate.surroundWith.catchType": "Surround with try/catch: `precise` catches the checked exceptions the statements throw (when the project is resolved; `Exception` otherwise), `Exception` always catches `Exception`."
+  "config.generate.surroundWith.catchType": "Surround with try/catch: `precise` catches the checked exceptions the statements throw (when the project is resolved; `Exception` otherwise), `Exception` always catches `Exception`.",
+  "gen.menu": "Generate…"
 }

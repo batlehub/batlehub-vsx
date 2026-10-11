@@ -8,7 +8,7 @@ import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
-for (const ext of ["java-core", "java-groovy", "batlehub-vsx", "che-notify", "che-remote-ssh", "che-clipboard"]) {
+for (const ext of ["java-core", "java-groovy", "java-kotlin", "batlehub-vsx", "che-notify", "che-remote-ssh", "che-clipboard"]) {
   const root = `extensions/${ext}`;
   if (!existsSync(`${root}/esbuild.mjs`)) continue;
   execFileSync("node", ["esbuild.mjs"], { cwd: root, env: { ...process.env, ESBUILD_METAFILE: "1" }, stdio: "ignore" });

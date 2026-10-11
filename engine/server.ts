@@ -128,17 +128,24 @@ export async function ensure(
   return s;
 }
 
-/** The BatleHub JDT bundle: `BATLEHUB_JDT_BUNDLE`, else the one `task jdt:build` puts beside java-core. */
+/**
+ * The BatleHub JDT bundle: `BATLEHUB_JDT_BUNDLE`, else the one beside the
+ * engine (the bundled engine batlehub-cli embeds, `task engine:bundle`), else
+ * the one `task jdt:build` puts beside java-core.
+ */
 export function bundleJar(): string | undefined {
-  const jar =
-    process.env.BATLEHUB_JDT_BUNDLE ??
+  const forced = process.env.BATLEHUB_JDT_BUNDLE;
+  if (forced) return existsSync(forced) ? forced : undefined;
+  const here = path.dirname(fileURLToPath(import.meta.url));
+  return [
+    path.join(here, "batlehub-jdt-core.jar"),
     path.resolve(
-      path.dirname(fileURLToPath(import.meta.url)),
+      here,
       "..",
       "extensions",
       "java-core",
       "jdt",
       "batlehub-jdt-core.jar",
-    );
-  return existsSync(jar) ? jar : undefined;
+    ),
+  ].find((j) => existsSync(j));
 }

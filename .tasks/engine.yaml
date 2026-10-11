@@ -1,0 +1,22 @@
+version: "3"
+
+# RFC 0002 phase 6: `batlehub java` in batlehub-cli runs this engine, which
+# the CLI embeds at build time. `bundle` makes the two files, `sync` copies
+# them into the BatleHub checkout, where `cli/assets/java-engine/` is
+# committed beside the CLI that embeds it.
+tasks:
+  bundle:
+    desc: "Bundle the engine into engine/dist/: batlehub-java.mjs (packages/java-rules inlined) and the JDT bundle jar beside it"
+    deps: [":jdt:build"]
+    cmds:
+      - pnpm -C engine run bundle
+
+  sync:
+    desc: "Bundle the engine, then copy it into $BATLEHUB_SRC/cli/assets/java-engine/ (default ../proxy-cache), the files batlehub-cli embeds"
+    deps: [bundle]
+    vars:
+      DEST: '{{.BATLEHUB_SRC | default "../proxy-cache"}}/cli/assets/java-engine'
+    cmds:
+      - mkdir -p "{{.DEST}}"
+      - cp engine/dist/batlehub-java.mjs engine/dist/batlehub-jdt-core.jar "{{.DEST}}/"
+      - echo "copied to {{.DEST}}"

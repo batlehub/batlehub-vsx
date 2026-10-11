@@ -1,0 +1,10 @@
+{
+  "capabilities.untrusted": "The Kotlin language server is a process: it is neither downloaded nor started in an untrusted workspace.",
+  "cfg.enabled": "Start JetBrains' Kotlin language server for .kt and .kts files. false: Kotlin files open without a server (the answer when another Kotlin extension serves them).",
+  "cfg.xmx": "The server JVM's heap (-Xmx). The process tree with the Gradle and Kotlin daemons it starts is about 2.8 GB whatever this says.",
+  "cfg.args": "Extra JVM arguments for the server, appended.",
+  "cfg.version": "JetBrains' kotlin-server release to run: \"latest\" (checked once a day; a release expires about four weeks after it ships) or a version such as 263.6379.0.",
+  "cfg.home": "An unpacked kotlin-server directory to run instead of downloading one (offline, air-gapped, a mirror's copy).",
+  "cmd.restart": "Restart the Kotlin language server",
+  "cmd.showLog": "Show the Kotlin log"
+}

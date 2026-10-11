@@ -1,14 +1,15 @@
+import path from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   includedProjects,
   isJavaBuild,
   requiredJavaOf as gradleRequired,
-} from "../src/build/gradle/script";
+} from "@batlehub/java-rules/gradle-script";
 import {
   parsePom,
   requiredJavaOf,
   toolchainVersions,
-} from "../src/build/maven/pom";
+} from "@batlehub/java-rules/pom";
 
 const POM = `<?xml version="1.0"?>
 <project>
@@ -97,6 +98,11 @@ describe("gradle reading", () => {
       ),
     ).toEqual({ min: 17, origin: "options.release" });
     expect(gradleRequired("plugins { id 'java' }")).toBeUndefined();
+    // RFC 0008 phase 2: Kotlin's toolchain shorthand.
+    expect(gradleRequired("kotlin {\n  jvmToolchain(21)\n}")).toEqual({
+      min: 21,
+      origin: "kotlin jvmToolchain",
+    });
   });
   it("lists included projects and recognises a Java build", () => {
     expect(
@@ -108,5 +114,46 @@ describe("gradle reading", () => {
     expect(isJavaBuild("plugins {\n  `java-library`\n}")).toBe(true);
     expect(isJavaBuild("apply plugin: 'groovy'")).toBe(true);
     expect(isJavaBuild("plugins { id 'base' }")).toBe(false);
+    expect(isJavaBuild('plugins {\n  kotlin("jvm")\n}')).toBe(true);
+    expect(isJavaBuild('plugins { id("org.jetbrains.kotlin.jvm") }')).toBe(
+      true,
+    );
+  });
+});
+
+describe("Kotlin source roots (RFC 0008 phase 2, use case 4)", () => {
+  const fixtures = path.join(
+    __dirname,
+    "..",
+    "..",
+    "..",
+    "tests",
+    "heavy",
+    "fixtures",
+  );
+  it("lists src/main/kotlin beside src/main/java in a Gradle Kotlin DSL build", async () => {
+    const { readModules } = await import("../src/build/gradle/provider");
+    const [root] = readModules(path.join(fixtures, "kotlin-project"));
+    const rel = (m: { name: string; sourceRoots: string[] }) =>
+      m.sourceRoots.map((r) =>
+        path.relative(path.join(fixtures, "kotlin-project", m.name), r),
+      );
+    const byName = Object.fromEntries(
+      root!.children.map((m) => [m.name, rel(m)]),
+    );
+    expect(byName.lib).toEqual(["src/main/kotlin"]);
+    expect(byName.app).toEqual(["src/main/java", "src/main/kotlin"]);
+    expect(
+      root!.children.every((m) => m.buildFile.endsWith("build.gradle.kts")),
+    ).toBe(true);
+  });
+  it("lists src/main/kotlin in the Maven twin", async () => {
+    const { readModules } = await import("../src/build/maven/provider");
+    const [m] = readModules(path.join(fixtures, "kotlin-maven"));
+    expect(
+      m!.sourceRoots.map(
+        (r) => path.basename(path.dirname(r)) + "/" + path.basename(r),
+      ),
+    ).toContain("main/kotlin");
   });
 });

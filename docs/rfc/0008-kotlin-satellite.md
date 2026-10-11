@@ -9,7 +9,7 @@
 | Author      | Max Batleforc <maxleriche.60@gmail.com>                       |
 | Co-author   | —                                                             |
 | Created     | 2026-09-18                                                    |
-| Revised     | 2026-09-29 — revision 4, the recommendations of §11 promoted to decisions 11–14: the core's own Maven passed on the server's `PATH`, no run template for a Kotlin `main` in v0.1, a `kotlin-lsp` pre-release row in the nightly matrix, and the 2.8 GB daemon tree declared rather than capped (RFC 0003 decision 18). Only the publishable size of a 352 MB VSIX stays open, and it blocks the rest. 2026-09-29, revision 5, the last open question answered by measurement (§11 Measured — the publishable size): a 352 MB VSIX cannot be published, the limit is `open-vsx.org`'s reported 250 MiB, and decision 2 survives at 257 MB by dropping the bundled JBR and the debug plugins — both owed to other decisions already. Decision 7's budget is now the publishable size rather than the release's |
+| Revised     | 2026-10-11 — revision 5, phases 1–3 built on what phase 1 found: the pinned build had expired and needs Java 25, and JetBrains' own extension starts its server only after a per-developer license activation — so the satellite downloads JetBrains' current standalone release on first use (sha256 checked, one version kept) and runs it on its own JBR; decisions 16–21 replace 2, 4, 7, 13 and 15 · 2026-09-29 — revision 4, the recommendations of §11 promoted to decisions 11–14: the core's own Maven passed on the server's `PATH`, no run template for a Kotlin `main` in v0.1, a `kotlin-lsp` pre-release row in the nightly matrix, and the 2.8 GB daemon tree declared rather than capped (RFC 0003 decision 18). Only the publishable size of a 352 MB VSIX stays open, and it blocks the rest. 2026-09-29, revision 5, the last open question answered by measurement (§11 Measured — the publishable size): a 352 MB VSIX cannot be published, the limit is `open-vsx.org`'s reported 250 MiB, and decision 2 survives at 257 MB by dropping the bundled JBR and the debug plugins — both owed to other decisions already. Decision 7's budget is now the publishable size rather than the release's |
 | Supersedes  | —                                                             |
 | Depends on  | RFC 0001 (the contract of §5.2, `java-groovy` as the model satellite, decision 7's usability gate, decision 31, the red lines of §7.1); the core's Gradle provider (RFC 0001 phase 7) for the Kotlin DSL and the mixed modules; RFC 0003 revision 2 (the managed process); needs members `manifest.writeSetting` and `process.start` — RFC 0001 §5.2 contract changelog |
 | Touches     | `extensions/java-kotlin` (new), `extensions/java-core/src/build/gradle/provider.ts` (source roots), `extensions/java-core/src/build/maven/provider.ts` (`kotlin-maven-plugin` roots), `extensions/java-pack`, `.tasks/kotlin.yaml`, `tests/heavy/fixtures/kotlin-project`, `tests/heavy/java.mjs`, `tests/contract/run.sh`, `docs/guide/java/kotlin.md` |
@@ -530,6 +530,12 @@ sequenceDiagram
 | 12 | A run template for a Kotlin `main`? | **None in v0.1.** `mainClass` is `<File>Kt` unless `@file:JvmName` says otherwise, and guessing wrong is worse than the developer typing it; the run editor's Application template works today. |
 | 13 | Server version drift? | **A `kotlin-lsp` pre-release row in the nightly matrix** (RFC 0001 §4.2), so a breaking release of a pre-alpha server is a drift issue and not a user report. |
 | 14 | The declared cap, with the daemons bringing the tree to 2.8 GB? | **Declared, not capped** (RFC 0003 decision 18). The satellite declares the measured tree to `process.start` and writes nothing into the project's Gradle or Kotlin daemon options: Kotlin takes a third of the 8 GiB budget, the `JDK` tab says so, and a foreign write to shrink a visible number is not one this series makes. |
+| 16 | Bundled or downloaded? (revision 5, replaces 2, 7 and 15) | **Downloaded on first use, by the satellite**: JetBrains' latest release (`releases/latest` of `Kotlin/kotlin-lsp`, asked once a day) from `download.jetbrains.com`, checked against the `<archive>.sha256` JetBrains publishes, unpacked under the extension's global storage, one version kept. A bundled build would stop working for every user on its expiry date (four weeks); the VSIX is 128 KB. `batlehub.java.kotlin.server.version` pins a release, `…server.home` runs an unpacked one (offline, a mirror's copy, the heavy suite). The maintainer's choice, 2026-10-11, over the bridge once its license gate was measured. |
+| 17 | Which JDK runs the server? (revision 5, replaces 4) | **Its own JBR 25**, from the release: `minRequiredJavaVersion: 25`, class-file 69. The folder's JDK — decision 4's — is the project's: `JAVA_HOME` in the server's environment, which its Gradle and Maven imports read. |
+| 18 | How is it launched? (revision 5) | **From its `product-info.json`**: the JBR's `java`, the VM options file without `-Xms`/`-Xmx` (ours is `-Xmx1G`), the boot class path, `additionalJvmArguments` with `$IDE_HOME` expanded, the main class, `--stdio --system-path <storage>/system`. The native launcher is never run (an argument array, §7). |
+| 19 | When a release expires (revision 5) | **The satellite reads the server's own log** (`The EAP build has expired`): the state becomes `expired`, one warning, and **Restart** asks for the latest release and fetches it. |
+| 20 | The bridge to `JetBrains.kotlin-server`? (revision 5, the fallback of decision 1) | **Measured and set aside**: its server starts only once a setup wizard (region, data sharing) is done and `activeLicense.status` is `Valid` — a JetBrains license activated per developer in a webview. No CI runner could prove a Kotlin feature through it. The standalone server logs `License gate: Licensed` with none. |
+| 21 | Gradle Kotlin DSL (revision 5, case 3 corrected) | **The server's Gradle import reads the scripts; it answers no hover in them** — measured over LSP on 263.6379.0, with `languageId` `kotlin` and `gradle-kotlin-dsl` alike. redhat.java claims `.gradle.kts` as `gradle-kotlin-dsl` with a Kotlin grammar, so the scripts are coloured; the satellite serves `kotlin` only. |
 | 15 | Can a 352 MB VSIX be published at all? (was open question 5) | **No — and decision 2 survives anyway, by dropping two things that were already owed.** Measured 2026-09-29 against `maxExtensionSize: 262144000`: the release zipped whole is 370 MB (**+108 MB**); **without the bundled JBR**, 265 MB — still over, by 3.2 MB; **without the JBR and without the debug plugins** (`plugins/dap-jvm`, `plugins/kotlin-dap.lsp`), **257 MB, under by 5.1 MB**. The JBR goes because decision 4 already says the core resolves the JDK and phase 0 caught the server handing its own JBR to Maven as `JAVA_HOME` — a server that has no JBR cannot do that. The debug plugins go because v0.1 has no Kotlin run template (decision 12) and nothing invokes them. **The margin is 2 %**, so decision 13's nightly row gates the packed size, not just the protocol. |
 
 ### Measured — phase 0, 2026-09-18
@@ -622,8 +628,36 @@ Three things the table does not say.
 
 ### Still open
 
-None at this revision. Decision 15's 2 % margin is what decision 13's
-nightly row now watches.
+1. **Decision 11, the core's Maven on the server's `PATH`, is not built**:
+   the contract offers a satellite no Maven home. Until a member does
+   (`project.toolHome("maven")`, a 1.2 change), a Maven project imports
+   only where a real `mvn` is on `PATH`; the guide says so.
+2. **Case 6 (coexistence) is not driven in the real editor**: the prompt and
+   its two writes through `manifest.writeSetting` are code, not yet a heavy
+   step with `fwcd.kotlin` installed.
+3. **Case 4's explorer rows** are unit tests over both fixtures, not a heavy
+   step.
+
+What revision 5 found, for the record — the measurements behind decisions
+16–21, all on 2026-10-11:
+
+- **ILS-263.4702.0 refuses to run four weeks after its release**: its own
+  launcher prints `This build of kotlin-server has expired. The IDE will now
+  close`. Releases come about monthly (263.6379.0 on 2026-10-03, 263.4702.0
+  on 2026-09-13, 262.9593.0 on 2026-07-27).
+- **`minRequiredJavaVersion: 25`**: on the mise Temurin 21 the JVM refuses
+  `MainImpl` (`UnsupportedClassVersionError`, class file 69).
+- **`JetBrains.kotlin-server` 0.0.13** (Open VSX, 2026-10-03) is 1.4 MB and
+  downloads the same server into `~/.local/share/JetBrains/`, then waits on
+  its license gate (decision 20).
+- **The heavy half** (`task heavy:view:kotlin`, `KOTLIN-OK`): untrusted, no
+  start; trusted, the server up through the core's managed process and hover
+  on `greet` (`fun greet(name: String): String`); the type mismatch reported
+  in 54–79 s, the first diagnostic of a session as phase 0 measured; the
+  Kotlin DSL coloured and imported, one server; the Kotlin tab and
+  `kotlin-ls` in the container's sum. It found one bug of the core's: a
+  language provider registered untrusted was never started once trust was
+  granted — fixed in `api.ts` for every satellite.
 
 ---
 
@@ -633,6 +667,6 @@ nightly row now watches.
 | --- | --- |
 | 0 | **The gate, measured — second in RFC 0001 §14's order of work, as a measurement only**: `task kotlin:fetch` + `kotlin:smoke` on the pinned release with the mise JDK 21 and the `kotlin-project` fixture; the numbers of RFC 0001 decision 7's gate and the measured size (§11 decision 7 here) written into §11. Ships nothing. A failed gate does not stop the RFC: it turns phase 1 into the thin bridge of decision 1. |
 | — | *Team A's track (RFC 0001 §14 steps 3–11) comes here; it brings the managed process (RFC 0003) and `manifest.writeSetting` that phase 1 needs.* |
-| 1 | **The satellite**, packed as decision 15 says (no `jbr/`, no debug plugins, the packed size asserted under 250 MiB before anything else): `extensions/java-kotlin` cloned from `java-groovy` — server through `process.start`, channel, panel tab, status item, trust rule, coexistence prompt through `manifest.writeSetting`; `.tasks/kotlin.yaml`; the raised size budget in CI; the contract test extended; `docs/guide/java/kotlin.md`. Useful on its own. *Gate failed*: the same extension without `server/` — the bridge key, the tab, the recommendation of JetBrains' extension. |
-| 2 | **The core's roots**: Maven and Gradle providers learn `src/main/kotlin` and `build.gradle.kts`; unit tests. Independent of phase 1 and useful without it (the explorer). |
-| 3 | **Proof**: the `kotlin` phase of the `java` heavy half, `KOTLIN-OK` gated, the memory budget of the suite revised; the nightly matrix row of question 3. |
+| 1 | **Built** (revision 5, 2026-10-11), on decisions 16–19 rather than 15: `extensions/java-kotlin` — `server.ts` (the launch from `product-info.json`, release URLs, expiry), `fetch.ts` (download, sha256, unpack, one version), `extension.ts` (the core's managed process, `JAVA_HOME`, panel tab, status item, coexistence through `manifest.writeSetting`); unit tests. Was: **The satellite**, packed as decision 15 says (no `jbr/`, no debug plugins, the packed size asserted under 250 MiB before anything else): `extensions/java-kotlin` cloned from `java-groovy` — server through `process.start`, channel, panel tab, status item, trust rule, coexistence prompt through `manifest.writeSetting`; `.tasks/kotlin.yaml`; the raised size budget in CI; the contract test extended; `docs/guide/java/kotlin.md`. Useful on its own. *Gate failed*: the same extension without `server/` — the bridge key, the tab, the recommendation of JetBrains' extension. |
+| 2 | **Built** (revision 5): Maven lists `src/main/kotlin` / `src/test/kotlin`; Gradle already did, and its toolchain reader learns `jvmToolchain(N)` and `kotlin("jvm")`; unit tests over both fixtures. Was: **The core's roots**: Maven and Gradle providers learn `src/main/kotlin` and `build.gradle.kts`; unit tests. Independent of phase 1 and useful without it (the explorer). |
+| 3 | **Built** (revision 5): `task heavy:view:kotlin` (its own half, `KOTLIN-OK`) and a `heavy-kotlin` CI job caching the server per ISO week; `docs/guide/java/kotlin.md`. The nightly's pre-release row (decision 13) is moot: the half always runs the latest release. Was: **Proof**: the `kotlin` phase of the `java` heavy half, `KOTLIN-OK` gated, the memory budget of the suite revised; the nightly matrix row of question 3. |

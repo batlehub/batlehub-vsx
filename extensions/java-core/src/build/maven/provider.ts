@@ -29,7 +29,7 @@ import type {
 import { conflicts, parseTree } from "./deptree";
 import { activeProfilesOf, setActiveProfiles } from "./m2e";
 import { overlayOf } from "./overlay";
-import { parsePom, requiredJavaOf } from "./pom";
+import { parsePom, requiredJavaOf } from "@batlehub/java-rules/pom";
 import { MARKER, setLink, unsetLink } from "./settings";
 import { MAVEN_EXTRAS, MAVEN_LIFECYCLE } from "../tasks";
 
@@ -63,8 +63,10 @@ export function readModules(
     root,
     buildFile: pomPath,
     tool: "maven",
-    sourceRoots: roots(["src/main/java"]),
-    testRoots: roots(["src/test/java"]),
+    // Kotlin's roots beside Java's (RFC 0008 phase 2); `roots` keeps only
+    // the ones present, so a pure-Java module is unchanged.
+    sourceRoots: roots(["src/main/java", "src/main/kotlin"]),
+    testRoots: roots(["src/test/java", "src/test/kotlin"]),
     resourceRoots: roots(["src/main/resources", "src/test/resources"]),
     children: pom.modules.flatMap((rel) =>
       readModules(path.join(root, rel), props),

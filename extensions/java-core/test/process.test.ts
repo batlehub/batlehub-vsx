@@ -1,3 +1,4 @@
+import { spawn } from "node:child_process";
 import * as fs from "node:fs";
 import * as net from "node:net";
 import * as os from "node:os";
@@ -17,6 +18,8 @@ import {
   readEntries,
   sweep,
   type PidEntry,
+  decideByName,
+  stateOf,
 } from "../src/process/sweep";
 
 describe("the sum (RFC 0003 §4.2)", () => {
@@ -59,6 +62,49 @@ describe("the sweep's reading of /proc", () => {
     expect(decide(e, undefined)).toBe("gone");
     expect(decide(e, stat(777))).toBe("stop");
     expect(decide(e, stat(778))).toBe("recycled");
+  });
+});
+
+describe("the sweep off Linux (RFC 0003 §9)", () => {
+  it("stops a live pid still running its program, never a recycled one", () => {
+    const e = { argv0: "/opt/jdk/bin/java" };
+    expect(decideByName(e, false, undefined)).toBe("gone");
+    expect(decideByName(e, true, "/opt/jdk/bin/java\n")).toBe("stop");
+    expect(decideByName(e, true, "java")).toBe("stop");
+    expect(decideByName(e, true, "bash")).toBe("recycled");
+    expect(decideByName(e, true, undefined)).toBe("recycled");
+  });
+  it("answers for a real process on this platform", async () => {
+    const stat = fs.existsSync(`/proc/${process.pid}/stat`)
+      ? parseStat(fs.readFileSync(`/proc/${process.pid}/stat`, "utf8"))
+      : undefined;
+    const me = {
+      pid: process.pid,
+      startTicks: stat?.startTicks ?? 0,
+      argv0: process.execPath,
+    };
+    expect(await stateOf(me)).toBe("stop");
+    expect(await stateOf({ ...me, pid: 2 ** 22 + 7 })).toBe("gone");
+  });
+  it("takes the kill(0) + ps path when there is no /proc", async () => {
+    const platform = Object.getOwnPropertyDescriptor(process, "platform")!;
+    Object.defineProperty(process, "platform", { value: "darwin" });
+    try {
+      // A child of its own: this test's process title is vitest's, not node.
+      const child = spawn("sleep", ["30"]);
+      const me = { pid: child.pid!, startTicks: 0, argv0: "sleep" };
+      try {
+        expect(await stateOf(me)).toBe("stop");
+        expect(await stateOf({ ...me, argv0: "/usr/bin/java" })).toBe(
+          "recycled",
+        );
+      } finally {
+        child.kill();
+      }
+      expect(await stateOf({ ...me, pid: 2 ** 22 + 7 })).toBe("gone");
+    } finally {
+      Object.defineProperty(process, "platform", platform);
+    }
   });
 });
 

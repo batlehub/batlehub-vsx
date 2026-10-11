@@ -718,7 +718,7 @@ It defines no version; the changelog is where the next one is written.
 | 13 | The budget figure — this RFC's setting, or the devfile's `memoryRequest`? | **The setting stays, as the override**; RFC 0004's devfile reader fills the default when it lands. This RFC does not depend on RFC 0004 to ship. |
 | 14 | `launch` steps of non-Java types? | **Listed** — every `launch.json` entry, the Java ones first. Nothing prevents a `node` server before a Java client. |
 | 15 | Descendant RSS double-counts shared pages? | **Accepted.** The JVMs this series starts do not fork; `Pss` from `smaps_rollup` only if a measurement misleads someone. |
-| 16 | The cap ledger the command line needs (RFC 0002 decision 15)? | **This RFC owns it**: a per-workspace file of the running declared caps under the user's cache directory, `0600`, written under the manifest's lock discipline, stale lines dropped by pid. §4.2's sum reads it, an outside engine appends to it. No secret is in it. |
+| 16 | The cap ledger the command line needs (RFC 0002 decision 15)? | **This RFC owns it**: a per-workspace file of the running declared caps under the user's cache directory, `0600`, written under the manifest's lock discipline, stale lines dropped by pid. §4.2's sum reads it, an outside engine appends to it. No secret is in it. **Built** with RFC 0002 phase 6 (its decision 46): `packages/java-rules/src/ledger.ts`, keyed by the repository root. |
 | 17 | A JVM another extension starts — Spring Tools, Quarkus, Metals? | **`process.declare(estimate)`** — an id, a `memoryMiB`, a label, nothing started — the 1.1 row of RFC 0001 §5.2's contract changelog whose shape is owned here. Not a per-framework read of a foreign `*.ls.vmargs` setting inside the core (RFC 0010 decision 15, RFC 0009, RFC 0011). |
 | 18 | The Kotlin server's daemon tree, 2.8 GB measured (RFC 0008)? | **Declared, not capped.** The satellite declares the measured tree to `process.start` and writes nothing into the project's Gradle or Kotlin daemon options: a foreign write to shrink a number the developer can already read in the `JDK` tab is not one this series makes. Kotlin takes a third of the 8 GiB budget and says so. Revisit only if a recorded peak shows the tree is what fills the pod. |
 
@@ -742,10 +742,12 @@ activation path. What building it found:
 4. **No probe means alive after `intervalMs`** (§4.1's `process` default);
    a process that exits before readiness rejects `ready` with its exit code
    whatever the probe, except `exit`.
-5. **Owed:** `Java: Remove BatleHub settings` does not yet delete
-   `processes.json` and the history (§9 Rollback); the off-Linux sweep
-   fallback (`kill(pid, 0)` + `ps -o comm=`) is not built: off Linux the
-   sweep only empties the file.
+5. **Built since (2026-10-11):** `Java: Remove BatleHub settings` deletes
+   the history, and `processes.json` unless a managed process still runs —
+   that file is what sweeps it if the host dies (`REMOVE-OK`). Off Linux the
+   sweep decides by `kill(pid, 0)` and `ps -o comm=`: a live pid still running
+   the program it was started as is stopped, any other program behind it is
+   a recycled pid and left alone (`stateOf`, unit-tested on both paths).
 
 ### Measured — phase 2, 2026-10-09
 

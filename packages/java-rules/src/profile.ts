@@ -49,6 +49,13 @@ const RANK: Record<Level, number> = {
 /** Bridged analysers' prefixes (RFC 0005 §4.1, RFC 0013, RFC 0016): never a bundle area. */
 export const BRIDGES = ["sonar", "spelling"] as const;
 export const IMPORTERS = ["intellij"] as const;
+/** The committed profile, relative to the workspace root. */
+export const PROFILE = ".batlehub/java/inspections.json";
+
+/** A bridged rule's level is its analyser's: cspell's `info` (RFC 0013 decision 10), so only `off` needs a why. */
+export const BRIDGED_DEFAULTS: Record<string, Severity> = {
+  "spelling/unknownWord": "info",
+};
 
 const lineOf = (text: string, offset: number) =>
   text.slice(0, offset).split("\n").length - 1;

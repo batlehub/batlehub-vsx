@@ -13,16 +13,30 @@ import os from "node:os";
 import path from "node:path";
 import { discover, runtimeAt, type Io } from "@batlehub/java-rules/discover";
 import { homeIo } from "@batlehub/java-rules/io";
+import {
+  cacheHome,
+  ledgerFile,
+  putLine,
+  readLedger,
+  removeLine,
+  type LedgerLine,
+} from "@batlehub/java-rules/ledger";
 import { resolve } from "@batlehub/java-rules/resolve";
 import {
   formatSize,
   parseSize,
   readCgroupLimit,
 } from "@batlehub/java-rules/resources";
-import type { Row } from "@batlehub/java-rules/rules";
+import { applyOverrides, type Row } from "@batlehub/java-rules/rules";
+import { bulkFixSkip, type Level } from "@batlehub/java-rules/profile";
 import type { Runtime } from "@batlehub/java-rules/types";
-import { parseSymbol, type SymbolRef } from "@batlehub/java-rules/verbs";
+import {
+  generateCall,
+  parseSymbol,
+  type SymbolRef,
+} from "@batlehub/java-rules/verbs";
 import type { WorkspaceEdit } from "./apply.ts";
+import type { BundleRules } from "./config.ts";
 import { fileUri, launch, type Server } from "./launch.ts";
 import type { Finding } from "./render.ts";
 import { bundleJar, ensure, locate, PIN, SERVER_MIN_JAVA } from "./server.ts";
@@ -136,6 +150,21 @@ export function capCheck(
   return { cap, limit };
 }
 
+/** The ledger's refusal (use case 6): the new cap and the running ones over the limit, each named. */
+export function ledgerCheck(
+  cap: number,
+  limit: number | undefined,
+  running: LedgerLine[],
+): void {
+  if (limit === undefined) return;
+  const total = running.reduce((n, l) => n + l.bytes, cap);
+  if (total > limit)
+    throw new Exit(
+      EXIT.unusable,
+      `the server's declared cap ${formatSize(cap)} and what already runs on this repository — ${running.map((l) => `${l.label}: ${formatSize(l.bytes)}`).join(", ")} — do not fit the container's limit ${formatSize(limit)}: lower --heap, or use the live editor's tools, which start nothing`,
+    );
+}
+
 export const readOrUndefined = (p: string): string | undefined => {
   try {
     return readFileSync(p, "utf8");
@@ -211,7 +240,10 @@ export async function start(
       ".vscode/settings.json holds batlehub.java.* keys: not read — CI and agents report at the project's values (RFC 0002 §4.1)",
     );
   const jdk = await serverJdk(homeIo());
-  capCheck(o.heap, readOrUndefined);
+  const { cap, limit } = capCheck(o.heap, readOrUndefined);
+  // Use case 6: what already runs on this repository counts against the limit too.
+  const ledger = ledgerFile(root, cacheHome());
+  ledgerCheck(cap, limit, readLedger(ledger));
   const jar = bundleJar();
   if (!jar)
     throw new Exit(
@@ -236,6 +268,21 @@ export async function start(
     heap: o.heap,
     settings: { java: { import: { gradle: { enabled: true } } } },
   });
+  if (server.pid !== undefined)
+    putLine(ledger, {
+      pid: server.pid,
+      owner: "engine",
+      label: `batlehub java (pid ${server.pid})`,
+      bytes: cap,
+    });
+  const stop = server.stop;
+  server.stop = async () => {
+    try {
+      await stop();
+    } finally {
+      if (server.pid !== undefined) removeLine(ledger, server.pid, "engine");
+    }
+  };
   try {
     await server.ready(o.timeout * 1000, (s) =>
       warn(
@@ -274,11 +321,20 @@ export async function sources(
 export const mtimesOf = (files: string[]): Map<string, number> =>
   new Map(files.map((f) => [realpathSync(f), statSync(f).mtimeMs]));
 
-/** The bundle's rows for each file, at the bundle's severities (decision 21); `path` relative to `base`. */
+/** The bundle's rule ids and default levels, which a profile is validated against. */
+export const bundleRules = async (server: Server) =>
+  (await server.exec("batlehub.ping")) as BundleRules | undefined;
+
+/**
+ * The bundle's rows for each file at the project's levels — the team
+ * profile's over the bundle's defaults (RFC 0005 phase 4); `path` relative
+ * to `base`. A rule the team turned off is not reported.
+ */
 export async function findings(
   server: Server,
   files: string[],
   base: string,
+  levels: Record<string, Level> = {},
 ): Promise<Finding[]> {
   const out: Finding[] = [];
   for (const f of files) {
@@ -286,7 +342,8 @@ export async function findings(
       "batlehub.inspections.list",
       fileUri(f),
     )) ?? []) as Row[];
-    for (const r of rows) out.push({ path: path.relative(base, f), ...r });
+    for (const r of applyOverrides(rows, levels))
+      out.push({ path: path.relative(base, f), ...r });
   }
   return out;
 }
@@ -296,13 +353,17 @@ export async function fixEdit(
   server: Server,
   files: string[],
   rule?: string,
+  levels: Record<string, Level> = {},
 ): Promise<WorkspaceEdit> {
   const edit: WorkspaceEdit = { changes: {} };
+  // A bulk fix leaves out what the team turned off, as the editor's does (RFC 0005 decision 11).
+  const skip = rule ? [] : bulkFixSkip(levels, {});
   for (const f of files) {
     const e = (await server.exec(
       "batlehub.inspections.fixAll",
       fileUri(f),
       rule ? rule.split("/").pop() : null,
+      skip,
     )) as WorkspaceEdit | undefined;
     for (const [u, l] of Object.entries(e?.changes ?? {}))
       if (l.length) edit.changes![u] = l;
@@ -310,46 +371,47 @@ export async function fixEdit(
   return edit;
 }
 
-export const GENERATE_KIND: Record<string, number> = {
-  accessors: 0,
-  getters: 1,
-  setters: 2,
-};
-
-/** Accessors for the type at `line` (1-based), with the bundle's defaults (decision 34). */
+/**
+ * A `java_generate` at `line` (1-based) through the shared bundle call
+ * (RFC 0015 phase 4); accessors with the bundle's defaults (decision 34).
+ * A refusal or a note is the bundle's answer, not an exception.
+ */
 export async function generateEdit(
   server: Server,
   file: string,
   line: number,
   o: {
     what: string;
+    endLine?: number;
+    options?: Record<string, unknown>;
     getterPrefix?: string;
     booleanPrefix?: string;
     fluentSetters?: boolean;
   },
-): Promise<WorkspaceEdit> {
-  const kind = GENERATE_KIND[o.what];
-  if (kind === undefined)
-    throw new Exit(
-      EXIT.unusable,
-      `generate ${o.what || "?"}: expected accessors, getters or setters`,
-    );
-  const at = { line: line - 1, character: 0 };
-  return ((await server.exec(
-    "batlehub.generate.accessors",
-    {
-      textDocument: { uri: fileUri(file) },
-      range: { start: at, end: at },
-      context: { diagnostics: [] },
-    },
-    JSON.stringify({
-      getterPrefix: o.getterPrefix ?? "get",
-      booleanPrefix: o.booleanPrefix ?? "is",
-      fluentSetters: o.fluentSetters ?? false,
-      finalFields: "keepSetters",
-      kind,
-    }),
-  )) ?? {}) as WorkspaceEdit;
+): Promise<WorkspaceEdit & { refused?: string; note?: string }> {
+  let call: ReturnType<typeof generateCall>;
+  try {
+    call = generateCall({
+      what: o.what,
+      uri: fileUri(file),
+      line,
+      endLine: o.endLine,
+      options: o.options,
+      accessorOptions: {
+        getterPrefix: o.getterPrefix ?? "get",
+        booleanPrefix: o.booleanPrefix ?? "is",
+        fluentSetters: o.fluentSetters ?? false,
+        finalFields: "keepSetters",
+      },
+    });
+  } catch (e) {
+    throw new Exit(EXIT.unusable, (e as Error).message);
+  }
+  return ((await server.exec(call.command, ...call.args)) ??
+    {}) as WorkspaceEdit & {
+    refused?: string;
+    note?: string;
+  };
 }
 
 /** A symbol (`Type#member`) or a 1-based `path:line:col`, `path` resolved against `base`. */

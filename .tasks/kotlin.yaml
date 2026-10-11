@@ -5,25 +5,35 @@ version: "3"
 # tree: the archive is 368 MB and unpacks to 1.2 GB), `kotlin:smoke` runs
 # decision 7's gate on it and prints the numbers §11 records.
 vars:
-  KOTLIN_LSP_VERSION: 263.4702.0
-  KOTLIN_LSP_URL: https://download.jetbrains.com/language-server/kotlin-server/263.4702.0/kotlin-server-263.4702.0.tar.gz
-  KOTLIN_LSP_SHA256: 1e11d2e5fefbf9ea215ad8dd6be95f2222897cd086e8cb7a661a52084a590405
-  KOTLIN_LSP_ARCHIVE: "{{.HOME}}/.cache/batlehub-heavy/kotlin-server-263.4702.0.tar.gz"
-  KOTLIN_LSP_DIR: "{{.HOME}}/.cache/batlehub-heavy/kotlin-server-263.4702.0"
+  # Revision 5: a kotlin-server build expires about four weeks after its
+  # release, so nothing here pins one. `fetch` resolves JetBrains' latest
+  # release (or KOTLIN_LSP_VERSION), checks the archive against the sha256
+  # JetBrains publishes beside it, and points `kotlin-server-current` at it.
+  KOTLIN_LSP_CACHE: "{{.HOME}}/.cache/batlehub-heavy"
+  KOTLIN_LSP_DIR: "{{.HOME}}/.cache/batlehub-heavy/kotlin-server-current"
 
 tasks:
   fetch:
-    desc: "Put JetBrains' pinned Kotlin LSP (Linux x64 standalone archive, sha256 pinned here) in ~/.cache/batlehub-heavy — never in the working tree"
-    status:
-      - test -x {{.KOTLIN_LSP_DIR}}/bin/intellij-server
+    desc: "Put JetBrains' latest Kotlin LSP (or KOTLIN_LSP_VERSION) in ~/.cache/batlehub-heavy, verified against the sha256 JetBrains publishes — never in the working tree"
     cmds:
-      - mkdir -p "$(dirname "{{.KOTLIN_LSP_ARCHIVE}}")"
-      - test -s "{{.KOTLIN_LSP_ARCHIVE}}" || curl -fsSL --proto '=https' -o "{{.KOTLIN_LSP_ARCHIVE}}" "{{.KOTLIN_LSP_URL}}"
-      - echo "{{.KOTLIN_LSP_SHA256}}  {{.KOTLIN_LSP_ARCHIVE}}" | sha256sum -c --quiet
-      - tar xzf "{{.KOTLIN_LSP_ARCHIVE}}" -C "$(dirname "{{.KOTLIN_LSP_ARCHIVE}}")"
+      - |
+        set -euo pipefail
+        cache="{{.KOTLIN_LSP_CACHE}}"; mkdir -p "$cache"
+        v="${KOTLIN_LSP_VERSION:-$(curl -fsSL https://api.github.com/repos/Kotlin/kotlin-lsp/releases/latest | python3 -c 'import json,sys;print(json.load(sys.stdin)["tag_name"].split("/v")[-1])')}"
+        dir="$cache/kotlin-server-$v"
+        if [ ! -s "$dir/product-info.json" ]; then
+          base="https://download.jetbrains.com/language-server/kotlin-server/$v/kotlin-server-$v.tar.gz"
+          curl -fsSL --proto '=https' -o "$cache/kotlin-server-$v.tar.gz" "$base"
+          sum="$(curl -fsSL "$base.sha256" | cut -c1-64)"
+          echo "$sum  $cache/kotlin-server-$v.tar.gz" | sha256sum -c --quiet
+          tar xzf "$cache/kotlin-server-$v.tar.gz" -C "$cache"
+          rm -f "$cache/kotlin-server-$v.tar.gz"
+        fi
+        ln -sfn "$dir" "{{.KOTLIN_LSP_DIR}}"
+        echo "kotlin-server $v at $dir"
 
   smoke:
-    desc: "Decision 7's gate on the pinned Kotlin LSP: initialize, import, hover, completion, a diagnostic, peak RSS, and the Maven twin of open question 1 (the numbers go into RFC 0008 §11)"
+    desc: "Decision 7's gate on the current Kotlin LSP: initialize, import, hover, completion, a diagnostic, peak RSS, and the Maven twin of open question 1 (the numbers go into RFC 0008 §11)"
     deps: [fetch]
     cmds:
       - node extensions/java-kotlin/test/smoke.mjs {{.KOTLIN_LSP_DIR}}

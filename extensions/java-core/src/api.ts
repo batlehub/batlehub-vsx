@@ -74,8 +74,25 @@ export function makeApi(deps: {
   // build providers are wired (build/index.ts), so the object is mutable.
   const api: JavaCoreApi = {
     contractVersion: CONTRACT,
-    registerLanguage: (p) =>
-      add(registries.languages, p, () => deps.onLanguage(p)),
+    registerLanguage: (p) => {
+      // RFC 0001 decision 40: a provider started untrusted starts nothing;
+      // when trust is granted it is started again, now for real. Without
+      // this a satellite registered in Restricted Mode never started at all
+      // (found by RFC 0008's KOTLIN-SERVER step).
+      let handle: vscode.Disposable | undefined;
+      const begin = () => void deps.onLanguage(p).then((d) => (handle = d));
+      const trust = vscode.workspace.onDidGrantWorkspaceTrust(() => {
+        handle?.dispose();
+        begin();
+      });
+      const reg = add(registries.languages, p);
+      begin();
+      return new vscode.Disposable(() => {
+        reg.dispose();
+        trust.dispose();
+        handle?.dispose();
+      });
+    },
     registerPanelTab: (t) => add(registries.tabs, t),
     registerStatusBarItem: (i) => deps.statusBar(i),
     registerInspectionBundle: (b) => add(registries.bundles, b),

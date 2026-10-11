@@ -456,5 +456,46 @@ export function registerGenerate(core: Core): vscode.Disposable[] {
     vscode.commands.registerCommand("batlehub.java.surroundWith", () =>
       surroundWith(core),
     ),
+    // IDEA's Generate popup (Alt+Insert) as one command, so an imported
+    // keymap has a target (RFC 0007 phase 3): the generators of the menu,
+    // builder and withers only when the loaded bundle answers them.
+    vscode.commands.registerCommand("batlehub.java.generateMenu", async () => {
+      const items = generateMenuItems(core.bundle?.commands);
+      const pick = await vscode.window.showQuickPick(items, {
+        title: vscode.l10n.t("Generate"),
+      });
+      if (pick) await vscode.commands.executeCommand(pick.command);
+    }),
+  ];
+}
+
+/** The Generate popup's rows, in the context menu's order. */
+export function generateMenuItems(
+  bundleCommands: string[] | undefined,
+): { label: string; command: string }[] {
+  const rows: [string, string][] = [
+    ["constructors", vscode.l10n.t("Constructor…")],
+    ["accessors", vscode.l10n.t("Getters and setters…")],
+    ["getters", vscode.l10n.t("Getters…")],
+    ["setters", vscode.l10n.t("Setters…")],
+    ["builder", vscode.l10n.t("Builder…")],
+    ["withers", vscode.l10n.t("With methods…")],
+    ["toString", vscode.l10n.t("toString()…")],
+    ["hashCodeEquals", vscode.l10n.t("equals() and hashCode()…")],
+    ["delegates", vscode.l10n.t("Delegate methods…")],
+    ["override", vscode.l10n.t("Override / implement methods…")],
+  ];
+  return [
+    ...rows
+      .filter(
+        ([g]) =>
+          (g !== "builder" && g !== "withers") ||
+          !!bundleCommands?.includes(`batlehub.generate.${g}`),
+      )
+      .map(([g, label]) => ({ label, command: `batlehub.java.generate.${g}` })),
+    {
+      label: vscode.l10n.t("Surround with…"),
+      command: "batlehub.java.surroundWith",
+    },
   ];
 }
