@@ -74,6 +74,11 @@ path = "extensions/java-groovy"
 public_api = true
 pre_bump_hooks = ["pnpm pkg set version={{version}}"]
 
+[monorepo.packages.java-kotlin]
+path = "extensions/java-kotlin"
+public_api = true
+pre_bump_hooks = ["pnpm pkg set version={{version}}"]
+
 # RFC 0011: the first framework satellite, and the opt-in pack that carries it.
 [monorepo.packages.java-quarkus]
 path = "extensions/java-quarkus"
