@@ -5,38 +5,106 @@
   "version": "0.1.0",
   "publisher": "batlehub",
   "license": "Apache-2.0",
-  "repository": { "type": "git", "url": "https://github.com/batleforc/batlehub-vsx" },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/batleforc/batlehub-vsx"
+  },
   "homepage": "https://github.com/batleforc/batlehub-vsx/tree/main/extensions/java-kotlin",
   "icon": "media/icon.png",
-  "engines": { "vscode": "^1.96.0" },
-  "categories": ["Programming Languages"],
-  "keywords": ["kotlin", "gradle", "kts", "batlehub", "java"],
-  "extensionKind": ["workspace"],
-  "extensionDependencies": ["batlehub.java-core"],
+  "engines": {
+    "vscode": "^1.96.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "keywords": [
+    "kotlin",
+    "gradle",
+    "kts",
+    "batlehub",
+    "java"
+  ],
+  "extensionKind": [
+    "workspace"
+  ],
+  "extensionDependencies": [
+    "batlehub.java-core"
+  ],
   "main": "./dist/extension.js",
   "l10n": "./l10n",
-  "activationEvents": ["onLanguage:kotlin", "workspaceContains:**/*.kt", "workspaceContains:**/*.gradle.kts"],
+  "activationEvents": [
+    "onLanguage:kotlin",
+    "workspaceContains:**/*.kt",
+    "workspaceContains:**/*.gradle.kts"
+  ],
   "capabilities": {
-    "untrustedWorkspaces": { "supported": "limited", "description": "%capabilities.untrusted%" },
+    "untrustedWorkspaces": {
+      "supported": "limited",
+      "description": "%capabilities.untrusted%"
+    },
     "virtualWorkspaces": false
   },
   "contributes": {
     "languages": [
-      { "id": "kotlin", "aliases": ["Kotlin", "kotlin"], "extensions": [".kt", ".kts"] }
+      {
+        "id": "kotlin",
+        "aliases": [
+          "Kotlin",
+          "kotlin"
+        ],
+        "extensions": [
+          ".kt",
+          ".kts"
+        ]
+      }
     ],
     "configuration": {
       "title": "BatleHub Java: Kotlin",
       "properties": {
-        "batlehub.java.kotlin.enabled": { "type": "boolean", "default": true, "description": "%cfg.enabled%" },
-        "batlehub.java.kotlin.server.xmx": { "type": "string", "default": "1G", "description": "%cfg.xmx%" },
-        "batlehub.java.kotlin.server.args": { "type": "array", "items": { "type": "string" }, "default": [], "description": "%cfg.args%" },
-        "batlehub.java.kotlin.server.version": { "type": "string", "default": "latest", "pattern": "^(latest|\\d+\\.\\d+\\.\\d+)$", "description": "%cfg.version%" },
-        "batlehub.java.kotlin.server.home": { "type": "string", "default": "", "scope": "machine", "description": "%cfg.home%" }
+        "batlehub.java.kotlin.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "%cfg.enabled%"
+        },
+        "batlehub.java.kotlin.server.xmx": {
+          "type": "string",
+          "default": "1G",
+          "description": "%cfg.xmx%"
+        },
+        "batlehub.java.kotlin.server.args": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "description": "%cfg.args%"
+        },
+        "batlehub.java.kotlin.server.version": {
+          "type": "string",
+          "default": "latest",
+          "pattern": "^(latest|\\d+\\.\\d+\\.\\d+)$",
+          "description": "%cfg.version%"
+        },
+        "batlehub.java.kotlin.server.home": {
+          "type": "string",
+          "default": "",
+          "scope": "machine",
+          "description": "%cfg.home%"
+        }
       }
     },
     "commands": [
-      { "command": "batlehub.java.kotlin.restart", "title": "%cmd.restart%", "category": "Java" },
-      { "command": "batlehub.java.kotlin.showLog", "title": "%cmd.showLog%", "category": "Java", "icon": "$(output)" }
+      {
+        "command": "batlehub.java.kotlin.restart",
+        "title": "%cmd.restart%",
+        "category": "Java"
+      },
+      {
+        "command": "batlehub.java.kotlin.showLog",
+        "title": "%cmd.showLog%",
+        "category": "Java",
+        "icon": "$(output)"
+      }
     ]
   },
   "scripts": {
@@ -56,6 +124,7 @@
     "@types/vscode": "^1.96.0",
     "@vscode/vsce": "^3.6.0",
     "esbuild": "^0.25.0",
+    "ovsx": "^1.1.1",
     "oxlint": "^1.0.0",
     "prettier": "^3.6.0",
     "typescript": "^5.9.0",

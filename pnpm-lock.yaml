@@ -93,6 +93,9 @@ importers:
       '@vscode/vsce':
         specifier: ^3.6.0
         version: 3.9.2(supports-color@9.4.0)
+      ovsx:
+        specifier: ^1.1.1
+        version: 1.1.1(@types/node@24.13.3)(debug@4.4.3(supports-color@9.4.0))(supports-color@9.4.0)
       prettier:
         specifier: ^3.6.0
         version: 3.9.6
@@ -180,6 +183,9 @@ importers:
       esbuild:
         specifier: '>=0.25.0'
         version: 0.28.2
+      ovsx:
+        specifier: ^1.1.1
+        version: 1.1.1(@types/node@24.13.3)(debug@4.4.3(supports-color@9.4.0))(supports-color@9.4.0)
       oxlint:
         specifier: ^1.0.0
         version: 1.81.0
@@ -198,6 +204,9 @@ importers:
       '@vscode/vsce':
         specifier: ^3.6.0
         version: 3.9.2(supports-color@9.4.0)
+      ovsx:
+        specifier: ^1.1.1
+        version: 1.1.1(@types/node@24.13.3)(debug@4.4.3(supports-color@9.4.0))(supports-color@9.4.0)
       prettier:
         specifier: ^3.6.0
         version: 3.9.6
@@ -264,6 +273,9 @@ importers:
       mocha:
         specifier: ^11.7.1
         version: 11.8.0
+      ovsx:
+        specifier: ^1.1.1
+        version: 1.1.1(@types/node@24.13.3)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)
       oxlint:
         specifier: ^1.0.0
         version: 1.81.0
@@ -291,6 +303,9 @@ importers:
       esbuild:
         specifier: '>=0.25.0'
         version: 0.28.2
+      ovsx:
+        specifier: ^1.1.1
+        version: 1.1.1(@types/node@24.13.3)(debug@4.4.3(supports-color@9.4.0))(supports-color@9.4.0)
       oxlint:
         specifier: ^1.0.0
         version: 1.81.0
@@ -325,6 +340,9 @@ importers:
       esbuild:
         specifier: '>=0.25.0'
         version: 0.28.2
+      ovsx:
+        specifier: ^1.1.1
+        version: 1.1.1(@types/node@24.13.3)(debug@4.4.3(supports-color@9.4.0))(supports-color@9.4.0)
       oxlint:
         specifier: ^1.0.0
         version: 1.81.0
@@ -346,6 +364,9 @@ importers:
       '@vscode/vsce':
         specifier: ^3.6.0
         version: 3.9.2(supports-color@9.4.0)
+      ovsx:
+        specifier: ^1.1.1
+        version: 1.1.1(@types/node@24.13.3)(debug@4.4.3(supports-color@9.4.0))(supports-color@9.4.0)
       prettier:
         specifier: ^3.6.0
         version: 3.9.6
@@ -355,6 +376,9 @@ importers:
       '@vscode/vsce':
         specifier: ^3.6.0
         version: 3.9.2(supports-color@9.4.0)
+      ovsx:
+        specifier: ^1.1.1
+        version: 1.1.1(@types/node@24.13.3)(debug@4.4.3(supports-color@9.4.0))(supports-color@9.4.0)
       prettier:
         specifier: ^3.6.0
         version: 3.9.6
@@ -373,6 +397,9 @@ importers:
       esbuild:
         specifier: '>=0.25.0'
         version: 0.28.2
+      ovsx:
+        specifier: ^1.1.1
+        version: 1.1.1(@types/node@24.13.3)(debug@4.4.3(supports-color@9.4.0))(supports-color@9.4.0)
       oxlint:
         specifier: ^1.0.0
         version: 1.81.0
@@ -400,6 +427,9 @@ importers:
       esbuild:
         specifier: '>=0.25.0'
         version: 0.28.2
+      ovsx:
+        specifier: ^1.1.1
+        version: 1.1.1(@types/node@24.13.3)(debug@4.4.3(supports-color@9.4.0))(supports-color@9.4.0)
       oxlint:
         specifier: ^1.0.0
         version: 1.81.0
@@ -6092,6 +6122,10 @@ snapshots:
     dependencies:
       tabbable: 6.5.0
 
+  follow-redirects@1.16.0(debug@4.4.3(supports-color@8.1.1)):
+    optionalDependencies:
+      debug: 4.4.3(supports-color@8.1.1)
+
   follow-redirects@1.16.0(debug@4.4.3(supports-color@9.4.0)):
     optionalDependencies:
       debug: 4.4.3(supports-color@9.4.0)
@@ -6742,6 +6776,23 @@ snapshots:
       stdin-discarder: 0.2.2
       string-width: 7.2.0
       strip-ansi: 7.2.0
+
+  ovsx@1.1.1(@types/node@24.13.3)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1):
+    dependencies:
+      '@inquirer/prompts': 7.10.1(@types/node@24.13.3)
+      '@vscode/vsce': 3.9.2(supports-color@8.1.1)
+      commander: 6.2.1
+      cross-keychain: 1.1.0(@types/node@24.13.3)
+      follow-redirects: 1.16.0(debug@4.4.3(supports-color@8.1.1))
+      is-ci: 2.0.0
+      leven: 3.1.0
+      semver: 7.8.5
+      tmp: 0.2.7
+      yauzl-promise: 4.0.0
+    transitivePeerDependencies:
+      - '@types/node'
+      - debug
+      - supports-color
 
   ovsx@1.1.1(@types/node@24.13.3)(debug@4.4.3(supports-color@9.4.0))(supports-color@9.4.0):
     dependencies:
