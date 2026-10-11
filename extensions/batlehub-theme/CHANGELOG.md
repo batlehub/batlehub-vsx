@@ -6,6 +6,15 @@ First cut (RFC 0014): three variants derived from `DESIGN.md`
 registry.
 
 - - -
+## batlehub-theme-v0.1.2 - 2026-10-11
+#### Features
+- v1 published doc - (ce0b30b) - Max Batleforc
+- CI/CD - (096aa9c) - Max Batleforc
+- heavy work on bringing java to vscode - (4174e28) - Max Batleforc
+- make a test - (e6a0bff) - Max Batleforc
+
+- - -
+
 ## batlehub-theme-v0.1.1 - 2026-09-19
 #### Features
 - wip - (327ad77) - Max Batleforc
