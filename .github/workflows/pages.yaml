@@ -27,7 +27,7 @@ jobs:
         with:
           fetch-depth: 0 # lastUpdated reads each page's git history
       - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@v7
         with:
           node-version: 24
           cache: pnpm
