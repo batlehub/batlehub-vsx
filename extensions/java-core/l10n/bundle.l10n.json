@@ -163,5 +163,7 @@
   "Generate a constructor": "Generate a constructor",
   "Java: the BatleHub JDT bundle is not loaded, and this generator has no Red Hat equivalent: restart the language server.": "Java: the BatleHub JDT bundle is not loaded, and this generator has no Red Hat equivalent: restart the language server.",
   "surround with": "surround with",
-  "Java: surround with": "Java: surround with"
+  "Java: surround with": "Java: surround with",
+  "not applied: SonarLint reads rules from user settings": "not applied: SonarLint reads rules from user settings",
+  "Rename to \"{0}\"": "Rename to \"{0}\""
 }

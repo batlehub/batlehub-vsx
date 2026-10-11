@@ -52,6 +52,40 @@ it writes for spelling. Commit it: cspell's CLI in CI reads the same file.
 A `cspell.json` that does not parse gets no fix; cspell shows its own
 error on it.
 
+## Fixing a misspelt identifier
+
+On a misspelt identifier, the lightbulb also offers **`Rename to
+"<corrected>"`**. It takes cspell's correction for each misspelt part and
+re-joins them in the identifier's own case: `recieveMesage` becomes
+`receiveMessage`, `RECIEVE_MESAGE` becomes `RECEIVE_MESSAGE`. It then runs
+the Java language server's rename, so every reference in the workspace
+follows, and one `Undo` takes it all back. It is not offered when a part
+has no correction, nor on a word in a comment, where cspell's own
+correction fixes the text in place. For any other name, use F2.
+
+## Turning it off for the team
+
+The [inspection profile](inspections.md) can turn spelling off for Java,
+with a reason like any other rule:
+
+```json
+"spelling/unknownWord": { "severity": "off", "why": "generated DTOs, see #77" }
+```
+
+BatleHub Java then sets `cSpell.enabledFileTypes` to `java: false, groovy:
+false` in the workspace settings, its other keys kept, and records the
+previous value so `Java: Remove BatleHub settings` puts it back. Markdown,
+YAML and the rest keep their spell checking. The view's row reads `off —
+profile: generated DTOs, see #77`. If you set `java` or `groovy` in
+`cSpell.enabledFileTypes` yourself, that wins and nothing is written. Your
+own `batlehub.java.inspections.severityOverrides` can set it `off` too, or
+back on over the team's `off`.
+
+Only `off` reaches cspell. `cSpell.diagnosticLevel` is one level for every
+file type, so a Java `warning` would change the team's Markdown: any other
+level is not applied, and the row reads `level is cspell's (info) — a
+per-language level does not exist yet`.
+
 ## Good to know
 
 - cspell skips files git ignores (`cSpell.useGitignore`, on by default):

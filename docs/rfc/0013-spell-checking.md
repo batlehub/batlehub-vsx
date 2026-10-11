@@ -9,7 +9,7 @@
 | Author      | Max Batleforc <maxleriche.60@gmail.com>                       |
 | Co-author   | —                                                             |
 | Created     | 2026-09-18                                                    |
-| Revised     | 2026-10-09 — revision 4, phase 1 built: cspell 4.9.3 in the pack, `src/inspections/spelling.ts` — the rows in the Inspections view, the `not available` and `disabled by you` states, the core's `Add to project dictionary (cspell.json)` fix — `SPELL-OK` and `SPELL-DICT-OK` in the real editor; decisions 13–15 · 2026-09-29 — revision 3, the recommendation of §11 promoted to decision 12 (Groovy bridged by its language id, which the satellite already registers), and §8's one deferral given the reopen condition `task rfc:deferred` was asking for |
+| Revised     | 2026-10-10 — revision 6, phase 3 built: `Rename to "<corrected>"` through JDT.LS's rename provider, its corrections read from the `data.suggestions` cspell attaches to its diagnostics — cspell does not answer `vscode.executeCodeActionProvider`, so §5.2's titles were never reachable —, not offered on a comment (`vscode.prepareRename` refuses it); `SPELL-RENAME-OK`, run by the nightly against cspell's newest stable release; decisions 17–18 · 2026-10-10 — revision 5, phase 2 built: the profile's `off` (or the developer's override) → `cSpell.enabledFileTypes` `java`/`groovy` false at workspace scope, recorded in the manifest and undone when the level is no longer `off`; `spelling` a bridged area of the profile with cspell's `info` as its default, so only `off` needs a why; `SPELL-PROFILE-OK`; decision 16 · 2026-10-09 — revision 4, phase 1 built: cspell 4.9.3 in the pack, `src/inspections/spelling.ts` — the rows in the Inspections view, the `not available` and `disabled by you` states, the core's `Add to project dictionary (cspell.json)` fix — `SPELL-OK` and `SPELL-DICT-OK` in the real editor; decisions 13–15 · 2026-09-29 — revision 3, the recommendation of §11 promoted to decision 12 (Groovy bridged by its language id, which the satellite already registers), and §8's one deferral given the reopen condition `task rfc:deferred` was asking for |
 | Supersedes  | —                                                             |
 | Depends on  | RFC 0001 (the inspections bridge and view of §4.2, the coexistence rule, the pack); RFC 0005 (the profile, where `spelling/unknownWord` can be turned `off` with a reason — phase 2 only); needs member `manifest.writeSetting` — [RFC 0001 §5.2 contract changelog](/rfc/0001-java-env#contract-changelog) (phase 2 only). Revision 1 listed RFC 0006 for a project word list under `.batlehub/java/`; nothing is written there (the list is `cspell.json`), so the dependency is gone |
 | Touches     | `extensions/java-core/src/inspections/` (new `spelling.ts`, `view.ts`, `bridge.ts`), `src/coexistence.ts`, `extensions/java-pack/package.json`, `tests/heavy/java.mjs`, `docs/guide/java/` |
@@ -298,11 +298,21 @@ sequenceDiagram
     Ed-->>Dev: every reference renamed
 ```
 
+> **Superseded by decision 18 (revision 6, measured).** cspell answers no
+> `vscode.executeCodeActionProvider` call. Its server finds nothing in the
+> context that command rebuilds, and its client-side provider returns
+> nothing as soon as a cSpell diagnostic is in that context. So the
+> paragraph below describes a path that does not exist. The core reads the
+> corrections from the suggestions cspell attaches to each diagnostic, and
+> `SPELL-RENAME-OK` is the drift check.
+
 The core asks cspell for its suggestions through
 `vscode.commands.executeCommand("vscode.executeCodeActionProvider")` on
 the word's range — the public command, not cspell's internals — and reads
-the `Change to "…"` titles. Titles are not an API, so the dependency is
-**pinned by a test**: `TITLE = /^Change to "(.+)"$/` lives in one constant,
+the correction titles — `Message (preferred)`, else the bare word (cspell
+4.9.3, phase 1's finding 3; revision 1 assumed `Change to "…"`), read only
+from the actions attached to that cSpell diagnostic. Titles are not an API, so the dependency is
+**pinned by a test**: `TITLE = /^(\p{L}[\p{L}'-]*)(?: \(preferred\))?$/u` lives in one constant,
 and `SPELL-TITLES-OK` asserts it against the real cspell — in the heavy
 suite on the pinned version and in the nightly matrix of RFC 0001 §13 on
 cspell's latest release. A rewording then opens one drift issue naming the
@@ -492,6 +502,9 @@ not offered; the row and cspell's own fixes stay.
 | 13 | Which cspell (phase 1, measured) | **4.9.3, the newest stable release** (2026-09-11): Open VSX's newer versions are pre-releases. It checks every file type by default (`cSpell.enabledFileTypes: { "*": true }`) at `Information`, activates on `onStartupFinished`, and declares no extension dependency. |
 | 14 | Whose fix writes `cspell.json`? (decision 4 against §4.2) | **The core's**, `Add "<word>" to project dictionary (cspell.json)`, beside cspell's own fixes. Decision 4 said dictionary additions are cspell's; §4.2 said the fix creates the file with `ignorePaths` through `jsonc-parser` — something only the core does, and cspell's own `Add Word to Workspace Dictionary` is free to pick `.vscode/settings.json` when no configuration file exists. The core's fix edits the first of `cspell.json`, `.cspell.json`, `cSpell.json` at the root, or creates `cspell.json`; it is not offered when that file does not parse. cspell's fixes stay untouched. |
 | 15 | The `not available` row — remembered? (§2.1 case 2) | **Nothing to remember**: the row is shown, never a notification, so there is no prompt to suppress and `coexistence.ts` is untouched (§6.3 is moot). The row's action opens cspell's page in the Extensions view. |
+| 16 | `manifest.writeSetting` refuses a key the user set at any scope — `cSpell.enabledFileTypes` is an object the user may well have set for Markdown (phase 2) | **The core checks the two keys it owns, not the object**: it writes when no scope sets `java` or `groovy`, merging into the workspace value's other keys through `writeForeignSetting` (the same manifest entry `writeSetting` makes). Once written, the `java: false` is the profile's, not `disabled by you`. A level other than `off` undoes the write. |
+| 17 | The rename input prefilled with the corrected name (use case 5, phase 3) | **Not possible: VS Code's rename widget takes no initial value** (`editor.action.rename` has no argument for one). The fix runs JDT.LS's rename itself, `vscode.executeDocumentRenameProvider` then `workspace.applyEdit` as a refactoring: one edit, undone by one `Undo`, every reference renamed. Its title therefore drops the `…`: `Rename to "receiveMessage"`. A developer who wants another name still has F2. A comment's word gets no rename: `vscode.prepareRename` (JDT) refuses a position that is not a symbol, so this needs no comment heuristic. |
+| 18 | Where the rename fix gets cspell's corrections (phase 3, measured) | **From the diagnostic itself.** cspell's server attaches `data: { suggestions: [{ word, isPreferred }] }` to each diagnostic, and its own client builds its `Replace with` fixes from that. In one extension host, `vscode.languages.getDiagnostics` returns the same objects, `data` included. `suggestionOf()` takes the preferred word, else the first, and returns nothing when the shape differs, which turns the fix off rather than making it wrong. §5.2's route was measured and is dead: `vscode.executeCodeActionProvider` returns none of cspell's actions, with or without a kind filter, because its client-side provider returns `[]` when a cSpell diagnostic is in the context and its server finds nothing in the rebuilt context. The title pattern and `SPELL-TITLES-OK` therefore guard nothing and are gone. The drift check is `SPELL-RENAME-OK`, run by the nightly against cspell's newest stable release. |
 
 ### Measured — phase 1, 2026-10-09
 
@@ -535,6 +548,6 @@ None at this revision.
 | Phase | Content |
 | --- | --- |
 | 1 | ~~Pack membership (`extensionPack`, force-installed); detection and the row in the Inspections view with the `not available` state through `coexistence.ts`; the team word list in `cspell.json` (cspell's own fix, `Open cspell.json` on the row, `ignorePaths` when the fix creates the file); `SPELL-OK`, `SPELL-DICT-OK`; the docs page. No foreign setting is written. Useful alone — and what Team A asked for.~~ **Done** (revision 4): cspell 4.9.3 pinned; the fix is the core's (decision 14), the `not available` row needs no memory (decision 15). |
-| 2 | With RFC 0005 and contract member `manifest.writeSetting`: the profile's `off` through `cSpell.enabledFileTypes`; layer 2's removal assertion; `SPELL-PROFILE-OK` with the Markdown row. |
-| 3 | The rename fix with `SPELL-TITLES-OK` pinned in the heavy suite and the nightly matrix; `SPELL-RENAME-OK`. **Start from phase 1's finding 3**: 4.9.3's correction titles are `<word> (preferred)` / `<word>`, not `Change to "<word>"`. |
+| 2 | ~~With RFC 0005 and contract member `manifest.writeSetting`: the profile's `off` through `cSpell.enabledFileTypes`; layer 2's removal assertion; `SPELL-PROFILE-OK` with the Markdown row.~~ **Done** (revision 5), but for layer 2's removal assertion: layer 2 has no display in this workspace (todo's standing debt); the restore is the manifest's ordinary `setting` replay, and the heavy step proves the undo through `warning` instead. |
+| 3 | ~~The rename fix with `SPELL-TITLES-OK` pinned in the heavy suite and the nightly matrix; `SPELL-RENAME-OK`. **Start from phase 1's finding 3**: 4.9.3's correction titles are `<word> (preferred)` / `<word>`, not `Change to "<word>"`.~~ **Done** (revision 6): decisions 17–18, `SPELL-RENAME-OK` (the titles check became moot with decision 18); the nightly resolves cspell's newest stable release into `CSPELL_VERSION`. |
 | — | Deferred: severity mapping, until cspell offers a per-language level (decision 3). |

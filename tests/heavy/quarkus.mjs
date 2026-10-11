@@ -210,14 +210,21 @@ async function trustWorkspace(page) {
   await runCommand(page, "Workspaces: Manage Workspace Trust");
   const btn = await page.waitForSelector(".workspace-trust-editor .monaco-button, .workspace-trust-editor button", { timeout: 20000 }).catch(() => null);
   if (!btn) return "no trust editor";
-  for (const b of await page.$$(".workspace-trust-editor .monaco-button, .workspace-trust-editor button")) {
-    const t = norm(await b.evaluate((e) => e.textContent));
-    if (/^Trust\b/.test(t)) {
-      await b.click();
+  // One in-page find-and-click: the trust editor re-renders while it opens,
+  // and a handle taken a moment earlier can be detached by the click.
+  for (let i = 0; i < 5; i++) {
+    const t = await page.evaluate(() => {
+      const b = [...document.querySelectorAll(".workspace-trust-editor .monaco-button, .workspace-trust-editor button")].find((e) => /^Trust\b/.test(e.textContent.replace(/\s+/g, " ").trim()));
+      if (!b) return null;
+      b.click();
+      return b.textContent.replace(/\s+/g, " ").trim();
+    });
+    if (t) {
       await sleep(1500);
       await chord(page, "Control", "w").catch(() => {});
       return `clicked ${t}`;
     }
+    await sleep(1000);
   }
   return "no Trust button";
 }
@@ -302,12 +309,16 @@ const quarkusTab = async () => {
   await sleep(1500);
   const frame = await panelFrame(page);
   if (!frame) return "";
-  const tab = await frame.$$('[role="tab"]').then(async (ts) => {
-    for (const t of ts) if ((await t.evaluate((e) => e.textContent.trim())) === "Quarkus") return t;
-    return null;
-  });
-  if (!tab) return "";
-  await tab.click();
+  // One in-frame find-and-click: the panel re-renders on every poll, and a
+  // handle taken a moment earlier can be detached by the click.
+  const clicked = await frame
+    .evaluate(() => {
+      const t = [...document.querySelectorAll('[role="tab"]')].find((e) => e.textContent.trim() === "Quarkus");
+      t?.click();
+      return !!t;
+    })
+    .catch(() => false);
+  if (!clicked) return "";
   await sleep(800);
   return frame.$eval('[role="tabpanel"]:not([hidden])', (e) => e.innerText.replace(/\s+/g, " ").trim()).catch(() => "");
 };
@@ -438,7 +449,9 @@ try {
     await sleep(1000);
     const stack = await page.$$eval(".debug-call-stack .monaco-list-row", (els) => els.map((e) => e.innerText.replace(/\s+/g, " ").trim()).filter(Boolean)).catch(() => []);
     await snap(page, "debug-paused");
-    await runCommand(page, "Debug: Continue");
+    // `Debug: Continue` is in the palette only while paused; without the
+    // pause, let the debug phase's `paused: false` say so instead.
+    if (!paused.timedOut) await runCommand(page, "Debug: Continue");
     await Promise.race([request, sleep(15000)]);
     await runCommand(page, "Remove All Breakpoints");
     await runCommand(page, "Quarkus: Stop dev mode");

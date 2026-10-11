@@ -8,7 +8,9 @@ export type Entry =
   | {
       kind: "setting";
       key: string;
-      scope: "workspace";
+      // "user" only where the owner allows no other scope, and only on the
+      // developer's own action (RFC 0016: `sonarlint.rules`).
+      scope: "workspace" | "user";
       before: unknown;
       at: string;
     }
@@ -160,7 +162,7 @@ export function takeEntry(
 export function targetOf(e: Entry): string {
   switch (e.kind) {
     case "setting":
-      return `setting:${e.key}`;
+      return e.scope === "user" ? `user-setting:${e.key}` : `setting:${e.key}`;
     case "extSetting":
       return `ext:${e.key}`;
     case "file":
@@ -188,7 +190,7 @@ export function describe(m: Manifest): string[] {
   return [...m.entries].reverse().map((e) => {
     switch (e.kind) {
       case "setting":
-        return `restore workspace setting ${e.key} to ${e.before === undefined ? "(unset)" : JSON.stringify(e.before)}`;
+        return `restore ${e.scope === "user" ? "user" : "workspace"} setting ${e.key} to ${e.before === undefined ? "(unset)" : JSON.stringify(e.before)}`;
       case "extSetting":
         return `restore ${e.key} (another extension's setting) to ${e.before === undefined ? "(unset)" : JSON.stringify(e.before)}`;
       case "file":
@@ -214,7 +216,11 @@ export function describe(m: Manifest): string[] {
 }
 
 export interface Replayer {
-  setting(key: string, before: unknown): Promise<void>;
+  setting(
+    key: string,
+    before: unknown,
+    scope: "workspace" | "user",
+  ): Promise<void>;
   extSetting(key: string, before: unknown): Promise<void>;
   file(
     path: string,
@@ -241,7 +247,8 @@ export async function replay(m: Manifest, r: Replayer): Promise<string[]> {
   const errors: string[] = [];
   for (const e of [...m.entries].reverse()) {
     try {
-      if (e.kind === "setting") await r.setting(e.key, e.before);
+      if (e.kind === "setting")
+        await r.setting(e.key, e.before, e.scope ?? "workspace");
       else if (e.kind === "extSetting") await r.extSetting(e.key, e.before);
       else if (e.kind === "file") await r.file(e.path, e.before, e.mode);
       else if (e.kind === "block") await r.block(e.path, e.marker, e.mode);

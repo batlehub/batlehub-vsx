@@ -257,12 +257,14 @@ export function metricValue(body: string): number | undefined {
  * `process.uptime` does not reset (measured on Boot 4.1.1); the context's
  * `application.ready.time` is re-registered with a new value at every
  * start. First sight: the JVM's uptime; a changed ready time: a restart,
- * counted from that poll.
+ * counted from that poll. A port that stops answering keeps its entry: a
+ * devtools restart is such a gap, and forgetting there lost the restart (CI,
+ * 2026-10-10). A new process on the port is told by its JVM start instead.
  */
 export class Uptimes {
   private readonly seen = new Map<
     number,
-    { ready?: number; since: number; restarts: number }
+    { jvmStart?: number; ready?: number; since: number; restarts: number }
   >();
   observe(
     port: number,
@@ -270,11 +272,20 @@ export class Uptimes {
     processUptimeS?: number,
     readyTime?: number,
   ) {
+    const jvmStart =
+      processUptimeS === undefined ? undefined : now - processUptimeS * 1000;
     let e = this.seen.get(port);
-    if (!e) {
+    // A poll's own latency moves the computed start by a little; a new JVM
+    // moves it by the gap between the two processes.
+    const newJvm =
+      jvmStart !== undefined &&
+      e?.jvmStart !== undefined &&
+      Math.abs(jvmStart - e.jvmStart) > 5000;
+    if (!e || newJvm) {
       e = {
+        jvmStart,
         ready: readyTime,
-        since: now - (processUptimeS ?? 0) * 1000,
+        since: jvmStart ?? now,
         restarts: 0,
       };
       this.seen.set(port, e);
@@ -286,14 +297,14 @@ export class Uptimes {
       e.ready = readyTime;
       e.since = now;
       e.restarts++;
-    } else e.ready ??= readyTime;
+    } else {
+      e.ready ??= readyTime;
+      e.jvmStart ??= jvmStart;
+    }
     return {
       uptimeS: Math.max(0, Math.round((now - e.since) / 1000)),
       restarts: e.restarts,
     };
-  }
-  forget(port: number): void {
-    this.seen.delete(port);
   }
 }
 

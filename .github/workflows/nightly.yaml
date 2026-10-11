@@ -36,27 +36,46 @@ jobs:
         with:
           distribution: temurin
           java-version: "21"
+          cache: maven
+      # The same preconditions as ci.yaml's heavy-java: the first nightly runs
+      # failed in every cell on `task: command not found`.
+      - name: Warm ~/.m2 with the fixture, as ci.yaml's heavy-java does
+        run: mvn -q -B -f tests/heavy/fixtures/maven-multi/pom.xml -Pdev -DskipTests package
       - uses: jdx/mise-action@v2
         with:
           install: false
       - run: pnpm install --frozen-lockfile
+      - name: task, for view.sh's jdt:* and groovy:fetch
+        run: curl -fsSL https://raw.githubusercontent.com/go-task/task/main/install-task.sh | sh -s -- -d -b /usr/local/bin >/dev/null
       - name: Resolve the pre-release version
         id: redhat
         run: |
           v="${{ matrix.redhat }}"
           if [ "$v" = "pre-release" ]; then v="$(curl -fsSL https://open-vsx.org/api/redhat/java/pre-release | python3 -c 'import json,sys;print(json.load(sys.stdin)["version"])')"; fi
           echo "version=$v" >> "$GITHUB_OUTPUT"
+      # RFC 0013 decision 18: SPELL-RENAME-OK against cspell's newest stable
+      # release (Open VSX's newer versions are pre-releases), so a change to
+      # the suggestions cspell attaches to its diagnostics is a drift issue
+      # the night it ships.
+      - name: Resolve cspell's newest stable release
+        id: cspell
+        run: |
+          v="$(curl -fsSL 'https://open-vsx.org/api/-/query?extensionId=streetsidesoftware.code-spell-checker&includeAllVersions=true' | python3 -c 'import json,sys;print(next(e["version"] for e in json.load(sys.stdin)["extensions"] if not e.get("preRelease")))')"
+          echo "version=$v" >> "$GITHUB_OUTPUT"
       - name: A Chrome with its DevTools port
         run: |
           google-chrome --headless=new --no-sandbox --disable-gpu --remote-debugging-port=9222 --user-data-dir=/tmp/chrome about:blank >/tmp/chrome.log 2>&1 &
           for _ in $(seq 1 30); do curl -sf http://127.0.0.1:9222/json/version >/dev/null && break; sleep 1; done
       - run: mise use -g "java@temurin-21" || true
+      - name: No system JDK, as a Che workspace has none (see ci.yaml)
+        run: sudo mv /usr/lib/jvm /usr/lib/jvm.hidden
       - name: Run
         env:
           HEAVY_ONLY: java
           CDP_URL: http://127.0.0.1:9222
           VSCODE_VERSION: ${{ matrix.vscode }}
           REDHAT_JAVA_VERSION: ${{ steps.redhat.outputs.version }}
+          CSPELL_VERSION: ${{ steps.cspell.outputs.version }}
         run: bash tests/heavy/view.sh
       - uses: actions/upload-artifact@v4
         if: always()
@@ -69,7 +88,7 @@ jobs:
         uses: actions/github-script@v7
         with:
           script: |
-            const title = `nightly: java half fails on vscode ${{ matrix.vscode }} × redhat.java ${{ steps.redhat.outputs.version }}`;
+            const title = `nightly: java half fails on vscode ${{ matrix.vscode }} × redhat.java ${{ steps.redhat.outputs.version }} × cspell ${{ steps.cspell.outputs.version }}`;
             const { data: open } = await github.rest.issues.listForRepo({ owner: context.repo.owner, repo: context.repo.repo, state: "open", labels: "drift" });
             const body = `Run: ${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}\n\nRFC 0001 §13 nightly: the Java heavy half failed against this dependency version. Artifacts carry the suite log and screenshots.`;
             const existing = open.find((i) => i.title === title);

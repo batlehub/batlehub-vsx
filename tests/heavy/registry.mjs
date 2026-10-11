@@ -90,14 +90,21 @@ async function trustWorkspace(page) {
   if (!restricted) return "already trusted";
   await runCommand(page, "Workspaces: Manage Workspace Trust");
   await page.waitForSelector(".workspace-trust-editor .monaco-button, .workspace-trust-editor button", { timeout: 20000 }).catch(() => null);
-  for (const b of await page.$$(".workspace-trust-editor .monaco-button, .workspace-trust-editor button")) {
-    const t = norm(await b.evaluate((e) => e.textContent));
-    if (/^Trust\b/.test(t)) {
-      await b.click();
+  // One in-page find-and-click: the trust editor re-renders while it opens,
+  // and a handle taken a moment earlier can be detached by the click.
+  for (let i = 0; i < 5; i++) {
+    const t = await page.evaluate(() => {
+      const b = [...document.querySelectorAll(".workspace-trust-editor .monaco-button, .workspace-trust-editor button")].find((e) => /^Trust\b/.test(e.textContent.replace(/\s+/g, " ").trim()));
+      if (!b) return null;
+      b.click();
+      return b.textContent.replace(/\s+/g, " ").trim();
+    });
+    if (t) {
       await sleep(1500);
       await chord(page, "Control", "w").catch(() => {});
       return `clicked ${t}`;
     }
+    await sleep(1000);
   }
   return "no Trust button";
 }

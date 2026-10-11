@@ -386,6 +386,11 @@
           "default": "auto",
           "markdownDescription": "%config.inspections.sonar%"
         },
+        "batlehub.java.inspections.sonar.writeJavaHome": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "%config.inspections.sonar.writeJavaHome%"
+        },
         "batlehub.java.inspections.sonar.estimatedCapMiB": {
           "type": "integer",
           "default": 768,
@@ -712,6 +717,12 @@
         "command": "batlehub.java.sonar.install",
         "title": "%cmd.sonar.install%",
         "category": "Java"
+      },
+      {
+        "command": "batlehub.java.sonar.applyRules",
+        "title": "%cmd.sonar.applyRules%",
+        "category": "Java",
+        "icon": "$(circle-slash)"
       }
     ],
     "menus": {
@@ -1042,6 +1053,11 @@
         {
           "command": "batlehub.java.spelling.openConfig",
           "when": "view == batlehub.java.inspections && viewItem == spelling-rule",
+          "group": "inline@1"
+        },
+        {
+          "command": "batlehub.java.sonar.applyRules",
+          "when": "view == batlehub.java.inspections && viewItem == sonar-rule-pending",
           "group": "inline@1"
         }
       ]

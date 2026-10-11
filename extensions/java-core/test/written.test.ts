@@ -90,6 +90,40 @@ describe("the manifest of §4.2 (decision 24)", () => {
       'restore workspace setting java.configuration.runtimes to ["old"]',
     );
   });
+  it("a user-scope write is its own target, replayed at user scope (RFC 0016 decision 15)", async () => {
+    let m = parseManifest(undefined);
+    m = record(m, {
+      kind: "setting",
+      key: "sonarlint.rules",
+      scope: "workspace",
+      before: undefined,
+    });
+    m = record(m, {
+      kind: "setting",
+      key: "sonarlint.rules",
+      scope: "user",
+      before: { "java:S100": { level: "on" } },
+    });
+    expect(m.entries).toHaveLength(2);
+    const calls: string[] = [];
+    await replay(m, {
+      setting: async (k, _b, scope) => void calls.push(`${scope} ${k}`),
+      extSetting: async () => {},
+      file: async () => {},
+      block: async () => {},
+      gitignore: async () => {},
+      profile: async () => {},
+      moved: async () => {},
+      project: async () => {},
+    });
+    expect(calls).toEqual([
+      "user sonarlint.rules",
+      "workspace sonarlint.rules",
+    ]);
+    expect(describeManifest(m)[0]).toContain(
+      "restore user setting sonarlint.rules",
+    );
+  });
   it("survives a corrupt file", () => {
     expect(parseManifest("{").entries).toEqual([]);
     expect(parseManifest('{"version":2}').entries).toEqual([]);

@@ -314,8 +314,17 @@ describe("the dashboard (§4.2, phase 3)", () => {
       uptimeS: 5,
       restarts: 1,
     });
-    u.forget(8080);
-    expect(u.observe(8080, 130_000, 1, 1.5).restarts).toBe(0);
+    // A poll in the restart's gap answers nothing; the entry stays, so the
+    // restart is still counted when the context is back (CI, 2026-10-10).
+    expect(u.observe(8080, 126_000, 29.4, 0.31)).toEqual({
+      uptimeS: 0,
+      restarts: 2,
+    });
+    // A new JVM on the port: its start moved by far more than a poll's latency.
+    expect(u.observe(8080, 130_000, 1, 1.5)).toEqual({
+      uptimeS: 1,
+      restarts: 0,
+    });
     expect(formatUptime(42)).toBe("42 s");
     expect(formatUptime(3725)).toBe("1 h 2 min");
   });

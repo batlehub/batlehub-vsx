@@ -108,8 +108,28 @@ dump_editor_logs() {
   done
 }
 DUMP_JSONL=""
+# The flakes todo.md lists, by signature: a match is still a failure, but it
+# says which known one it is, so a rerun is decided at a glance and anything
+# else stands out as new. Fixed flakes leave this list.
+known_flake() {
+  case "$1" in
+    "case 2: the acceptance run did not"*) echo "RUN-ACCEPT — the Debug Console read before the run's output landed" ;;
+    "the delegate did not answer"*'"truncated": true'*) echo "CHAIN-DELEGATE — one round over the 150 ms budget under load" ;;
+    "Remove BatleHub settings did not restore"*) echo "REMOVE-OK — the settings read while the replay was still writing" ;;
+    "the Java voices are not the theme's"*) echo "THEME-TOKENS — the semantic tokens later than the wait" ;;
+    "the quarkus driver failed"*)
+      [[ -n "$DUMP_JSONL" && -f "$DUMP_JSONL" ]] && grep -q 'Java 21 or more recent is required' "$DUMP_JSONL" \
+        && echo "QUARKUS-JDK — redhat.java refused java.jdt.ls.java.home after the java.home reload (CI, 2026-10-10)" ;;
+  esac
+}
 fail() {
   log "FAIL: $*"
+  local flake
+  flake="$(known_flake "$*")"
+  if [[ -n "$flake" ]]; then
+    log "KNOWN FLAKE: $flake — see todo.md, a rerun is the current answer"
+    [[ -n "${GITHUB_ACTIONS:-}" ]] && echo "::warning title=Known flake::$flake"
+  fi
   [[ -n "$DUMP_JSONL" && -f "$DUMP_JSONL" ]] && grep -E '"phase": "(log2|ready|reload|bundle)"' "$DUMP_JSONL" >&2
   [[ -n "$DUMP_ON_FAIL" ]] && dump_editor_logs "$DUMP_ON_FAIL"
   exit 1
@@ -598,6 +618,12 @@ print("".join(list(difflib.unified_diff((d.get("golden") or "").splitlines(True)
   assert_json "$J_" spellDict "d['picked'] and d['cspellJson'] and '\"Mesage\"' in d['cspellJson'] and '\"0.2\"' in d['cspellJson'] and 'target/**' in d['cspellJson'] and 'cSpell' not in (d['settings'] or '') and d['mesageGone']" \
     "Add to project dictionary did not create cspell.json with the word, or the row stayed, or a cSpell key reached settings.json: $(field "$J_" spellDict | cut -c1-1200)"
   log "SPELL-DICT-OK (the lightbulb on Mesage: the core's Add to project dictionary beside cspell's own fixes; cspell.json created — version 0.2, words [Mesage], ignorePaths target/** build/** —, nothing in settings.json, the row gone — RFC 0013 case 4)"
+  assert_json "$J_" spellProfile "d['written'] == {'java': False, 'groovy': False} and d['javaGone'] and d['mdKept'] and 'off — profile: generated DTOs, see #77' in d['offRule'] and not d['disabledByYou'] and d['manifest'] and d['undone'] is None and \"level is cspell's (info)\" in d['warnRule']" \
+    "the profile's spelling/unknownWord off did not reach cspell for Java only, or its warning did not take it back: $(field "$J_" spellProfile | cut -c1-900)"
+  log "SPELL-PROFILE-OK (the profile's spelling/unknownWord off: cSpell.enabledFileTypes {java: false, groovy: false} at workspace scope, recorded in written.json; Speller.java's cSpell rows gone, a Markdown file's kept; the view reads 'off — profile: generated DTOs, see #77'; at warning nothing is written, the off is undone, the view reads 'level is cspell's (info)' — RFC 0013 case 3)"
+  assert_json "$J_" spellRename "not any(t.startswith('Rename to') for t in d['onComment']) and d['picked'] and 'receiveMessage()' in d['speller'] and 'recieveMesage' not in d['speller'] and 'new Speller().receiveMessage()' in d['use'] and d['rowsGone'] and not d['dictionary']" \
+    "Rename to \"receiveMessage\" was not offered — cspell's data.suggestions may have changed shape (RFC 0013 decision 18) —, or was offered on the comment, or did not rename every reference through JDT.LS, or the rows stayed: $(field "$J_" spellRename | cut -c1-1200)"
+  log "SPELL-RENAME-OK (the lightbulb on Mesage: Rename to \"receiveMessage\" — cspell's corrections re-joined in the identifier's case —; JDT.LS renamed Speller.java and the caller in SpellerUse.java, the recieve and Mesage rows gone, no dictionary written; on the comment, no rename offered — RFC 0013 case 5, decision 18)"
   assert_json "$J_" inspections-cleanup "not d['greeterDirty']" \
     "Greeter.java stayed dirty after the inspections step put the fixture back: every later step runs over a stale buffer"
   log "INSPECTIONS-OK (batlehub diagnostics on Greeter.java; Fix all in file left the buffer byte-for-byte .idea/golden/Greeter.fixed.java — receivers kept, size() == 0 now isEmpty())"
@@ -1100,6 +1126,9 @@ if [[ "$ONLY" == "all" || "$ONLY" == "sonar" ]]; then
     rm -rf "$OWS" && cp -r "$REPO/tests/heavy/fixtures/maven-multi" "$OWS"
     # One Sonar-only finding, in the copy: Greeter.java is held by two golden files.
     printf 'package com.acme.core;\n\npublic class Todo {\n    // TODO finish this\n    public int answer() {\n        return 42;\n    }\n}\n' >"$OWS/core/src/main/java/com/acme/core/Todo.java"
+    # RFC 0016 phase 2, use case 5: the team silences Sonar's twin of a bundle rule, with the reason.
+    mkdir -p "$OWS/.batlehub/java"
+    printf '{ "version": 1, "rules": { "sonar/java:S1155": { "severity": "off", "why": "superseded by collections/sizeIsZero" } } }\n' >"$OWS/.batlehub/java/inspections.json"
     EDITOR_FOLDER="$OWS"
     start_editor "$OE" "$OSETTINGS" JAVA_HOME= JDK_HOME= PATH="$OENV_PATH" JAVA_TOOL_OPTIONS="-XX:MaxRAMPercentage=6"
     log "Editor ($label) at http://127.0.0.1:$EDITOR_PORT, folder $OWS"
@@ -1118,6 +1147,40 @@ if [[ "$ONLY" == "all" || "$ONLY" == "sonar" ]]; then
   assert_json "$O_" resources "'SonarLint language server (estimated): 768 MiB' in d['tail']" \
     "SonarLint's language server is not in the resource sum as an estimate: $(field "$O_" resources | cut -c1-700)"
   log "SONAR-MEM-OK (the SonarLint language server counted in the container's sum: 768 MiB, estimated — the core does not start it, so it declares it — RFC 0016 case 4)"
+  # sonar_settings <workspace> <python expression over s (settings.json) and m (written.json)>
+  sonar_settings() {
+    python3 - "$1" "$2" <<'PY'
+import json, sys, os
+ws, expr = sys.argv[1], sys.argv[2]
+def read(p):
+    try:
+        with open(os.path.join(ws, p)) as f:
+            return json.load(f)
+    except Exception:
+        return {}
+s, m = read(".vscode/settings.json"), read(".batlehub/java/local/written.json")
+keys = [e.get("key") for e in m.get("entries", []) if e.get("kind") == "setting"]
+print(json.dumps({"javaHome": s.get("sonarlint.ls.javaHome"), "rules": s.get("sonarlint.rules"), "connected": [k for k in s if k.startswith("sonarlint.connectedMode")], "manifest": keys}))
+sys.exit(0 if eval(expr) else 1)
+PY
+  }
+  assert_json "$O_" profile "not d['timedOut'] and 'not applied' in d['rowBefore'] and d['problemsBefore'] and not d['problemsAfter'] and 'off — profile: superseded by collections/sizeIsZero' in d['rowAfter'] and any('wrote sonarlint.rules (user settings)' in l for l in d['channel'])" \
+    "the profile's sonar/java:S1155 off was not shown as not applied, or Turn off in my user settings did not silence SonarLint's row: $(field "$O_" profile | cut -c1-1200)"
+  SW="$HEAVY_WORK/sonar-ws"
+  sonar_settings "$SW" "{'key': 'sonarlint.rules', 'scope': 'user'}.items() <= next((e for e in m.get('entries', []) if e.get('key') == 'sonarlint.rules'), {}).items() and 'sonarlint.rules' not in s and 'sonarlint.ls.javaHome' not in s and not [k for k in s if k.startswith('sonarlint.connectedMode')]" >"$HEAVY_WORK/sonar-settings.json" \
+    || fail "the user-scope sonarlint.rules write is not in written.json, or a sonarlint key reached the workspace settings (javaHome for a build with its JRE, rules, connectedMode): $(cat "$HEAVY_WORK/sonar-settings.json")"
+  log "SONAR-PROFILE-OK (the profile's sonar/java:S1155 off: shown 'off — profile: superseded by collections/sizeIsZero · not applied' while SonarLint's row stays — it reads sonarlint.rules from user settings only —; 'Turn off in my user settings' writes it there, recorded in written.json as a user-scope entry, and the row goes; nothing in the workspace settings, no javaHome for the linux-x64 build, no connectedMode key — RFC 0016 cases 5, 6, decisions 13, 15)"
+  # The universal build carries no JRE and the editor's PATH has no java: SonarLint runs only on the JDK the core points it at.
+  SONAR_UVSIX="$HEAVY_CACHE/SonarSource.sonarlint-vscode-$SONARLINT_VERSION.vsix"
+  [[ -s "$SONAR_UVSIX" ]] || { log "Downloading SonarLint $SONARLINT_VERSION (universal) from Open VSX"; fetch -o "$SONAR_UVSIX" "https://open-vsx.org/api/SonarSource/sonarlint-vscode/universal/$SONARLINT_VERSION/file/SonarSource.sonarlint-vscode-$SONARLINT_VERSION.vsix"; }
+  INSTALL_VSIX=("$REDHAT_VSIX" "$JAVA_CORE_VSIX" "$SONAR_UVSIX")
+  sonar_run sonar-universal "$HEAVY_WORK/sonar-universal.jsonl"
+  OU_="$HEAVY_WORK/sonar-universal.jsonl"
+  assert_json "$OU_" view "not d['timedOut'] and any(r.startswith('sonar/java:S1135') for r in d['rows'])" \
+    "the universal SonarLint published nothing: its server did not start on the core's JDK: $(field "$OU_" view | cut -c1-900)"
+  sonar_settings "$HEAVY_WORK/sonar-universal-ws" "s.get('sonarlint.ls.javaHome') and os.path.isfile(os.path.join(s['sonarlint.ls.javaHome'], 'bin', 'java')) and 'sonarlint.ls.javaHome' in keys" >"$HEAVY_WORK/sonar-universal-settings.json" \
+    || fail "sonarlint.ls.javaHome was not written to a JDK, or not recorded in written.json: $(cat "$HEAVY_WORK/sonar-universal-settings.json")"
+  log "SONAR-JAVAHOME-OK (SonarLint $SONARLINT_VERSION universal, no JRE of its own, no java on PATH: sonarlint.ls.javaHome = $(python3 -c 'import json,sys;print(json.load(open(sys.argv[1]))["javaHome"])' "$HEAVY_WORK/sonar-universal-settings.json"), recorded in written.json, and its findings in the view — RFC 0016 case 1)"
   INSTALL_VSIX=("$REDHAT_VSIX" "$JAVA_CORE_VSIX")
   sonar_run sonar-absent "$HEAVY_WORK/sonar-absent.jsonl" --absent 1
   OA_="$HEAVY_WORK/sonar-absent.jsonl"

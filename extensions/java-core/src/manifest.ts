@@ -26,6 +26,7 @@ import {
   describe,
   GITIGNORE_LINE,
   type Manifest,
+  type NewEntry,
   narrowGitignore,
   parseManifest,
   record,
@@ -248,25 +249,70 @@ export async function writeForeignSetting(
     ? c.inspect(key)?.workspaceFolderValue
     : c.inspect(key)?.workspaceValue;
   if (JSON.stringify(before) === JSON.stringify(value)) return;
-  await withSettingsLock(folder, async () => {
-    save(
-      record(readManifest(), {
+  await withSettingsLock(folder, () =>
+    recorded(
+      {
         kind: "setting",
         key: section ? `${section}.${key}` : key,
         scope: "workspace",
         before,
-      }),
-    );
-    await c.update(
-      key,
-      value,
-      folder
-        ? vscode.ConfigurationTarget.WorkspaceFolder
-        : vscode.ConfigurationTarget.Workspace,
-    );
-  });
+      },
+      () =>
+        c.update(
+          key,
+          value,
+          folder
+            ? vscode.ConfigurationTarget.WorkspaceFolder
+            : vscode.ConfigurationTarget.Workspace,
+        ),
+    ),
+  );
   log.info(
     `wrote ${section ? `${section}.${key}` : key} (workspace) — previous value recorded in the manifest`,
+  );
+}
+
+/**
+ * The entry first, so a crash after the write still leaves its undo — and
+ * taken back when the write is refused (a key its owner allows only in user
+ * settings, say), so the manifest never lists a write that did not happen.
+ */
+async function recorded(
+  e: NewEntry,
+  write: () => Thenable<void>,
+): Promise<void> {
+  const m = readManifest();
+  save(record(m, e));
+  try {
+    await write();
+  } catch (err) {
+    save(m);
+    throw err;
+  }
+}
+
+/**
+ * A key whose owner allows only user settings, written on the developer's
+ * own action — never on activation (RFC 0016 phase 2, `sonarlint.rules`).
+ * Recorded like the rest: `Remove BatleHub settings` restores it.
+ */
+export async function writeUserSetting(
+  key: string,
+  value: unknown,
+): Promise<void> {
+  const { section, leaf } = splitKey(key);
+  const c = vscode.workspace.getConfiguration(section);
+  await recorded(
+    {
+      kind: "setting",
+      key,
+      scope: "user",
+      before: c.inspect(leaf)?.globalValue,
+    },
+    () => c.update(leaf, value, vscode.ConfigurationTarget.Global),
+  );
+  log.info(
+    `wrote ${key} (user settings) — previous value recorded in the manifest`,
   );
 }
 
@@ -299,14 +345,26 @@ export async function writeSatelliteSetting(
  * entry, leaving every other write alone. Returns false when the manifest has
  * no such entry — the key was the user's, and was never the core's to undo.
  */
-export async function undoForeignSetting(key: string): Promise<boolean> {
-  const { manifest, entry } = takeEntry(readManifest(), `setting:${key}`);
+export async function undoForeignSetting(
+  key: string,
+  scope: "workspace" | "user" = "workspace",
+): Promise<boolean> {
+  const { manifest, entry } = takeEntry(
+    readManifest(),
+    `${scope === "user" ? "user-setting" : "setting"}:${key}`,
+  );
   if (!entry || entry.kind !== "setting") return false;
   const { section, leaf } = splitKey(key);
   await withSettingsLock(undefined, async () => {
     await vscode.workspace
       .getConfiguration(section)
-      .update(leaf, entry.before, vscode.ConfigurationTarget.Workspace);
+      .update(
+        leaf,
+        entry.before,
+        scope === "user"
+          ? vscode.ConfigurationTarget.Global
+          : vscode.ConfigurationTarget.Workspace,
+      );
     save(manifest);
   });
   log.info(`undo: ${key} restored to ${JSON.stringify(entry.before)}`);
@@ -496,11 +554,17 @@ export async function removeBatleHubSettings(
   );
   if (pick !== go) return;
   const errors = await replay(m, {
-    setting: async (key, before) => {
+    setting: async (key, before, scope) => {
       const { section, leaf } = splitKey(key);
       await vscode.workspace
         .getConfiguration(section)
-        .update(leaf, before, vscode.ConfigurationTarget.Workspace);
+        .update(
+          leaf,
+          before,
+          scope === "user"
+            ? vscode.ConfigurationTarget.Global
+            : vscode.ConfigurationTarget.Workspace,
+        );
     },
     extSetting: async (key, before) => {
       const i = key.lastIndexOf(".");

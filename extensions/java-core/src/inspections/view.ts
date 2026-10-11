@@ -6,10 +6,19 @@ import * as path from "node:path";
 import * as vscode from "vscode";
 import type { Bridge } from "./bridge";
 import { group, type Row } from "@batlehub/java-rules/rules";
-import { profileBanner, ruleLabel } from "@batlehub/java-rules/profile";
+import {
+  mergeSeverities,
+  profileBanner,
+  ruleLabel,
+} from "@batlehub/java-rules/profile";
 import { readSettings } from "../config";
 import { sonarOf } from "./sonar";
-import { CODE as SPELLING, spellingOf } from "./spelling";
+import {
+  CODE as SPELLING,
+  levelNote,
+  spellingLevel,
+  spellingOf,
+} from "./spelling";
 
 export type Node =
   | { kind: "spelling-state"; state: string }
@@ -145,11 +154,29 @@ export class InspectionsView
       );
       const spelling = n.code === SPELLING;
       const sonar = n.code.startsWith("sonar/");
-      const label = ruleLabel(
-        n.code,
-        this.bridge.profile?.project,
-        readSettings().inspections.severityOverrides,
-      );
+      const overrides = readSettings().inspections.severityOverrides;
+      const project = this.bridge.profile?.project;
+      let label = ruleLabel(n.code, project, overrides);
+      // RFC 0013 §4.2, RFC 0016 §4.2: only `off` reaches a bridged
+      // analyser; any other level is its owner's.
+      const level = spelling
+        ? spellingLevel(project?.merged ?? {}, overrides)
+        : sonar
+          ? mergeSeverities(project?.merged ?? {}, overrides)[n.code]
+          : undefined;
+      if (level && level !== "off")
+        label = spelling
+          ? levelNote(
+              vscode.workspace
+                .getConfiguration("cSpell")
+                .get<string>("diagnosticLevel"),
+            )
+          : "on — the level is SonarLint's";
+      // RFC 0016 decision 15: SonarLint reads its rules from user settings only.
+      const pending =
+        sonar && !!sonarOf()?.pending.includes(n.code.slice("sonar/".length));
+      if (pending)
+        label = `${label} · ${vscode.l10n.t("not applied: SonarLint reads rules from user settings")}`;
       item.description = [
         `${n.count}`,
         spelling
@@ -168,9 +195,11 @@ export class InspectionsView
       // (RFC 0016 §4.2): the core owns no fix for either.
       item.contextValue = spelling
         ? "spelling-rule"
-        : sonar
-          ? "sonar-rule"
-          : "rule";
+        : pending
+          ? "sonar-rule-pending"
+          : sonar
+            ? "sonar-rule"
+            : "rule";
       item.iconPath = new vscode.ThemeIcon(
         spelling ? "whole-word" : sonar ? "telescope" : "lightbulb",
       );

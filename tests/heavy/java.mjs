@@ -249,14 +249,21 @@ async function trustWorkspace(page) {
   await runCommand(page, "Workspaces: Manage Workspace Trust");
   const btn = await page.waitForSelector(".workspace-trust-editor .monaco-button, .workspace-trust-editor button", { timeout: 20000 }).catch(() => null);
   if (!btn) return "no trust editor";
-  for (const b of await page.$$(".workspace-trust-editor .monaco-button, .workspace-trust-editor button")) {
-    const t = norm(await b.evaluate((e) => e.textContent));
-    if (/^Trust\b/.test(t)) {
-      await b.click();
+  // One in-page find-and-click: the trust editor re-renders while it opens,
+  // and a handle taken a moment earlier can be detached by the click.
+  for (let i = 0; i < 5; i++) {
+    const t = await page.evaluate(() => {
+      const b = [...document.querySelectorAll(".workspace-trust-editor .monaco-button, .workspace-trust-editor button")].find((e) => /^Trust\b/.test(e.textContent.replace(/\s+/g, " ").trim()));
+      if (!b) return null;
+      b.click();
+      return b.textContent.replace(/\s+/g, " ").trim();
+    });
+    if (t) {
       await sleep(1500);
       await chord(page, "Control", "w").catch(() => {});
       return `clicked ${t}`;
     }
+    await sleep(1000);
   }
   return "no Trust button";
 }
@@ -588,7 +595,9 @@ try {
     // arrives times out, and the assertion fails on what was last painted.
     const voices = JSON.parse(readFileSync(path.join(here, "..", "..", "extensions", "batlehub-theme", "themes", "batlehub-dark.json"), "utf8")).semanticTokenColors;
     const painted = (want) => (r) => Object.keys(want).every((k) => r.pick[k] === String(voices[k]?.foreground ?? voices[k]).toLowerCase());
-    const read = async (want) => (await settle(() => tokenColours(page, want), painted(want), 20000, 1000)).value;
+    // 60 s, not 20: on a loaded runner MainTest's test classpath — and with
+    // it `@Test`'s annotation token — came after 20 s (CI, 2026-10-10).
+    const read = async (want) => (await settle(() => tokenColours(page, want), painted(want), 60000, 1000)).value;
     const code = await read({ class: "Person", method: "greeting", keyword: "public" });
     await openFile(page, "MainTest.java");
     const rest = await read({ annotation: "@Test", string: "Ada" });
@@ -855,6 +864,122 @@ try {
     problems: (spellAfter.value ?? []).filter((r) => /cSpell/.test(r)).slice(0, 6),
   });
   rmSync(CSPELL_JSON, { force: true });
+
+  // 9c. RFC 0013 phase 2, case 3: the team's profile turns spelling off for
+  // Java — cspell.enabledFileTypes gains java/groovy false at workspace
+  // scope, Markdown keeps its rows; a `warning` instead writes nothing and
+  // takes the `off` back.
+  {
+    const PROFILE = path.join(WS, ".batlehub", "java", "inspections.json");
+    // A name of its own: Quick Open on "README.md" picks the fixture's .idea/golden/README.md.
+    const README = path.join(WS, "SPELLING-NOTES.md");
+    const SETTINGS = path.join(WS, ".vscode", "settings.json");
+    const fileTypes = () => {
+      try {
+        return JSON.parse(readIfPresent(SETTINGS) ?? "{}")["cSpell.enabledFileTypes"] ?? null;
+      } catch {
+        return "unparseable";
+      }
+    };
+    const spellRule = async () => (await inspectionsView()).find((r) => /spelling\/unknownWord/.test(r)) ?? "";
+    writeFileSync(README, "# maven-multi\n\nThe documantation of the fixture.\n");
+    // Open, so cspell checks it; its row is read once the profile applies.
+    await openFile(page, "SPELLING-NOTES.md");
+    mkdirSync(path.dirname(PROFILE), { recursive: true });
+    writeFileSync(PROFILE, JSON.stringify({ version: 1, rules: { "spelling/unknownWord": { severity: "off", why: "generated DTOs, see #77" } } }, null, 2));
+    const written = await settle(async () => fileTypes(), (v) => v?.java === false, 30000, 1000);
+    await openFile(page, "Speller.java");
+    const javaGone = await settle(() => problems(page), (rows) => !rows.some((r) => /recieve|retuns/.test(r) && /cSpell/.test(r)), 30000, 2000);
+    // The Markdown file re-opened each round: cspell checks the document in front, and its row was seen to come late.
+    const mdKept = (await settle(async () => (await openFile(page, "SPELLING-NOTES.md"), await problems(page)), (rows) => rows.some((r) => /documantation/.test(r) && /cSpell/.test(r)), 90000, 3000)).value ?? [];
+    const offRule = await settle(spellRule, (r) => /off — profile: generated DTOs, see #77/.test(r), 30000, 2000);
+    const viewOff = await inspectionsView();
+    await snap(page, "spelling-profile");
+    const manifest = readIfPresent(path.join(WS, ".batlehub", "java", "local", "written.json")) ?? "";
+    // The same entry at `warning`: not applied, the `off` undone.
+    writeFileSync(PROFILE, JSON.stringify({ version: 1, rules: { "spelling/unknownWord": { severity: "warning" } } }, null, 2));
+    const undone = await settle(async () => fileTypes(), (v) => v === null, 30000, 1000);
+    const warnRule = await settle(spellRule, (r) => /level is cspell's \(info\)/.test(r), 30000, 2000);
+    emit({
+      phase: "spellProfile",
+      written: written.value,
+      javaGone: !javaGone.timedOut,
+      mdKept: mdKept.some((r) => /documantation/.test(r) && /cSpell/.test(r)),
+      offRule: offRule.value ?? "",
+      disabledByYou: viewOff.some((r) => /disabled by you/.test(r)),
+      manifest: /cSpell\.enabledFileTypes/.test(manifest),
+      undone: undone.value,
+      warnRule: warnRule.value ?? "",
+    });
+    rmSync(PROFILE, { force: true });
+    rmSync(README, { force: true });
+    await runCommand(page, "View: Close All Editors");
+  }
+
+  // 9d. RFC 0013 phase 3, case 5: `Rename to "receiveMessage"` from cspell's
+  // own suggestions (decision 18 — the drift the nightly runs this against
+  // cspell's latest for), JDT.LS's rename: the caller in another file
+  // follows. On the comment, no rename is offered.
+  {
+    const CORE = path.join(WS, "core", "src", "main", "java", "com", "acme", "core");
+    const SPELLER = path.join(CORE, "Speller.java");
+    const USE = path.join(CORE, "SpellerUse.java");
+    const spellerBefore = readIfPresent(SPELLER);
+    writeFileSync(USE, "package com.acme.core;\n\npublic class SpellerUse {\n    public String greet() {\n        return new Speller().recieveMesage();\n    }\n}\n");
+    const lightbulb = async (at) => {
+      await openFile(page, "Speller.java");
+      await chord(page, "Control", "g");
+      await sleep(400);
+      await page.keyboard.type(at);
+      await page.keyboard.press("Enter");
+      await sleep(600);
+      await runCommand(page, "Quick Fix...");
+      await sleep(3000);
+      return page.$$eval(".action-widget .monaco-list-row, .context-view .monaco-list-row", (els) => els.map((e) => e.innerText.replace(/\s+/g, " ").trim()).filter(Boolean)).catch(() => []);
+    };
+    // The comment first: cspell's correction, and no rename of ours.
+    const onComment = await lightbulb("6:8");
+    await page.keyboard.press("Escape");
+    // Both words flagged before the rename (the dictionary of 9b is gone).
+    await settle(() => problems(page), (rows) => rows.some((r) => /Mesage/.test(r) && /cSpell/.test(r)), 60000, 2000);
+    let titles = [];
+    let picked = false;
+    for (let i = 0; i < 3 && !picked; i++) {
+      titles = await lightbulb("7:31");
+      for (const row of await page.$$(".action-widget .monaco-list-row, .context-view .monaco-list-row"))
+        if (/^Rename to "receiveMessage"/.test((await row.evaluate((e) => e.innerText)).trim())) {
+          await row.click();
+          picked = true;
+          break;
+        }
+      if (!picked) {
+        await page.keyboard.press("Escape");
+        await sleep(3000);
+      }
+    }
+    const renamed = await settle(async () => {
+      await runCommand(page, "File: Save All");
+      return { speller: readIfPresent(SPELLER) ?? "", use: readIfPresent(USE) ?? "" };
+    }, (v) => /receiveMessage/.test(v.speller) && /receiveMessage/.test(v.use), 30000, 2000);
+    const after = await settle(() => problems(page), (rows) => !rows.some((r) => /recieve|Mesage/.test(r) && /cSpell/.test(r)), 30000, 2000);
+    await snap(page, "spelling-rename");
+    emit({
+      phase: "spellRename",
+      onComment: onComment.slice(0, 8),
+      titles: titles.slice(0, 8),
+      picked,
+      speller: renamed.value?.speller ?? "",
+      use: renamed.value?.use ?? "",
+      rowsGone: !after.timedOut,
+      dictionary: readIfPresent(path.join(WS, "cspell.json")),
+    });
+    rmSync(USE, { force: true });
+    if (spellerBefore !== null) writeFileSync(SPELLER, spellerBefore);
+    await sleep(1500);
+    await openFile(page, "Speller.java");
+    await runCommand(page, "File: Revert File");
+    await runCommand(page, "View: Close All Editors");
+  }
 
   // 10. Generate on Person.java: the bundle's delegate writes the accessors; without it Red Hat's picker opens.
   await openFile(page, "Person.java");

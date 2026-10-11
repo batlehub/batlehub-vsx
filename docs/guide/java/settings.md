@@ -39,6 +39,7 @@ defaults. This table is checked against `package.json` by `task lint`
 | `batlehub.java.inspections.enabled` | `true` | Show the BatleHub inspections (JDT bundle) |
 | `batlehub.java.inspections.severityOverrides` | `{}` | Rule id → `error`, `warning`, `info`, `hint`, `off` |
 | `batlehub.java.inspections.sonar` | `auto` | `auto`: SonarLint's findings in Java files join the Inspections view as `sonar/<ruleKey>` (read, never re-emitted) and its server is counted in the resource sum; without SonarLint, one row says so. `off`: neither |
+| `batlehub.java.inspections.sonar.writeJavaHome` | `true` | Point `sonarlint.ls.javaHome` at the newest JDK 17+ found (workspace settings, recorded for removal), only for a SonarLint build without its own JRE, never over your value |
 | `batlehub.java.inspections.sonar.estimatedCapMiB` | `768` | What SonarLint's language server counts as in the resource sum when `sonarlint.ls.vmargs` names no `-Xmx` (measured: about 600 MiB on a small project) |
 | `batlehub.java.maven.configurations` | detected | Named configurations; absent is one per `~/.m2/settings*.xml` |
 | `batlehub.java.maven.activeConfiguration` | — | The active configuration (workspace) |

@@ -360,10 +360,7 @@ export async function activate(
             : h?.status === 503
               ? healthStatus(h.body)
               : undefined;
-        if (!status) {
-          uptimes.forget(port);
-          continue;
-        }
+        if (!status) continue;
         const metric = async (name: string) => {
           const r = await getLocal(port, `/actuator/metrics/${name}`);
           return r?.status === 200 ? metricValue(r.body) : undefined;

@@ -46,8 +46,8 @@ const RANK: Record<Level, number> = {
   warning: 3,
   error: 4,
 };
-/** Bridged analysers' prefixes (RFC 0005 §4.1, RFC 0016): never a bundle area. */
-export const BRIDGES = ["sonar"] as const;
+/** Bridged analysers' prefixes (RFC 0005 §4.1, RFC 0013, RFC 0016): never a bundle area. */
+export const BRIDGES = ["sonar", "spelling"] as const;
 export const IMPORTERS = ["intellij"] as const;
 
 const lineOf = (text: string, offset: number) =>

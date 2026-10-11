@@ -207,14 +207,21 @@ async function trustWorkspace(page) {
   await runCommand(page, "Workspaces: Manage Workspace Trust");
   const btn = await page.waitForSelector(".workspace-trust-editor .monaco-button, .workspace-trust-editor button", { timeout: 20000 }).catch(() => null);
   if (!btn) return "no trust editor";
-  for (const b of await page.$$(".workspace-trust-editor .monaco-button, .workspace-trust-editor button")) {
-    const t = norm(await b.evaluate((e) => e.textContent));
-    if (/^Trust\b/.test(t)) {
-      await b.click();
+  // One in-page find-and-click: the trust editor re-renders while it opens,
+  // and a handle taken a moment earlier can be detached by the click.
+  for (let i = 0; i < 5; i++) {
+    const t = await page.evaluate(() => {
+      const b = [...document.querySelectorAll(".workspace-trust-editor .monaco-button, .workspace-trust-editor button")].find((e) => /^Trust\b/.test(e.textContent.replace(/\s+/g, " ").trim()));
+      if (!b) return null;
+      b.click();
+      return b.textContent.replace(/\s+/g, " ").trim();
+    });
+    if (t) {
       await sleep(1500);
       await chord(page, "Control", "w").catch(() => {});
       return `clicked ${t}`;
     }
+    await sleep(1000);
   }
   return "no Trust button";
 }
@@ -305,7 +312,8 @@ try {
   await openWorkbench(page);
   await trust();
   const core = await outputLines(page).catch(() => []);
-  if (/wrote java\.jdt\.ls\.java\.home/.test(core.join(" "))) {
+  // Either JDK write lands after the servers looked for one: one reload picks it up.
+  if (/wrote (java\.jdt\.ls\.java\.home|sonarlint\.ls\.javaHome)/.test(core.join(" "))) {
     await dismissDialogs(page, /^(Reload|Yes|OK)/);
     await openWorkbench(page);
     await trust();
@@ -323,6 +331,31 @@ try {
   const probs = await problems();
   await snap(page, "view");
   emit({ phase: "view", rows: view.value ?? [], timedOut: !!view.timedOut, ms: view.ms, problems: probs.slice(0, 30) });
+  // RFC 0016 phase 2, use case 5 under decision 15: the profile's sonar/java:S1155
+  // off is shown as not applied — SonarLint reads sonarlint.rules from user
+  // settings only — until the developer's own action writes it there.
+  if (!ABSENT) {
+    const S1155 = (r) => /sonar\/java:S1155/.test(r);
+    const before = await settle(inspectionsView, (rows) => rows.some((r) => S1155(r) && /off — profile: superseded by collections\/sizeIsZero/.test(r) && /not applied/.test(r)), 120000, 5000);
+    const problemsBefore = (await problems()).filter((p) => /S1155/.test(p));
+    await runCommand(page, "Java: Turn off in my user settings");
+    const after = await settle(
+      async () => ({ rows: await inspectionsView(), problems: await problems() }),
+      (v) => !v.problems.some((p) => /S1155/.test(p)) && v.rows.some((r) => S1155(r) && /off — profile/.test(r) && !/not applied/.test(r)),
+      120000,
+      5000,
+    );
+    await snap(page, "profile");
+    emit({
+      phase: "profile",
+      rowBefore: (before.value ?? []).find(S1155) ?? "",
+      problemsBefore,
+      timedOut: !!before.timedOut || !!after.timedOut,
+      rowAfter: (after.value?.rows ?? []).find(S1155) ?? "",
+      problemsAfter: (after.value?.problems ?? []).filter((p) => /S1155/.test(p)),
+      channel: (await outputLines(page).catch(() => [])).filter((l) => /sonarlint\./.test(l)).slice(-4),
+    });
+  }
   const resources = (await outputLines(page, "Java: Show the container's resources").catch(() => [])).join(" ");
   emit({ phase: "resources", tail: resources.slice(-700) });
 } catch (e) {

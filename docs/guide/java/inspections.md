@@ -50,6 +50,36 @@ one committed file, with a reason for every rule it makes quieter. Design:
 
 Edits to the file apply on save, with no reload.
 
+## Bridged rules: SonarLint and spelling
+
+A bridged rule's level belongs to its analyser, so only `off` reaches it:
+
+- **`sonar/<key>` at `off`**: SonarLint reads its rules from your *user*
+  settings only, never from a workspace's, so a repository's profile cannot
+  apply it by itself. The view reads `off — profile: <why> · not applied:
+  SonarLint reads rules from user settings`, with an inline action, **Turn
+  off in my user settings** (also `Java: Turn off in my user settings`). It
+  adds `"<key>": { "level": "off" }` to `sonarlint.rules` in your user
+  settings, keeping every key you already have there. A key you already set
+  is yours and is not offered, and only a key shaped like a Sonar rule
+  (`java:S1135`) is written. That change applies to every workspace you open.
+  Any other level leaves the rule on, and the view says `on — the level is
+  SonarLint's`.
+- **`spelling/unknownWord` at `off`** turns cspell off for Java and Groovy,
+  as described in [Spell checking](./spelling).
+
+Every write is recorded and taken back by
+[`Java: Remove BatleHub settings`](./removal). Spelling's write is also
+undone as soon as the entry is no longer `off`. The SonarLint one, being
+yours, stays until you remove it.
+
+**SonarLint's JDK.** The SonarLint build Open VSX serves to a Linux pod
+carries its own JRE, so nothing is written for it. A build without one (the
+universal build) gets `sonarlint.ls.javaHome` set to the newest JDK 17+ the
+core found, never over a value you set.
+`batlehub.java.inspections.sonar.writeJavaHome: false` turns that off, and
+`batlehub.java.inspections.sonar: "off"` takes back both writes.
+
 ## Your own overrides win in your editor
 
 `batlehub.java.inspections.severityOverrides` in your settings is applied

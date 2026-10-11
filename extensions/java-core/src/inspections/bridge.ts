@@ -12,6 +12,8 @@ import { wire } from "../wire";
 import { applyLspEdit } from "../generate/menu";
 import { log } from "../log";
 import { writeProfileEntries } from "../manifest";
+import { sonarOf } from "./sonar";
+import { spellingOf } from "./spelling";
 import { InspectionsView } from "./view";
 import {
   applyOverrides,
@@ -39,6 +41,10 @@ export let current: Bridge | undefined;
 export const profileChanged = new vscode.EventEmitter<void>();
 
 const SOURCE = "batlehub";
+/** A bridged rule's level is its analyser's: cspell's `info` (RFC 0013 decision 10), so only `off` needs a why. */
+const BRIDGED_DEFAULTS: Record<string, Severity> = {
+  "spelling/unknownWord": "info",
+};
 
 export class Bridge implements vscode.Disposable {
   readonly diagnostics = vscode.languages.createDiagnosticCollection(SOURCE);
@@ -49,7 +55,7 @@ export class Bridge implements vscode.Disposable {
   private offeredRestart = false;
   /** The loaded bundle's ids and declared severities: undefined until it answers. */
   private known: string[] | undefined;
-  private defaults: Record<string, Severity> = {};
+  private defaults: Record<string, Severity> = { ...BRIDGED_DEFAULTS };
   /** The profile file as last read: absent, unreadable, or parsed. */
   profile:
     | {
@@ -90,7 +96,7 @@ export class Bridge implements vscode.Disposable {
         commands = r?.commands;
         if (ok) {
           this.known = r!.inspections ?? [];
-          this.defaults = r!.defaults ?? {};
+          this.defaults = { ...BRIDGED_DEFAULTS, ...r!.defaults };
           if (!r!.defaults)
             log.info(
               "bundle gives no rule defaults: every profile downgrade needs a why (RFC 0005 decision 9)",
@@ -182,6 +188,8 @@ export class Bridge implements vscode.Disposable {
     }
     this.changed.fire();
     profileChanged.fire();
+    for (const src of [spellingOf(), sonarOf()])
+      void src?.setProject(this.profile?.project?.merged ?? {});
     for (const d of vscode.workspace.textDocuments) this.schedule(d, 0);
   }
 

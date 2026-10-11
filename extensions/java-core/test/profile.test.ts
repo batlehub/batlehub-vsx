@@ -200,6 +200,16 @@ describe("the profile file (RFC 0005 §4.1, §4.3)", () => {
     ]);
   });
 
+  it("knows spelling/unknownWord as bridged: the bundle not knowing it is no unknown rule (RFC 0013 phase 2)", () => {
+    const v = check(
+      file({
+        "spelling/unknownWord": { severity: "off", why: "generated DTOs" },
+      }),
+    );
+    expect(v.merged).toEqual({ "spelling/unknownWord": "off" });
+    expect(v.problems).toEqual([]);
+  });
+
   it("applies options-less, with one info row, a rule given options", () => {
     const v = check(
       file({

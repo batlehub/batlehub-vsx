@@ -211,14 +211,21 @@ async function trustWorkspace(page) {
   await runCommand(page, "Workspaces: Manage Workspace Trust");
   const btn = await page.waitForSelector(".workspace-trust-editor .monaco-button, .workspace-trust-editor button", { timeout: 20000 }).catch(() => null);
   if (!btn) return "no trust editor";
-  for (const b of await page.$$(".workspace-trust-editor .monaco-button, .workspace-trust-editor button")) {
-    const t = norm(await b.evaluate((e) => e.textContent));
-    if (/^Trust\b/.test(t)) {
-      await b.click();
+  // One in-page find-and-click: the trust editor re-renders while it opens,
+  // and a handle taken a moment earlier can be detached by the click.
+  for (let i = 0; i < 5; i++) {
+    const t = await page.evaluate(() => {
+      const b = [...document.querySelectorAll(".workspace-trust-editor .monaco-button, .workspace-trust-editor button")].find((e) => /^Trust\b/.test(e.textContent.replace(/\s+/g, " ").trim()));
+      if (!b) return null;
+      b.click();
+      return b.textContent.replace(/\s+/g, " ").trim();
+    });
+    if (t) {
       await sleep(1500);
       await chord(page, "Control", "w").catch(() => {});
       return `clicked ${t}`;
     }
+    await sleep(1000);
   }
   return "no Trust button";
 }
@@ -290,11 +297,16 @@ const springTab = async () => {
   await sleep(1500);
   const frame = await panelFrame(page);
   if (!frame) return { frame: null, text: "" };
-  for (const t of await frame.$$('[role="tab"]'))
-    if ((await t.evaluate((e) => e.textContent.trim())) === "Spring") {
-      await t.click();
-      await sleep(800);
-    }
+  // One in-frame find-and-click: the panel re-renders on every poll, and a
+  // handle taken a moment earlier can be detached by the click.
+  const clicked = await frame
+    .evaluate(() => {
+      const t = [...document.querySelectorAll('[role="tab"]')].find((e) => e.textContent.trim() === "Spring");
+      t?.click();
+      return !!t;
+    })
+    .catch(() => false);
+  if (clicked) await sleep(800);
   const text = await frame.$eval('[role="tabpanel"]:not([hidden])', (e) => e.innerText.replace(/\s+/g, " ").trim()).catch(() => "");
   return { frame, text };
 };
