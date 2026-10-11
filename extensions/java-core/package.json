@@ -1605,7 +1605,7 @@
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\" \"media/**/*.ts\" esbuild.mjs",
     "test": "vitest run",
     "test:host": "tsc -p test-host/tsconfig.json && vscode-test",
-    "package": "node esbuild.mjs && vsce package --no-dependencies --skip-license -o java-core.vsix"
+    "package": "node esbuild.mjs && test -s jdt/batlehub-jdt-core.jar || { echo 'java-core: no JDT bundle — run task jdt:build first' >&2; exit 1; } && vsce package --no-dependencies --skip-license -o java-core.vsix"
   },
   "devDependencies": {
     "@batlehub/java-rules": "workspace:*",

@@ -113,6 +113,28 @@ jobs:
       - name: Audit
         run: pnpm audit --audit-level high
 
+      # The two extensions that ship a jar nothing commits: the same steps as
+      # CI, and each package script refuses to build without its jar.
+      - if: steps.target.outputs.name == 'java-core'
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+
+      - name: The JDT bundle
+        if: steps.target.outputs.name == 'java-core'
+        run: |
+          bash jdt/deps.sh
+          mvn -q -B -f jdt/batlehub-jdt-core/pom.xml package
+          mkdir -p extensions/java-core/jdt && cp jdt/batlehub-jdt-core/target/batlehub-jdt-core-*.jar extensions/java-core/jdt/batlehub-jdt-core.jar
+
+      - name: The Groovy language server jar
+        if: steps.target.outputs.name == 'java-groovy'
+        run: |
+          curl -fsSL https://raw.githubusercontent.com/go-task/task/main/install-task.sh | sh -s -- -d -b /usr/local/bin >/dev/null
+          task groovy:fetch
+
       - name: Package
         env:
           NAME: ${{ steps.target.outputs.name }}
