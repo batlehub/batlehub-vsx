@@ -2,7 +2,7 @@
   "name": "che-remote-ssh",
   "displayName": "Che Remote SSH",
   "description": "Connect this editor over SSH to an Eclipse Che workspace running on plain Kubernetes, with a kubeconfig this extension owns and never shares with ~/.kube/config.",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "publisher": "batlehub",
   "license": "Apache-2.0",
   "icon": "media/icon.png",

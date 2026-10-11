@@ -2,6 +2,13 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## che-remote-ssh-v0.1.1 - 2026-10-11
+#### Features
+- v1 published doc - (ce0b30b) - Max Batleforc
+- CI/CD - (096aa9c) - Max Batleforc
+
+- - -
+
 ## che-remote-ssh-v0.1.0 - 2026-09-09
 #### Features
 - prep release - (5abe803) - Max Batleforc
