@@ -38,8 +38,8 @@
     "package": "vsce package --no-dependencies --skip-license -o java-pack-frameworks.vsix"
   },
   "devDependencies": {
-    "@vscode/vsce": "^3.6.0",
-    "ovsx": "^1.1.1",
-    "prettier": "^3.6.0"
+    "@vscode/vsce": "^4.0.0",
+    "ovsx": "^1.2.0",
+    "prettier": "^3.9.10"
   }
 }
