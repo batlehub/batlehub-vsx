@@ -11,6 +11,6 @@
     "package": "pnpm -r --filter './extensions/*' run package"
   },
   "devDependencies": {
-    "@vitest/coverage-v8": "5.0.3"
+    "@vitest/coverage-v8": "5.0.4"
   }
 }
