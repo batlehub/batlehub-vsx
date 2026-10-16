@@ -91,7 +91,7 @@ jobs:
           done
       - name: Docs
         run: pnpm -C docs run build
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: vsix
           path: extensions/*/*.vsix
@@ -184,7 +184,7 @@ jobs:
           HEAVY_ONLY: java
           CDP_URL: http://127.0.0.1:9222
         run: bash tests/heavy/view.sh
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: heavy-java
@@ -241,7 +241,7 @@ jobs:
           HEAVY_ONLY: quarkus
           CDP_URL: http://127.0.0.1:9222
         run: bash tests/heavy/view.sh
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: heavy-quarkus
@@ -297,7 +297,7 @@ jobs:
           HEAVY_ONLY: sonar
           CDP_URL: http://127.0.0.1:9222
         run: bash tests/heavy/view.sh
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: heavy-sonar
@@ -347,7 +347,7 @@ jobs:
           HEAVY_ONLY: kotlin
           CDP_URL: http://127.0.0.1:9222
         run: bash tests/heavy/view.sh
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: heavy-kotlin
@@ -403,7 +403,7 @@ jobs:
           HEAVY_ONLY: spring
           CDP_URL: http://127.0.0.1:9222
         run: bash tests/heavy/view.sh
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: heavy-spring
