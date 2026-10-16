@@ -3,6 +3,7 @@
 
 # Claude Code per-user local settings
 .claude/settings.local.json
+.scannerwork
 
 # Build artifacts
 node_modules/

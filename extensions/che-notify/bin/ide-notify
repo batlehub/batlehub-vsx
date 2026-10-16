@@ -5,20 +5,31 @@ const path = require("node:path");
 const file = process.env.IDE_NOTIFY_FILE || path.join(os.homedir(), ".ide-notify");
 const levels = new Set(["info", "warn", "error"]);
 const args = process.argv.slice(2);
-let level = levels.has(args[0]) ? args.shift() : "info";
-let message = args.join(" ");
-if (message.trimStart().startsWith("{")) {
+const level = levels.has(args[0]) ? args.shift() : "info";
+
+// An agent payload (Claude Code hook on stdin, Codex `notify` as argv) becomes one readable line.
+function format(text) {
+  if (!text.trimStart().startsWith("{")) return `${level}|${text}`;
   try {
-    const payload = JSON.parse(message);
-    level = levels.has(payload.level) ? payload.level : /permission|approval/i.test(`${payload.type || ""} ${payload.message || ""}`) ? "warn" : level;
-    const source = process.env.IDE_NOTIFY_SOURCE || payload.source || (payload.hook_event_name ? "Claude Code" : payload.type ? "Codex" : "AI");
+    const payload = JSON.parse(text);
     const event = payload.hook_event_name || payload.type;
-    message = `${source}${event && event !== "Notification" ? ` [${event}]` : ""}: ${payload.message || payload.title || "notification"}`;
-  } catch {}
+    const source = process.env.IDE_NOTIFY_SOURCE || payload.source || (payload.hook_event_name ? "Claude Code" : payload.type ? "Codex" : "AI");
+    const body = payload.message || payload.title || payload["last-assistant-message"] || payload.last_assistant_message || (/stop|complete/i.test(event || "") ? "finished, waiting for you" : "notification");
+    const severity = levels.has(payload.level) ? payload.level : /permission|approval/i.test(`${payload.notification_type || ""} ${event || ""} ${body}`) ? "warn" : level;
+    return `${severity}|${source}${event && event !== "Notification" ? ` [${event}]` : ""}: ${body}`;
+  } catch {
+    return `${level}|${text}`;
+  }
 }
-if (!message && !process.stdin.isTTY) {
+const write = (text) => {
+  const line = format(text.replace(/\r?\n/g, " ").trim());
+  if (!/\|\s*$/.test(line)) fs.appendFileSync(file, `${line}\n`);
+};
+
+if (args.length) write(args.join(" "));
+else if (!process.stdin.isTTY) {
   let input = "";
   process.stdin.setEncoding("utf8");
   process.stdin.on("data", (chunk) => (input += chunk));
-  process.stdin.on("end", () => { fs.appendFileSync(file, `info|${input.replace(/\r?\n/g, " ").trim()}\n`); });
-} else if (message) fs.appendFileSync(file, `${level}|${message.replace(/\r?\n/g, " ").trim()}\n`);
+  process.stdin.on("end", () => write(input));
+}

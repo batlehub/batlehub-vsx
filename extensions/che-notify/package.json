@@ -50,6 +50,12 @@
         "title": "Open the browser notification bridge",
         "category": "Che Notify",
         "icon": "$(browser)"
+      },
+      {
+        "command": "cheNotify.setupAgents",
+        "title": "Send AI agent notifications to the editor (Claude Code, Codex)",
+        "category": "Che Notify",
+        "icon": "$(hubot)"
       }
     ],
     "viewsContainers": {
@@ -96,7 +102,7 @@
         "cheNotify.osBridge.autoOpen": {
           "type": "boolean",
           "default": false,
-          "description": "Open the browser notification bridge when the window starts.",
+          "description": "Open the browser notification bridge at every start, not only the first one. Once notifications are allowed, it opens (hidden) by itself.",
           "scope": "machine"
         },
         "cheNotify.osBridge.autoClose": {

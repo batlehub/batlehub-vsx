@@ -4,11 +4,16 @@ import * as path from "node:path";
 import * as vscode from "vscode";
 import { type Action, type Level, parseLine } from "./protocol";
 import { forward, parseForwarders } from "./forward";
+import { withClaudeHooks, withCodexNotify } from "./agents";
 import { FileTail } from "./tail";
 
 let watchedFile: string | undefined;
 let bridge: vscode.Webview | undefined;
 let autoResolvePending = false;
+let state: vscode.Memento | undefined;
+// The browser's answer, as last reported by the bridge: "granted", "denied" or "default".
+const PERMISSION = "cheNotify.osPermission";
+const SHOWN = "cheNotify.osBridgeShown";
 const tail = new FileTail();
 const configuration = () => vscode.workspace.getConfiguration("cheNotify");
 const notificationFile = () => {
@@ -66,6 +71,12 @@ function show(level: Level, message: string, actions: Action[]) {
   }
 }
 
+/** Resolve the bridge view; `quiet` closes the panel again once the bridge is live. */
+function openBridge(quiet: boolean) {
+  autoResolvePending = quiet;
+  void vscode.commands.executeCommand("cheNotify.osBridge.focus");
+}
+
 function processLines(lines: string[]) {
   for (const line of lines) {
     const item = parseLine(line);
@@ -118,10 +129,48 @@ function installCli(context: vscode.ExtensionContext) {
 }
 
 function bridgeHtml() {
-  return `<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'"><style>body{font-family:var(--vscode-font-family);padding:1rem}button{padding:.4rem .8rem}</style></head><body><h3>Browser notifications</h3><p>Allow notifications to relay Che Notify messages to your operating system.</p><button id="grant">Allow browser notifications</button><p id="status"></p><script>const v=acquireVsCodeApi(),s=document.querySelector('#status');function refresh(){s.textContent='Permission: '+(window.Notification?Notification.permission:'unavailable')}document.querySelector('#grant').onclick=async()=>{if(window.Notification)await Notification.requestPermission();refresh()};window.addEventListener('message',e=>{const d=e.data;if(!d||d.type!=='notify'||!window.Notification||Notification.permission!=='granted')return;const n=new Notification('Che Notify',{body:d.message});n.onclick=()=>{window.focus();if(d.actions&&d.actions[0])v.postMessage({type:'action',action:d.actions[0]});n.close()}});refresh()</script></body></html>`;
+  return `<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'"><style>body{font-family:var(--vscode-font-family);padding:1rem}button{padding:.4rem .8rem}</style></head><body><h3>Browser notifications</h3><p>Allow notifications to relay Che Notify messages to your operating system.</p><button id="grant">Allow browser notifications</button><p id="status"></p><script>const v=acquireVsCodeApi(),s=document.querySelector('#status'),b=document.querySelector('#grant');const hints={granted:'Granted: notifications reach your OS. You can close this panel.',denied:'Blocked by the browser. Allow notifications for this site in the browser site settings, then reload the window.',default:'Click Allow, then accept the browser prompt.',unavailable:'This browser has no notification API.'};function refresh(){const p=window.Notification?Notification.permission:'unavailable';s.textContent=hints[p]||p;b.hidden=p!=='default';v.postMessage({type:'permission',value:p})}b.onclick=async()=>{if(window.Notification&&await Notification.requestPermission()==='granted')new Notification('Che Notify',{body:'OS notifications are on'});refresh()};window.addEventListener('message',e=>{const d=e.data;if(!d||d.type!=='notify'||!window.Notification||Notification.permission!=='granted')return;const n=new Notification('Che Notify',{body:d.message});n.onclick=()=>{window.focus();if(d.actions&&d.actions[0])v.postMessage({type:'action',action:d.actions[0]});n.close()}});refresh()</script></body></html>`;
+}
+
+async function setupAgents() {
+  const cli = path.join(os.homedir(), ".local", "bin", "ide-notify");
+  const agents = [
+    {
+      label: "Claude Code",
+      file: path.join(os.homedir(), ".claude", "settings.json"),
+      edit: withClaudeHooks,
+    },
+    {
+      label: "Codex",
+      file: path.join(process.env.CODEX_HOME || path.join(os.homedir(), ".codex"), "config.toml"),
+      edit: withCodexNotify,
+    },
+  ];
+  const picked = await vscode.window.showQuickPick(
+    agents.map((agent) => ({ ...agent, description: agent.file, picked: true })),
+    { canPickMany: true, title: "Che Notify: send these agents' notifications to the editor" },
+  );
+  if (!picked?.length) return;
+  const report: string[] = [];
+  for (const agent of picked) {
+    try {
+      const current = fs.existsSync(agent.file) ? fs.readFileSync(agent.file, "utf8") : "";
+      const { text, changed } = agent.edit(current, cli);
+      if (changed) {
+        fs.mkdirSync(path.dirname(agent.file), { recursive: true });
+        fs.writeFileSync(agent.file, text);
+      }
+      report.push(`${agent.label}: ${changed ? "configured" : "already configured"}`);
+    } catch (error) {
+      report.push(`${agent.label}: not changed (${String(error)})`);
+    }
+  }
+  if (!fs.existsSync(cli)) report.push(`${cli} is missing: enable cheNotify.installCli`);
+  void vscode.window.showInformationMessage(`Che Notify: ${report.join("; ")}`);
 }
 
 export function activate(context: vscode.ExtensionContext) {
+  state = context.globalState;
   startWatching();
   installCli(context);
   context.subscriptions.push(
@@ -134,9 +183,10 @@ export function activate(context: vscode.ExtensionContext) {
           view.webview.html = bridgeHtml();
           view.webview.onDidReceiveMessage((message) => {
             if (message?.type === "action") void runAction(message.action as Action);
+            if (message?.type === "permission") void state?.update(PERMISSION, message.value);
           });
           view.onDidDispose(() => (bridge = undefined));
-          if (autoResolvePending && configuration().get<boolean>("osBridge.autoClose")) {
+          if (autoResolvePending) {
             autoResolvePending = false;
             setTimeout(
               () => void vscode.commands.executeCommand("workbench.action.closePanel"),
@@ -150,9 +200,8 @@ export function activate(context: vscode.ExtensionContext) {
     vscode.commands.registerCommand("cheNotify.test", () => {
       fs.appendFileSync(notificationFile(), "info|Che Notify test notification\n");
     }),
-    vscode.commands.registerCommand("cheNotify.openOsBridge", () =>
-      vscode.commands.executeCommand("cheNotify.osBridge.focus"),
-    ),
+    vscode.commands.registerCommand("cheNotify.openOsBridge", () => openBridge(false)),
+    vscode.commands.registerCommand("cheNotify.setupAgents", setupAgents),
     vscode.workspace.onDidChangeConfiguration((event) => {
       if (
         event.affectsConfiguration("cheNotify.file") ||
@@ -162,10 +211,15 @@ export function activate(context: vscode.ExtensionContext) {
     }),
     { dispose: stopWatching },
   );
-  if (configuration().get<boolean>("osBridge.autoOpen")) {
-    autoResolvePending = true;
-    void vscode.commands.executeCommand("cheNotify.osBridge.focus");
-  }
+  // The browser grants the permission only on a click in the page, so the dev has to see it:
+  // shown once, on the first start. Once granted it only needs resolving, then hides.
+  const permission = state.get<string>(PERMISSION);
+  if (permission === "granted") openBridge(true);
+  else if (!state.get(SHOWN)) {
+    void state.update(SHOWN, true);
+    openBridge(false);
+  } else if (configuration().get<boolean>("osBridge.autoOpen"))
+    openBridge(!!configuration().get<boolean>("osBridge.autoClose"));
 }
 
 export function deactivate() {

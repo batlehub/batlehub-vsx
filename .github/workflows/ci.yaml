@@ -19,6 +19,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
+        with:
+          # SonarCloud reads the history: blame is what tells new code from old.
+          fetch-depth: 0
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v5
         with:
@@ -35,7 +38,15 @@ jobs:
           node scripts/project-schema-walker.mjs --check
           (cd docs && node build/rfc.mjs index --check)
       - name: Unit tests
-        run: pnpm run test
+        # With coverage for SonarCloud. Each package writes paths relative to
+        # itself, so they are rewritten from the repository root and merged
+        # into the one report `sonar-project.properties` names.
+        run: |
+          pnpm run test --coverage --coverage.reporter=lcov
+          mkdir -p coverage
+          for f in extensions/*/coverage/lcov.info engine/coverage/lcov.info; do
+            [ -f "$f" ] && sed "s#^SF:#SF:${f%/coverage/lcov.info}/#" "$f"
+          done > coverage/lcov.info
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -87,6 +98,20 @@ jobs:
           if-no-files-found: error
       - name: Audit
         run: pnpm audit --audit-level high
+      # Last, so it sees the coverage above and the JDT classes `mvn package`
+      # compiled. Skipped where there is no SONAR_TOKEN (a fork's pull request):
+      # `secrets` cannot be read in an `if`, hence the step that asks.
+      - name: Is there a SonarCloud token?
+        id: sonar
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        run: echo "enabled=${SONAR_TOKEN:+true}" >> "$GITHUB_OUTPUT"
+      - name: SonarCloud scan
+        if: steps.sonar.outputs.enabled == 'true'
+        uses: SonarSource/sonarqube-scan-action@22918119ff8e1ca75a623e15c8296b6ea4fbe28f # v8.2.1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
 
   host:
     name: Extension host (java-core)
