@@ -116,7 +116,7 @@ jobs:
       # The two extensions that ship a jar nothing commits: the same steps as
       # CI, and each package script refuses to build without its jar.
       - if: steps.target.outputs.name == 'java-core'
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: "21"
