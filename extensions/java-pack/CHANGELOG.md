@@ -2,6 +2,12 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## java-pack-v0.1.1 - 2026-11-26
+#### Miscellaneous Chores
+- (**deps**) update dev dependencies, majors included - (6cd4bb6) - Max Batleforc, *Claude Opus 5.5*
+
+- - -
+
 ## java-pack-v0.1.0 - 2026-10-11
 #### Features
 - mise en place ovsx - (d463cb4) - Max Batleforc
