@@ -1,7 +1,7 @@
 {
   "name": "che-resources",
   "displayName": "Che Resources",
-  "description": "Warn before the workspace runs out of room: disk space and inodes of the git projects' volume, memory, CPU and processes against the pod's limits, each with its own threshold.",
+  "description": "Keep an eye on the workspace's room: disk space and inodes of the git projects' volume, memory, CPU and processes against the pod's limits, in the status bar and a view of their own, with a warning past each one's threshold.",
   "version": "0.1.0",
   "publisher": "batlehub",
   "license": "Apache-2.0",
@@ -38,6 +38,41 @@
     "virtualWorkspaces": false
   },
   "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "cheResources",
+          "title": "Che Resources",
+          "icon": "media/resources.svg"
+        }
+      ]
+    },
+    "views": {
+      "cheResources": [
+        {
+          "id": "cheResources.status",
+          "name": "Status",
+          "icon": "media/resources.svg"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "cheResources.refresh",
+        "title": "Refresh",
+        "category": "Che Resources",
+        "icon": "$(refresh)"
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "cheResources.refresh",
+          "when": "view == cheResources.status",
+          "group": "navigation"
+        }
+      ]
+    },
     "configuration": {
       "title": "Che Resources",
       "properties": {
@@ -83,9 +118,9 @@
         },
         "cheResources.intervalSeconds": {
           "type": "integer",
-          "default": 60,
-          "minimum": 5,
-          "markdownDescription": "How often the resources are read, in seconds; the CPU is averaged over it.",
+          "default": 10,
+          "minimum": 2,
+          "markdownDescription": "How often the resources are read, in seconds: the status bar and the view refresh at this pace, and the CPU is averaged over it.",
           "scope": "machine"
         }
       }

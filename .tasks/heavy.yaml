@@ -35,6 +35,11 @@ tasks:
     cmds:
       - HEAVY_ONLY=registry bash tests/heavy/view.sh
 
+  view:resources:
+    desc: "Only the resources half: che-resources in the real editor - the status bar item on its warning background, the toast, the view opened from the item with its gauges and badge (no BatleHub, no Postgres)"
+    cmds:
+      - HEAVY_ONLY=resources bash tests/heavy/view.sh
+
   view:seasons:
     desc: "Only the seasons half (RFC 0019): batlehub-seasons paints the chrome for a one-day window covering today, then the palette command puts everything back (no BatleHub, no Postgres)"
     cmds:

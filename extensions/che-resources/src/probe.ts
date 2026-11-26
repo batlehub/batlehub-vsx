@@ -169,6 +169,12 @@ export function crossings(
 export const over = (r: Reading, thresholds: Record<Kind, number>): boolean =>
   thresholds[r.kind] > 0 && r.pct >= thresholds[r.kind];
 
+// A ten-cell gauge for a tree row or a tooltip: 0–100 %, clamped.
+export function bar(pct: number): string {
+  const n = Math.round(Math.min(100, Math.max(0, pct)) / 10);
+  return "▰".repeat(n) + "▱".repeat(10 - n);
+}
+
 export function human(bytes: number): string {
   const units = ["B", "KiB", "MiB", "GiB", "TiB"];
   let i = 0;

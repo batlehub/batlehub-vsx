@@ -3,6 +3,7 @@ import * as os from "node:os";
 import * as path from "node:path";
 import { describe, expect, it } from "vitest";
 import {
+  bar,
   cpuSampler,
   crossings,
   disks,
@@ -111,4 +112,10 @@ describe("crossings", () => {
 it("human", () => {
   expect(human(512)).toBe("512 B");
   expect(human(1536 * 1024 ** 2)).toBe("1.5 GiB");
+});
+
+it("bar", () => {
+  expect(bar(0)).toBe("▱▱▱▱▱▱▱▱▱▱");
+  expect(bar(56)).toBe("▰▰▰▰▰▰▱▱▱▱");
+  expect(bar(140)).toBe("▰▰▰▰▰▰▰▰▰▰");
 });

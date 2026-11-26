@@ -1,18 +1,24 @@
 # Che Resources
 
-A warning before the workspace runs out of room.
+The workspace's room at a glance, and a warning before it runs out.
 
 An [Eclipse Che](https://eclipse.dev/che/) workspace runs inside a pod's
 limits. `node_modules`, `target` or a build cache fill the projects' volume
 without a sound, a build eats the memory limit, a test suite forks until
 `pids.max` — and the first sign is `ENOSPC`, an OOM kill or
 `fork: Resource temporarily unavailable`. This extension reads those
-resources every minute and, when one goes over its threshold:
+resources every ten seconds and shows them:
 
-- shows a warning notification, once per crossing — it warns again only after
-  the resource has come back under its threshold and crossed it anew;
-- keeps a status bar item with every resource over its threshold, for as long
-  as it stays there.
+- **in the status bar** — memory, CPU and the fullest disk, e.g.
+  `disk 57 % · mem 44 % · cpu 13 %`, plus any other resource while it is over
+  its threshold. The item turns to the warning colour when one is; a click
+  opens the view. Right-click the status bar to hide it, like any other item;
+- **in its own view**, in the activity bar: one row per resource with its
+  percentage, a gauge and the numbers (`7.0 GiB of 16.0 GiB`), a warning icon
+  on each row over its threshold, a badge on the activity bar counting them,
+  and a refresh button;
+- **as a warning notification**, once per crossing — it warns again only
+  after the resource has come back under its threshold and crossed it anew.
 
 ## What is read
 
@@ -47,4 +53,4 @@ Each threshold is a percentage of the limit; `0` turns that warning off.
 | `cheResources.memory.threshold` | `90` |
 | `cheResources.cpu.threshold` | `0` |
 | `cheResources.pids.threshold` | `90` |
-| `cheResources.intervalSeconds` | `60` — how often everything is read; the CPU is averaged over it |
+| `cheResources.intervalSeconds` | `10` — how often everything is read and shown; the CPU is averaged over it |

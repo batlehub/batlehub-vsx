@@ -4,12 +4,12 @@ Extensions for an editor running in an [Eclipse Che](https://eclipse.dev/che/)
 workspace, where the usual desktop plumbing — a clipboard, OS notifications,
 an SSH client next to the cluster — is missing.
 
-| Extension                                 | What it does                                                                                 |
-| ----------------------------------------- | -------------------------------------------------------------------------------------------- |
-| [`batlehub.che-clipboard`](./clipboard)   | `pbcopy`, `pbpaste` and `xclip` in the integrated terminal, backed by the editor's clipboard |
-| [`batlehub.che-notify`](./notify)         | lines appended to `~/.ide-notify` become editor notifications, optionally OS ones            |
-| [`batlehub.che-resources`](./resources) | a warning before the workspace runs out of disk, inodes, memory, CPU or processes |
-| [`batlehub.che-remote-ssh`](./remote-ssh) | connect a desktop editor over SSH to a Che workspace on plain Kubernetes                     |
+| Extension                                 | What it does                                                                                          |
+| ----------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| [`batlehub.che-clipboard`](./clipboard)   | `pbcopy`, `pbpaste` and `xclip` in the integrated terminal, backed by the editor's clipboard          |
+| [`batlehub.che-notify`](./notify)         | lines appended to `~/.ide-notify` become editor notifications, optionally OS ones                     |
+| [`batlehub.che-resources`](./resources)   | disk, inodes, memory, CPU and processes in the status bar and a view, with a warning past a threshold |
+| [`batlehub.che-remote-ssh`](./remote-ssh) | connect a desktop editor over SSH to a Che workspace on plain Kubernetes                              |
 
 ## The Che pack
 

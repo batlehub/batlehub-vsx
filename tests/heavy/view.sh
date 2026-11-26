@@ -67,7 +67,7 @@
 # when one exists) or BATLEHUB_BIN + BATLEHUB_CLI (release binaries,
 # `task hub:install`); HEAVY_PORT, HEAVY_EDITOR_PORT, VSCODE_VERSION
 # (1.136.1), WEEBO_VERSION (0.5.0), CDP_URL (http://127.0.0.1:9222),
-# HEAVY_ONLY=marketplace|broker|java|registry|seasons|quarkus|spring|sonar|kotlin, REDHAT_JAVA_VERSION (1.56.0,
+# HEAVY_ONLY=marketplace|broker|java|registry|seasons|quarkus|spring|sonar|kotlin|resources, REDHAT_JAVA_VERSION (1.56.0,
 # decision 8).
 set -euo pipefail
 
@@ -156,7 +156,7 @@ cleanup() {
 trap cleanup EXIT
 
 REDHAT_JAVA_VERSION="${REDHAT_JAVA_VERSION:-1.56.0}"
-NEED_HUB=1; [[ "$ONLY" == "java" || "$ONLY" == "seasons" || "$ONLY" == "quarkus" || "$ONLY" == "spring" || "$ONLY" == "sonar" || "$ONLY" == "kotlin" ]] && NEED_HUB=0
+NEED_HUB=1; [[ "$ONLY" == "java" || "$ONLY" == "seasons" || "$ONLY" == "quarkus" || "$ONLY" == "spring" || "$ONLY" == "sonar" || "$ONLY" == "kotlin" || "$ONLY" == "resources" ]] && NEED_HUB=0
 [[ "$NEED_HUB" == 0 || -n "${DATABASE_URL:-}" ]] || fail "DATABASE_URL is required (the Postgres sidecar: postgresql://batlehub:changeme@127.0.0.1:5432/batlehub)"
 command -v node >/dev/null || fail "node is required"
 command -v python3 >/dev/null || fail "python3 is required"
@@ -1248,6 +1248,49 @@ if [[ "$ONLY" == "all" || "$ONLY" == "kotlin" ]]; then
     "case 7: the Java panel has no running Kotlin tab, or the server's cap is not in the container's sum: $(field "$K_" tab | cut -c1-900)"
   log "KOTLIN-TAB-OK (the Java panel's Kotlin tab: running, the server's version and home, the project's JDK; kotlin-ls declared in the container's sum — RFC 0008 case 7)"
   log "KOTLIN-OK"
+fi
+
+# ---- 11. The resources half (che-resources) ------------------------------
+if [[ "$ONLY" == "all" || "$ONLY" == "resources" ]]; then
+  log "Resources half: che-resources in the real editor - the status bar item, the warning, the view"
+  (cd "$REPO/extensions/che-resources" && pnpm run package >>"$HEAVY_WORK/package.log" 2>&1) \
+    || { tail -20 "$HEAVY_WORK/package.log" >&2; fail "packaging che-resources failed"; }
+  RES_VSIX="$REPO/extensions/che-resources/che-resources.vsix"
+  [[ -s "$RES_VSIX" ]] || fail "no $RES_VSIX"
+  log "PACKAGE-OK (che-resources $(stat -c %s "$RES_VSIX") bytes)"
+  INSTALL_VSIX=("$RES_VSIX")
+  # A git project, so the disk of the workspace is one the extension watches.
+  RWS="$HEAVY_WORK/resources-ws"
+  mkdir -p "$RWS/.git"
+  printf 'ref: refs/heads/main\n' >"$RWS/.git/HEAD"
+  EDITOR_FOLDER="$RWS"
+  # The settings are machine-scoped, so the Machine file reaches them. A 1 %
+  # memory threshold puts memory over whatever the runner has; 2 s, so the CPU
+  # gets its second sample quickly.
+  start_editor "$HEAVY_WORK/editor-resources" '{ "workbench.startupEditor": "none", "security.workspace.trust.enabled": false, "extensions.ignoreRecommendations": true, "cheResources.memory.threshold": 1, "cheResources.intervalSeconds": 2 }'
+  log "Editor (VS Code $VSCODE_VERSION, web) at http://127.0.0.1:$EDITOR_PORT, folder $RWS"
+  DUMP_ON_FAIL="$HEAVY_WORK/editor-resources"; DUMP_JSONL="$HEAVY_WORK/resources.jsonl"
+  node tests/heavy/resources.mjs --url "http://127.0.0.1:$EDITOR_PORT/?folder=$RWS" --shots "$HEAVY_WORK/shots" --cdp "$CDP_URL" \
+    >"$HEAVY_WORK/resources.jsonl" 2>"$HEAVY_WORK/resources.jsonl.err" \
+    || { cat "$HEAVY_WORK/resources.jsonl.err" >&2; cat "$HEAVY_WORK/resources.jsonl" >&2; fail "the resources driver failed"; }
+  stop_editor
+  cat "$HEAVY_WORK/resources.jsonl" >>"$LOG"
+  R_="$HEAVY_WORK/resources.jsonl"
+  assert_json "$R_" status "not d['timedOut'] and all(k in d['item']['text'] for k in ('mem', 'cpu', 'disk'))" \
+    "the status bar item never showed memory, CPU and the disk: $(field "$R_" status | cut -c1-600)"
+  assert_json "$R_" status "d['item']['warning'] and d['item']['background'] != 'rgba(0, 0, 0, 0)'" \
+    "memory is over its threshold but the status bar item kept the plain background"
+  assert_json "$R_" status "any(t.startswith('Che Resources: Memory at') for t in d['toasts'])" \
+    "memory crossed its threshold but no warning was shown: $(field "$R_" status | cut -c1-600)"
+  log "RESOURCES-STATUS-OK ($(field "$R_" status | python3 -c 'import json,sys;print(json.load(sys.stdin)["item"]["text"])'), on the warning background, and the toast)"
+  assert_json "$R_" view "not d['timedOut'] and {'Memory', 'CPU'} <= {r['label'] for r in d['rows']} and any(r['label'].startswith('Disk · ') for r in d['rows'])" \
+    "clicking the item did not open the view with Memory, CPU and the disk: $(field "$R_" view | cut -c1-900)"
+  assert_json "$R_" view "all('%' in r['description'] and ('▰' in r['description'] or '▱' in r['description']) for r in d['rows'])" \
+    "a row of the view has no gauge or no percentage: $(field "$R_" view | cut -c1-900)"
+  assert_json "$R_" view "[r['warning'] for r in d['rows'] if r['label'] == 'Memory'] == [True] and d['badge'] not in ('', '0')" \
+    "the Memory row is not marked over its threshold, or the activity bar has no badge: $(field "$R_" view | cut -c1-900)"
+  log "RESOURCES-VIEW-OK ($(field "$R_" view | python3 -c 'import json,sys;print(", ".join(r["label"] for r in json.load(sys.stdin)["rows"]))'); Memory marked, badge $(field "$R_" view | python3 -c 'import json,sys;print(json.load(sys.stdin)["badge"])'))"
+  log "RESOURCES-OK"
 fi
 
 log "ALL-OK — screenshots in $HEAVY_WORK/shots, logs in $HEAVY_WORK"
