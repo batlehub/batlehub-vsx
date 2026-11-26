@@ -23,6 +23,12 @@ overrides:
   "brace-expansion@5": "^5.0.12"
   # vite's postcss and vue's compiler resolve source-map-js 1.2.1; 1.2.2 fixes it.
   source-map-js: ">=1.2.2"
+  # Outside their parent's range, each proven by the step that runs it.
+  # vsce 4 declares minimatch ^10; 10.x carries GHSA-g3hv-75wg-m249 (fixed in 11.0.1), the API
+  # vsce uses is unchanged — `task ext:package` packages every extension on it.
+  "minimatch@10": "^11.0.1"
+  # mermaid 11 declares katex ^0.16; GHSA-238p-pmpm-9mq7 is fixed in 0.18.2 — `task docs:build` renders on it.
+  "katex@<0.18.2": "^0.18.2"
 
 # Audit exceptions, each with its reason and the condition that removes it.
 auditConfig:
@@ -33,3 +39,12 @@ auditConfig:
     # patterns this repository writes; nothing of it ships in a VSIX.
     # Remove when braces publishes a fix.
     - GHSA-vfj7-8cjw-p6xm
+    # diff < 8.0.3 (DoS in parsePatch), glob <= 14.0.1 (AbortSignal bypass) and
+    # minimatch 9 (globparts DoS; the vsce path is overridden above):
+    # reached only through @vscode/test-cli (mocha 11, c8), the layer-2 host
+    # suite, on patterns and patches this repository writes; nothing of it
+    # ships in a VSIX. Forcing them past mocha's ^7 and test-exclude's ^13 is
+    # unproven without a display. Remove when @vscode/test-cli moves to mocha 12.
+    - GHSA-73rr-hh4g-fpgx
+    - GHSA-3g3m-2fjr-6pw4
+    - GHSA-g3hv-75wg-m249

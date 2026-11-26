@@ -16,12 +16,12 @@
     "bundle": "node bundle.mjs"
   },
   "devDependencies": {
-    "@types/node": "^24.0.0",
-    "oxlint": "^1.0.0",
-    "prettier": "^3.6.0",
-    "typescript": "^5.9.0",
-    "vitest": "^5.0.3",
-    "esbuild": "^0.25.0"
+    "@types/node": "^24.19.4",
+    "esbuild": "^0.25.0",
+    "oxlint": "^1.95.0",
+    "prettier": "^3.10.1",
+    "typescript": "^7.0.2",
+    "vitest": "^5.1.2"
   },
   "dependencies": {
     "@batlehub/java-rules": "workspace:*"

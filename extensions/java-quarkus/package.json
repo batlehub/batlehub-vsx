@@ -140,14 +140,14 @@
     "package": "node esbuild.mjs && vsce package --no-dependencies --skip-license -o java-quarkus.vsix"
   },
   "devDependencies": {
-    "@types/node": "^24.0.0",
+    "@types/node": "^24.19.4",
     "@types/vscode": "^1.96.0",
-    "@vscode/vsce": "^3.6.0",
+    "@vscode/vsce": "^4.1.1",
     "esbuild": "^0.25.0",
-    "ovsx": "^1.1.1",
-    "oxlint": "^1.0.0",
-    "prettier": "^3.6.0",
-    "typescript": "^5.9.0",
-    "vitest": "^5.0.3"
+    "ovsx": "^1.4.0",
+    "oxlint": "^1.95.0",
+    "prettier": "^3.10.1",
+    "typescript": "^7.0.2",
+    "vitest": "^5.1.2"
   }
 }

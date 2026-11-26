@@ -20,9 +20,10 @@ import {
   tabHtml,
 } from "./server";
 
-const channel = vscode.window.createOutputChannel("BatleHub Java: Groovy");
-const log = (m: string) =>
-  channel.appendLine(`[${new Date().toISOString()}] ${m}`);
+const channel = vscode.window.createOutputChannel("BatleHub Java: Groovy", {
+  log: true,
+});
+const log = (m: string) => channel.info(m);
 
 let client: LanguageClient | undefined;
 let state: State = "stopped";

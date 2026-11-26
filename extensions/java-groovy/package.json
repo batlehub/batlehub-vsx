@@ -84,15 +84,15 @@
     "package": "node esbuild.mjs && test -s server/groovy-language-server-all.jar || { echo 'java-groovy: no server jar — run task groovy:fetch first' >&2; exit 1; } && vsce package --no-dependencies --skip-license -o java-groovy.vsix"
   },
   "devDependencies": {
-    "@types/node": "^24.0.0",
+    "@types/node": "^24.19.4",
     "@types/vscode": "^1.96.0",
-    "@vscode/vsce": "^3.6.0",
+    "@vscode/vsce": "^4.1.1",
     "esbuild": "^0.25.0",
-    "ovsx": "^1.1.1",
-    "oxlint": "^1.0.0",
-    "prettier": "^3.6.0",
-    "typescript": "^5.9.0",
-    "vitest": "^5.0.3",
-    "vscode-languageclient": "^9.0.1"
+    "ovsx": "^1.4.0",
+    "oxlint": "^1.95.0",
+    "prettier": "^3.10.1",
+    "typescript": "^7.0.2",
+    "vitest": "^5.1.2",
+    "vscode-languageclient": "^11.0.1"
   }
 }
