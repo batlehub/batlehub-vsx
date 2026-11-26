@@ -2,6 +2,14 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## che-notify-v0.2.0 - 2026-11-26
+#### Features
+- edit che-notify - (e1ea8dd) - Max Batleforc
+#### Miscellaneous Chores
+- (**deps**) update dev dependencies, majors included - (6cd4bb6) - Max Batleforc, *Claude Opus 5.5*
+
+- - -
+
 ## che-notify-v0.1.0 - 2026-10-11
 #### Features
 - mise en place ovsx - (d463cb4) - Max Batleforc

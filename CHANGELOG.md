@@ -2,6 +2,24 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## [v0.3.0](https://github.com/batleforc/batlehub-vsx/compare/d7c7ea4d690f6345bbc0c0978d5354860ce2d002..v0.3.0) - 2026-11-26
+### Package updates
+- [java-quarkus-v0.3.0](extensions/java-quarkus) bumped to [java-quarkus-v0.3.0](https://github.com/batleforc/batlehub-vsx/compare/java-quarkus-v0.2.0..java-quarkus-v0.3.0)
+- [java-groovy-v0.2.0](extensions/java-groovy) bumped to [java-groovy-v0.2.0](https://github.com/batleforc/batlehub-vsx/compare/java-groovy-v0.1.0..java-groovy-v0.2.0)
+- [che-notify-v0.2.0](extensions/che-notify) bumped to [che-notify-v0.2.0](https://github.com/batleforc/batlehub-vsx/compare/che-notify-v0.1.0..che-notify-v0.2.0)
+- [java-kotlin-v0.2.0](extensions/java-kotlin) bumped to [java-kotlin-v0.2.0](https://github.com/batleforc/batlehub-vsx/compare/java-kotlin-v0.1.0..java-kotlin-v0.2.0)
+- [che-resources](extensions/che-resources) bumped to [che-resources-v0.1.0](https://github.com/batleforc/batlehub-vsx/compare/e5d287c012a4d1976695fba7f31150a347917a04..che-resources-v0.1.0)
+- [che-pack-v0.2.0](extensions/che-pack) bumped to [che-pack-v0.2.0](https://github.com/batleforc/batlehub-vsx/compare/che-pack-v0.1.0..che-pack-v0.2.0)
+### Global changes
+#### Features
+- (**che-resources**) warn before the workspace runs out of resources - ([5bee9c9](https://github.com/batleforc/batlehub-vsx/commit/5bee9c9e1f8887a18232ab70e7ca3b9fcb636a1f)) - Max Batleforc, Claude Opus 5.5
+- edit che-notify - ([e1ea8dd](https://github.com/batleforc/batlehub-vsx/commit/e1ea8dda004bbca6d7291d53610dc47729fae0a9)) - Max Batleforc
+- prepare change icon - ([d7c7ea4](https://github.com/batleforc/batlehub-vsx/commit/d7c7ea4d690f6345bbc0c0978d5354860ce2d002)) - Max Batleforc
+#### Miscellaneous Chores
+- (**deps**) update dev dependencies, majors included - ([6cd4bb6](https://github.com/batleforc/batlehub-vsx/commit/6cd4bb60adb3fa2f5438b38514bb1a5ed49787ac)) - Max Batleforc, Claude Opus 5.5
+
+- - -
+
 ## [v0.2.1](https://github.com/batleforc/batlehub-vsx/compare/ba1a5cbd73afdd65f29fc5fb1f74d501a17b89ea..v0.2.1) - 2026-10-11
 ### Package updates
 - [java-core-v0.1.1](extensions/java-core) bumped to [java-core-v0.1.1](https://github.com/batleforc/batlehub-vsx/compare/java-core-v0.1.0..java-core-v0.1.1)

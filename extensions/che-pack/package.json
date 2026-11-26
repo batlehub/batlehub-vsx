@@ -2,7 +2,7 @@
   "name": "che-pack",
   "displayName": "BatleHub Che Pack",
   "description": "BatleHub's Eclipse Che essentials in one install: the editor's clipboard in the terminal, workspace notifications, low resource warnings, and the BatleHub theme.",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "publisher": "batlehub",
   "license": "Apache-2.0",
   "repository": {

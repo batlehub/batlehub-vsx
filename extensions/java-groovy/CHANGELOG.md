@@ -1,6 +1,14 @@
 # Changelog
 
 - - -
+## java-groovy-v0.2.0 - 2026-11-26
+#### Features
+- prepare change icon - (d7c7ea4) - Max Batleforc
+#### Miscellaneous Chores
+- (**deps**) update dev dependencies, majors included - (6cd4bb6) - Max Batleforc, *Claude Opus 5.5*
+
+- - -
+
 ## java-groovy-v0.1.0 - 2026-10-11
 #### Features
 - mise en place ovsx - (d463cb4) - Max Batleforc

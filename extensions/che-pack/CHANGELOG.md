@@ -2,6 +2,12 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## che-pack-v0.2.0 - 2026-11-26
+#### Features
+- (**che-resources**) warn before the workspace runs out of resources - (5bee9c9) - Max Batleforc, *Claude Opus 5.5*
+
+- - -
+
 ## che-pack-v0.1.0 - 2026-10-11
 #### Features
 - mise en place ovsx - (d463cb4) - Max Batleforc

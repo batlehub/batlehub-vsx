@@ -2,7 +2,7 @@
   "name": "java-groovy",
   "displayName": "BatleHub Java: Groovy",
   "description": "Groovy, Gradle DSL and Jenkinsfile in VS Code through the Prominic Groovy language server, on the JDK and classpath BatleHub Java resolved (RFC 0001 phase 8).",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "publisher": "batlehub",
   "license": "Apache-2.0",
   "repository": {

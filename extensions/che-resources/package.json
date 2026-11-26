@@ -2,7 +2,7 @@
   "name": "che-resources",
   "displayName": "Che Resources",
   "description": "Warn before the workspace runs out of room: disk space and inodes of the git projects' volume, memory, CPU and processes against the pod's limits, each with its own threshold.",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "publisher": "batlehub",
   "license": "Apache-2.0",
   "icon": "media/icon.png",

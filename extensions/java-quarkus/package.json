@@ -2,7 +2,7 @@
   "name": "java-quarkus",
   "displayName": "BatleHub Java: Quarkus",
   "description": "Quarkus dev mode as a managed process — the core's JDK, Maven and profiles, a readiness probe, a real stop — a Quarkus tab, and the MicroProfile language server on the JDK BatleHub Java resolved (RFC 0011).",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "publisher": "batlehub",
   "license": "Apache-2.0",
   "repository": {
