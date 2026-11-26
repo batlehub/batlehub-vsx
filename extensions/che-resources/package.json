@@ -2,7 +2,7 @@
   "name": "che-resources",
   "displayName": "Che Resources",
   "description": "Keep an eye on the workspace's room: disk space and inodes of the git projects' volume, memory, CPU and processes against the pod's limits, in the status bar and a view of their own, with a warning past each one's threshold.",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "publisher": "batlehub",
   "license": "Apache-2.0",
   "icon": "media/icon.png",

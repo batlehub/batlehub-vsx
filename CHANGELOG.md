@@ -2,6 +2,15 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## [v0.4.0](https://github.com/batleforc/batlehub-vsx/compare/5c25707f02b1dba4fcc6e9f02c49c71fa3304488..v0.4.0) - 2026-11-26
+### Package updates
+- [che-resources-v0.2.0](extensions/che-resources) bumped to [che-resources-v0.2.0](https://github.com/batleforc/batlehub-vsx/compare/che-resources-v0.1.0..che-resources-v0.2.0)
+### Global changes
+#### Features
+- (**che-resources**) a status bar indicator and a view of the resources - ([5c25707](https://github.com/batleforc/batlehub-vsx/commit/5c25707f02b1dba4fcc6e9f02c49c71fa3304488)) - Max Batleforc, Claude Opus 5.5
+
+- - -
+
 ## [v0.3.0](https://github.com/batleforc/batlehub-vsx/compare/d7c7ea4d690f6345bbc0c0978d5354860ce2d002..v0.3.0) - 2026-11-26
 ### Package updates
 - [java-quarkus-v0.3.0](extensions/java-quarkus) bumped to [java-quarkus-v0.3.0](https://github.com/batleforc/batlehub-vsx/compare/java-quarkus-v0.2.0..java-quarkus-v0.3.0)

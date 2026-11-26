@@ -2,6 +2,12 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## che-resources-v0.2.0 - 2026-11-26
+#### Features
+- (**che-resources**) a status bar indicator and a view of the resources - (5c25707) - Max Batleforc, *Claude Opus 5.5*
+
+- - -
+
 ## che-resources-v0.1.0 - 2026-11-26
 #### Features
 - (**che-resources**) warn before the workspace runs out of resources - (5bee9c9) - Max Batleforc, *Claude Opus 5.5*
