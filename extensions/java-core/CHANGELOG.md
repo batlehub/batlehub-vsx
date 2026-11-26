@@ -1,6 +1,12 @@
 # Changelog
 
 - - -
+## java-core-v0.1.2 - 2026-11-26
+#### Miscellaneous Chores
+- (**deps**) update dev dependencies, majors included - (6cd4bb6) - Max Batleforc, *Claude Opus 5.5*
+
+- - -
+
 ## java-core-v0.1.1 - 2026-10-11
 #### Bug Fixes
 - (**ci**) build the JDT bundle and the Groovy jar in the release - (ba1a5cb) - Max Batleforc, *Claude Opus 5.5*
