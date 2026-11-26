@@ -2,7 +2,7 @@
   "name": "java-spring",
   "displayName": "BatleHub Java: Spring Boot",
   "description": "Spring Boot in the Java panel: detection, Spring profiles beside the Maven ones, a run template, and Spring Tools' language server on the JDK BatleHub Java resolved (RFC 0010).",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "publisher": "batlehub",
   "license": "Apache-2.0",
   "repository": {

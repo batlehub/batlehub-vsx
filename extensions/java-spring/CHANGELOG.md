@@ -1,6 +1,12 @@
 # Changelog
 
 - - -
+## java-spring-v0.3.1 - 2026-11-26
+#### Miscellaneous Chores
+- (**deps**) update dev dependencies, majors included - (6cd4bb6) - Max Batleforc, *Claude Opus 5.5*
+
+- - -
+
 ## java-spring-v0.3.0 - 2026-10-11
 #### Features
 - mise en place ovsx - (d463cb4) - Max Batleforc
