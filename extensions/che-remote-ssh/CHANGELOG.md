@@ -2,6 +2,12 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## che-remote-ssh-v0.1.2 - 2026-11-26
+#### Miscellaneous Chores
+- (**deps**) update dev dependencies, majors included - (6cd4bb6) - Max Batleforc, *Claude Opus 5.5*
+
+- - -
+
 ## che-remote-ssh-v0.1.1 - 2026-10-11
 #### Features
 - v1 published doc - (ce0b30b) - Max Batleforc
