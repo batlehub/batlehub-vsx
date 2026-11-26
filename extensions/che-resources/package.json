@@ -1,0 +1,114 @@
+{
+  "name": "che-resources",
+  "displayName": "Che Resources",
+  "description": "Warn before the workspace runs out of room: disk space and inodes of the git projects' volume, memory, CPU and processes against the pod's limits, each with its own threshold.",
+  "version": "0.0.1",
+  "publisher": "batlehub",
+  "license": "Apache-2.0",
+  "icon": "media/icon.png",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/batleforc/batlehub-vsx"
+  },
+  "homepage": "https://github.com/batleforc/batlehub-vsx/tree/main/extensions/che-resources",
+  "engines": {
+    "vscode": "^1.96.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "keywords": [
+    "eclipse-che",
+    "disk",
+    "memory",
+    "cpu",
+    "resources"
+  ],
+  "extensionKind": [
+    "workspace"
+  ],
+  "main": "./dist/extension.js",
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": true
+    },
+    "virtualWorkspaces": false
+  },
+  "contributes": {
+    "configuration": {
+      "title": "Che Resources",
+      "properties": {
+        "cheResources.disk.threshold": {
+          "type": "number",
+          "default": 95,
+          "minimum": 0,
+          "maximum": 100,
+          "markdownDescription": "Warn when a disk holding a git project is used at or above this percentage of its size (`95` = under 5 % free). `0` turns this warning off.",
+          "scope": "machine"
+        },
+        "cheResources.inodes.threshold": {
+          "type": "number",
+          "default": 95,
+          "minimum": 0,
+          "maximum": 100,
+          "markdownDescription": "Warn when a disk holding a git project has used this percentage of its inodes — `node_modules` can run out of them before it runs out of space. `0` turns this warning off.",
+          "scope": "machine"
+        },
+        "cheResources.memory.threshold": {
+          "type": "number",
+          "default": 90,
+          "minimum": 0,
+          "maximum": 100,
+          "markdownDescription": "Warn when the container's working set reaches this percentage of its memory limit (`memory.max`), or of the host's memory without one. `0` turns this warning off.",
+          "scope": "machine"
+        },
+        "cheResources.cpu.threshold": {
+          "type": "number",
+          "default": 0,
+          "minimum": 0,
+          "maximum": 100,
+          "markdownDescription": "Warn when the container's CPU, averaged over one check interval, reaches this percentage of its CPU limit (`cpu.max`), or of every CPU without one. Off by default: a build is meant to use the CPU. `0` turns this warning off.",
+          "scope": "machine"
+        },
+        "cheResources.pids.threshold": {
+          "type": "number",
+          "default": 90,
+          "minimum": 0,
+          "maximum": 100,
+          "markdownDescription": "Warn when the container's processes reach this percentage of its process limit (`pids.max`). Nothing is read without a limit. `0` turns this warning off.",
+          "scope": "machine"
+        },
+        "cheResources.intervalSeconds": {
+          "type": "integer",
+          "default": 60,
+          "minimum": 5,
+          "markdownDescription": "How often the resources are read, in seconds; the CPU is averaged over it.",
+          "scope": "machine"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "build": "node esbuild.mjs",
+    "watch": "node esbuild.mjs --watch",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "lint": "oxlint src test && prettier --check \"src/**/*.ts\" \"test/**/*.ts\" esbuild.mjs",
+    "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\" esbuild.mjs",
+    "test": "vitest run",
+    "package": "node esbuild.mjs && vsce package --no-dependencies --skip-license -o che-resources.vsix"
+  },
+  "devDependencies": {
+    "@types/node": "^24.19.4",
+    "@types/vscode": "^1.96.0",
+    "@vscode/vsce": "^4.1.1",
+    "esbuild": "^0.25.0",
+    "ovsx": "^1.4.0",
+    "oxlint": "^1.95.0",
+    "prettier": "^3.10.1",
+    "typescript": "^7.0.2",
+    "vitest": "^5.1.2"
+  }
+}

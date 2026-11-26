@@ -8,6 +8,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 const PAGES = {
   "che-clipboard": ["docs/guide/che/clipboard.md", "in the [Che pack](./)."],
   "che-notify": ["docs/guide/che/notify.md", "in the [Che pack](./)."],
+  "che-resources": ["docs/guide/che/resources.md", "in the [Che pack](./)."],
   "che-remote-ssh": [
     "docs/guide/che/remote-ssh.md",
     "installed in the editor on your machine, not in the [Che pack](./).",

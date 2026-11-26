@@ -76,6 +76,7 @@ export default withMermaid(
             { text: "Overview, the Che pack", link: "/guide/che/" },
             { text: "Clipboard", link: "/guide/che/clipboard" },
             { text: "Notifications", link: "/guide/che/notify" },
+            { text: "Resources", link: "/guide/che/resources" },
             { text: "Remote SSH", link: "/guide/che/remote-ssh" },
           ],
         },

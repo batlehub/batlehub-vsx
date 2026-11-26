@@ -52,6 +52,11 @@ path = "extensions/che-notify"
 public_api = true
 pre_bump_hooks = ["pnpm pkg set version={{version}}"]
 
+[monorepo.packages.che-resources]
+path = "extensions/che-resources"
+public_api = true
+pre_bump_hooks = ["pnpm pkg set version={{version}}"]
+
 [monorepo.packages.che-pack]
 path = "extensions/che-pack"
 public_api = true

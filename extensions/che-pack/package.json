@@ -1,7 +1,7 @@
 {
   "name": "che-pack",
   "displayName": "BatleHub Che Pack",
-  "description": "BatleHub's Eclipse Che essentials in one install: the editor's clipboard in the terminal, workspace notifications, and the BatleHub theme.",
+  "description": "BatleHub's Eclipse Che essentials in one install: the editor's clipboard in the terminal, workspace notifications, low resource warnings, and the BatleHub theme.",
   "version": "0.1.0",
   "publisher": "batlehub",
   "license": "Apache-2.0",
@@ -28,6 +28,7 @@
   "extensionPack": [
     "batlehub.che-clipboard",
     "batlehub.che-notify",
+    "batlehub.che-resources",
     "batlehub.batlehub-theme"
   ],
   "scripts": {
@@ -39,8 +40,8 @@
     "package": "vsce package --no-dependencies --skip-license -o che-pack.vsix"
   },
   "devDependencies": {
-    "@vscode/vsce": "^3.6.0",
-    "ovsx": "^1.1.1",
-    "prettier": "^3.6.0"
+    "@vscode/vsce": "^4.1.1",
+    "ovsx": "^1.4.0",
+    "prettier": "^3.10.1"
   }
 }

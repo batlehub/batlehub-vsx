@@ -8,12 +8,13 @@ an SSH client next to the cluster — is missing.
 | ----------------------------------------- | -------------------------------------------------------------------------------------------- |
 | [`batlehub.che-clipboard`](./clipboard)   | `pbcopy`, `pbpaste` and `xclip` in the integrated terminal, backed by the editor's clipboard |
 | [`batlehub.che-notify`](./notify)         | lines appended to `~/.ide-notify` become editor notifications, optionally OS ones            |
+| [`batlehub.che-resources`](./resources) | a warning before the workspace runs out of disk, inodes, memory, CPU or processes |
 | [`batlehub.che-remote-ssh`](./remote-ssh) | connect a desktop editor over SSH to a Che workspace on plain Kubernetes                     |
 
 ## The Che pack
 
 `batlehub.che-pack` installs the in-workspace essentials in one go:
-`che-clipboard`, `che-notify` and [the BatleHub theme](../theme).
+`che-clipboard`, `che-notify`, `che-resources` and [the BatleHub theme](../theme).
 
 `che-remote-ssh` is not in it: it runs in the editor on your machine, not in
 the workspace, so it is installed where that editor is.

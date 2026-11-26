@@ -36,6 +36,20 @@ const GLYPHS = {
 ############
 ............
 ....####....`,
+  // Che Resources: a bar chart, its last bar at the top.
+  gauge: `
+..........##
+..........##
+.......##.##
+.......##.##
+....##.##.##
+....##.##.##
+.##.##.##.##
+.##.##.##.##
+.##.##.##.##
+.##.##.##.##
+............
+############`,
   terminal: `
 ............
 ##..........
@@ -190,6 +204,7 @@ const ICONS = {
   "batlehub-seasons": "pumpkin",
   "che-clipboard": "clipboard",
   "che-notify": "bell",
+  "che-resources": "gauge",
   "che-remote-ssh": "terminal",
   "che-pack": "hexagon",
   "java-core": "cup",
